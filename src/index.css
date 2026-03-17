@@ -1,0 +1,157 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@layer base {
+  body {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  #dossier-root {
+    font-size: 12pt;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+  }
+  
+  #dossier-root .editable {
+    cursor: text;
+    outline: none;
+  }
+  
+  #dossier-root .editable:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+  }
+
+  #dossier-root .editable:focus {
+    background-color: rgba(0, 0, 0, 0.04);
+  }
+  
+  #dossier-root h1 {
+    font-size: 36pt;
+    line-height: 1;
+  }
+  
+  #dossier-root h2 {
+    font-size: 20pt;
+  }
+  
+  #dossier-root h3 {
+    font-size: 14pt;
+    margin-bottom: 0 !important;
+  }
+
+  .image-marker {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    background-color: #2563eb;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: move;
+    z-index: 50;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    user-select: none;
+    pointer-events: auto;
+  }
+  
+  .image-marker:hover {
+    transform: scale(1.1);
+    background-color: #1d4ed8;
+  }
+
+  .marker-container {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+  }
+
+  .marker-container img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  .marker-mode-active img,
+  .marker-mode-active .marker-container,
+  .marker-mode-active .marker-container img,
+  .marker-mode-active .draggable-image-wrapper,
+  .marker-mode-active .draggable-image-wrapper img {
+    cursor: crosshair !important;
+  }
+
+  .delete-marker {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 16px;
+    height: 16px;
+    background: #ef4444;
+    color: white;
+    border-radius: 50%;
+    font-size: 10px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 60;
+  }
+
+  .image-marker:hover .delete-marker {
+    display: flex;
+  }
+
+  /* --- SCHREIBLINIEN ENGINE --- */
+  .schreib-linie {
+    --line-height: 2.5rem; /* ca. 40px Abstand */
+    line-height: var(--line-height) !important;
+    background-image: linear-gradient(#cbd5e1 1px, transparent 1px);
+    background-size: 100% var(--line-height);
+    background-attachment: local;
+    padding-top: 0.1rem; /* Offset, damit Buchstaben perfekt AUF der Linie sitzen */
+    min-height: var(--line-height); /* Standardmäßig 1 Linie (flexibler) */
+    resize: both;
+    overflow: hidden;
+    position: relative;
+    transition: background-color 0.2s;
+  }
+
+  .schreib-linie:hover {
+    background-color: rgba(59, 130, 246, 0.02);
+    cursor: nwse-resize;
+  }
+
+  /* Verhindert, dass Linien beim Drucken verschwinden */
+  @media print {
+    .schreib-linie {
+      background-image: linear-gradient(#94a3b8 1px, transparent 1px) !important;
+      print-color-adjust: exact !important;
+      -webkit-print-color-adjust: exact !important;
+      resize: none !important;
+    }
+  }
+
+  /* --- COVER ELEMENT DRAG --- */
+  .cover-page-container > .relative > [style*="position: absolute"] {
+    cursor: grab;
+  }
+
+  .cover-page-container > .relative > [style*="position: absolute"]:active {
+    cursor: grabbing;
+  }
+
+  /* --- RECHENMAUER --- */
+  .rechenmauer-table tr {
+    display: flex;
+    justify-content: center;
+    gap: 0.25rem; /* Entspricht gap-1 */
+    margin-bottom: 0.25rem;
+  }
+  .rechenmauer-table td {
+    flex-shrink: 0;
+  }
+}
