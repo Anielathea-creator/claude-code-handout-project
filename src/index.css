@@ -109,10 +109,10 @@
   .schreib-linie {
     --line-height: 2.5rem; /* ca. 40px Abstand */
     line-height: var(--line-height) !important;
-    background-image: linear-gradient(#cbd5e1 1px, transparent 1px);
+    background-image: linear-gradient(transparent calc(var(--line-height) - 1px), #cbd5e1 calc(var(--line-height) - 1px));
     background-size: 100% var(--line-height);
     background-attachment: local;
-    padding-top: 0.1rem; /* Offset, damit Buchstaben perfekt AUF der Linie sitzen */
+    padding-top: 0; /* Linie ist jetzt am Ende jedes Blocks, kein Offset nötig */
     min-height: var(--line-height); /* Standardmäßig 1 Linie (flexibler) */
     resize: both;
     overflow: hidden;

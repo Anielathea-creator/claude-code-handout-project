@@ -65,7 +65,6 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
   const designDropdownRef = useRef<HTMLDivElement>(null);
   const colorPickerRef = useRef<HTMLDivElement>(null);
   
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [globalFont, setGlobalFont] = useState('system-ui, -apple-system, sans-serif');
   const [activeTableCell, setActiveTableCell] = useState<HTMLElement | null>(null);
@@ -1769,6 +1768,15 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
           }
         });
         
+        // Flatten border-radius and border-style so html2canvas renders the correct
+        // shape (e.g. square vs circle) even when Tailwind v4 uses CSS variables.
+        const br = style.borderRadius;
+        if (br && br !== '0px') cloneEl.style.borderRadius = br;
+        const bs = style.borderStyle;
+        if (bs && bs !== 'none') cloneEl.style.borderStyle = bs;
+        const bw = style.borderWidth;
+        if (bw && bw !== '0px') cloneEl.style.borderWidth = bw;
+
         // Aggressively strip anything that might contain oklch and we haven't handled
         if (hasModernColor(style.boxShadow)) cloneEl.style.boxShadow = 'none';
         if (hasModernColor(style.textShadow)) cloneEl.style.textShadow = 'none';
@@ -1895,6 +1903,8 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
         clone.style.boxSizing = 'border-box';
         clone.style.position = 'relative';
 
+        // (Top-margin shift is applied post-render by cropping the canvas — see below.)
+
         // IMPORTANT: Flatten colors FIRST, before any DOM modifications that change element count.
         // flattenElementStyles matches live ↔ clone elements by array index.
         // Adding/removing elements to the clone afterwards would shift indices and break matching.
@@ -1931,54 +1941,105 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
           el.classList.remove('editable');
         });
 
-        // Fix strikethrough: html2canvas misrenders text-decoration: line-through.
-        // Insert a positioned <div> line through the middle of each strikethrough element.
-        const liveStrikeEls = page.querySelectorAll<HTMLElement>('.is-strikethrough-answer');
-        const cloneStrikeEls = clone.querySelectorAll<HTMLElement>('.is-strikethrough-answer');
-        for (let j = 0; j < liveStrikeEls.length && j < cloneStrikeEls.length; j++) {
-          const liveEl = liveStrikeEls[j];
-          const cloneEl = cloneStrikeEls[j];
-          const h = liveEl.offsetHeight;
-          cloneEl.style.textDecoration = 'none';
-          cloneEl.style.position = 'relative';
-          cloneEl.style.display = 'inline-block';
-          cloneEl.style.color = '#2563eb';
-          const line = document.createElement('div');
-          line.style.cssText = `position:absolute;left:0;right:0;top:${Math.round(h / 2)}px;height:2px;background:#2563eb;pointer-events:none;`;
-          cloneEl.appendChild(line);
-        }
-
         // Fix schreib-linie: html2canvas doesn't support background-attachment:local or CSS variables.
+        // Draw lines at the BOTTOM of each line-height block (not the top), so text sits above lines.
         clone.querySelectorAll<HTMLElement>('.schreib-linie').forEach(el => {
           const lineH = 40; // 2.5rem ≈ 40px
           el.style.lineHeight = `${lineH}px`;
-          el.style.backgroundImage = 'linear-gradient(#cbd5e1 1px, transparent 1px)';
+          // Line at bottom of each block: transparent for 39px, then 1px colored line
+          el.style.backgroundImage = `linear-gradient(transparent ${lineH - 1}px, #cbd5e1 ${lineH - 1}px)`;
           el.style.backgroundSize = `100% ${lineH}px`;
           el.style.backgroundAttachment = 'scroll';
           el.style.backgroundRepeat = 'repeat';
-          el.style.paddingTop = '1.6px';
+          el.style.backgroundPosition = '0 0';
+          el.style.paddingTop = '0';
           el.style.resize = 'none';
           el.style.overflow = 'visible';
         });
 
         stage.appendChild(clone);
 
-        // Fix flex-centered answer boxes: html2canvas has limited flex support.
-        // Convert small flex containers to line-height centering.
+        // Fix flex-centered boxes: html2canvas has limited flex support.
+        // Target fixed-size boxes (answer squares, emoji frames) but skip full-width layout containers.
         const liveFlexEls = page.querySelectorAll<HTMLElement>('.flex.items-center.justify-center');
         const cloneFlexEls = clone.querySelectorAll<HTMLElement>('.flex.items-center.justify-center');
         for (let j = 0; j < liveFlexEls.length && j < cloneFlexEls.length; j++) {
           const liveEl = liveFlexEls[j];
           const cloneEl = cloneFlexEls[j];
           const h = liveEl.offsetHeight;
-          if (h > 0 && h <= 60) {
-            cloneEl.style.display = 'flex';
-            cloneEl.style.alignItems = 'center';
-            cloneEl.style.justifyContent = 'center';
+          const w = liveEl.offsetWidth;
+          // Fix boxes up to ~200px (answer squares w-8/h-8, emoji frames w-24/h-24, etc.)
+          // Skip large layout containers (full-width rows, page sections)
+          const isCenterBox = h > 0 && h <= 200 && w > 0 && w <= 200;
+          if (isCenterBox) {
+            // Measure actual content height from live element to compute exact padding
+            const firstChild = liveEl.firstElementChild as HTMLElement | null;
+            // Use getBoundingClientRect for accurate height of inline elements (spans)
+            const contentH = firstChild ? firstChild.getBoundingClientRect().height : (liveEl.scrollHeight - (liveEl.offsetHeight - liveEl.clientHeight));
+            // Account for borders: with border-box, padding shares space with borders
+            const liveStyle = window.getComputedStyle(liveEl);
+            const borderT = parseFloat(liveStyle.borderTopWidth) || 0;
+            const borderB = parseFloat(liveStyle.borderBottomWidth) || 0;
+            const innerH = h - borderT - borderB;
+            // Emojis (larger boxes) need +5px down nudge on padding
+            const isSmallBox = h <= 60;
+            const emojiNudge = isSmallBox ? 0 : 5;
+            const padTop = Math.max(0, Math.round((innerH - contentH) / 2) + emojiNudge);
+
+            cloneEl.style.display = 'block';
+            cloneEl.style.width = `${w}px`;
+            cloneEl.style.height = `${h}px`;
+            cloneEl.style.boxSizing = 'border-box';
             cloneEl.style.textAlign = 'center';
-            cloneEl.style.lineHeight = `${h}px`;
+            cloneEl.style.paddingTop = `${padTop}px`;
+            cloneEl.style.paddingLeft = '0';
+            cloneEl.style.paddingRight = '0';
+            cloneEl.style.paddingBottom = '0';
+            cloneEl.style.overflow = 'visible';
+            // Reset children to inline for horizontal text-align centering
+            cloneEl.querySelectorAll<HTMLElement>(':scope > *').forEach(child => {
+              child.style.display = 'inline';
+              child.style.lineHeight = 'normal';
+              child.style.verticalAlign = 'top';
+              // Small number boxes: shift content up 5px with relative positioning
+              // (padding approach can't go negative, so use position offset instead)
+              if (isSmallBox) {
+                child.style.position = 'relative';
+                child.style.top = '-5px';
+              }
+            });
           }
         }
+
+        // Fix highlight: html2canvas renders background-color at the top of the line box,
+        // but the visible text sits lower. Replace background-color with a gradient that
+        // starts 7px from the top — text is unaffected, background shifts down.
+        clone.querySelectorAll<HTMLElement>('.is-highlight-answer').forEach(cloneEl => {
+          cloneEl.style.backgroundColor = 'transparent';
+          // Gradient starts 7px from top (background shifts down) and extends 7px
+          // below the element via padding-bottom (background grows downward).
+          cloneEl.style.backgroundImage = 'linear-gradient(transparent 7px, #fef08a 7px)';
+          cloneEl.style.backgroundRepeat = 'no-repeat';
+          cloneEl.style.backgroundSize = '100% 100%';
+          // Extend padding-bottom by 7px so the yellow area reaches further down
+          const existingPadBottom = parseFloat(window.getComputedStyle(cloneEl).paddingBottom) || 0;
+          cloneEl.style.paddingBottom = `${existingPadBottom + 7}px`;
+        });
+
+        // Fix strikethrough: html2canvas misrenders text-decoration: line-through.
+        // MUST run AFTER stage.appendChild(clone) so offsetHeight is available.
+        clone.querySelectorAll<HTMLElement>('.is-strikethrough-answer').forEach(cloneEl => {
+          cloneEl.style.textDecoration = 'none';
+          cloneEl.style.position = 'relative';
+          cloneEl.style.display = 'inline-block';
+          cloneEl.style.color = '#2563eb';
+          // Now that clone is in the DOM, offsetHeight returns the real height
+          const h = cloneEl.offsetHeight;
+          const lineTop = Math.round(h / 2) + 8;
+          const line = document.createElement('div');
+          line.style.cssText = `position:absolute;left:-1px;right:-1px;top:${lineTop}px;height:2px;background:#2563eb;pointer-events:none;`;
+          cloneEl.appendChild(line);
+        });
 
         const canvas = await html2canvas(clone, {
           scale: 2,
@@ -2005,7 +2066,51 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
 
         stage.removeChild(clone);
 
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        // Dynamic per-page margin balancing: scan the rendered canvas to find
+        // the first row with non-white pixels (= where visible content starts),
+        // then shift content so every page has the same effective top margin.
+        // This handles pages with different internal spacing (exercises vs Merkblätter).
+        const canvasCtx = canvas.getContext('2d')!;
+        const imgPixels = canvasCtx.getImageData(0, 0, canvas.width, Math.min(canvas.height, 400));
+        const pixels = imgPixels.data;
+        const cw = canvas.width;
+
+        // Find first row containing a non-white pixel (threshold 250 to ignore JPEG artifacts)
+        let firstContentRow = 0;
+        findRow:
+        for (let row = 0; row < imgPixels.height; row++) {
+          for (let col = 0; col < cw; col++) {
+            const idx = (row * cw + col) * 4;
+            if (pixels[idx] < 250 || pixels[idx + 1] < 250 || pixels[idx + 2] < 250) {
+              firstContentRow = row;
+              break findRow;
+            }
+          }
+        }
+
+        // Target: first visible content should be at this many canvas-pixels from the top.
+        // ~90 CSS-px at scale 2 = 180 canvas-px ≈ 2.4cm from page edge.
+        const TARGET_TOP = 180;
+        const cropPx = Math.max(0, firstContentRow - TARGET_TOP);
+
+        let finalCanvas: HTMLCanvasElement;
+        if (cropPx > 0) {
+          finalCanvas = document.createElement('canvas');
+          finalCanvas.width = canvas.width;
+          finalCanvas.height = canvas.height;
+          const sCtx = finalCanvas.getContext('2d')!;
+          sCtx.fillStyle = '#ffffff';
+          sCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+          sCtx.drawImage(
+            canvas,
+            0, cropPx, canvas.width, canvas.height - cropPx,
+            0, 0, canvas.width, canvas.height - cropPx
+          );
+        } else {
+          finalCanvas = canvas;
+        }
+
+        const imgData = finalCanvas.toDataURL('image/jpeg', 0.95);
         if (i > 0) pdf.addPage();
         pdf.addImage(imgData, 'JPEG', 0, 0, A4_W_MM, A4_H_MM);
       }
@@ -2032,75 +2137,6 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     }
   };
 
-  const handleGeneratePDF = async () => {
-    setIsGeneratingPdf(true);
-    
-    setTimeout(() => {
-      try {
-        const root = document.getElementById('dossier-root');
-        if (!root) return;
-        
-        // Klonen, um das Original-DOM nicht zu verändern
-        const clone = root.cloneNode(true) as HTMLElement;
-        
-        // Contenteditable und Highlights im Klon entfernen
-        clone.querySelectorAll('[contenteditable="true"]').forEach(el => el.removeAttribute('contenteditable'));
-        clone.querySelectorAll('.active-block-highlight').forEach(el => el.classList.remove('active-block-highlight'));
-        
-        // Iframe-Bypass: Neues Fenster öffnen
-        const printWindow = window.open('', '_blank');
-        
-        if (printWindow) {
-          // Alle Stylesheets der aktuellen Seite sammeln
-          const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-            .map(el => el.outerHTML)
-            .join('\n');
-            
-          printWindow.document.open();
-          printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-              <head>
-                <title>Dossier_Drucken</title>
-                ${styles}
-              </head>
-              <body class="bg-gray-100 font-sans text-gray-900">
-                <div id="dossier-wrapper" style="font-family: ${globalFont}" class="mx-auto max-w-[21cm] bg-white">
-                  ${clone.outerHTML}
-                </div>
-                <script>
-                  window.onload = () => {
-                    setTimeout(() => {
-                      window.print();
-                    }, 500);
-                  };
-                </script>
-              </body>
-            </html>
-          `);
-          printWindow.document.close();
-        } else {
-          // Fallback: Falls Popup-Blocker aktiv ist, im gleichen Fenster drucken
-          console.warn("Popup blockiert, nutze Fallback im gleichen Fenster.");
-          const editables = root.querySelectorAll('[contenteditable="true"]');
-          editables.forEach(el => el.setAttribute('contenteditable', 'false'));
-          root.querySelectorAll('.active-block-highlight').forEach(el => el.classList.remove('active-block-highlight'));
-          
-          window.print();
-          
-          editables.forEach(el => el.setAttribute('contenteditable', 'true'));
-        }
-      } catch (err) {
-        console.error("PDF Fehler:", err);
-        setNotification({ message: "Fehler beim Öffnen des Druckdialogs.", type: 'error' });
-      } finally {
-        // Status-Reset garantiert nach 1.5 Sekunden, damit der Button nicht einfriert
-        setTimeout(() => {
-          setIsGeneratingPdf(false);
-        }, 1500);
-      }
-    }, 150);
-  };
 
   const resetPageScrollTops = () => {
     const root = document.getElementById('dossier-root');
@@ -4189,13 +4225,6 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
               )}
             </button>
 
-            <button onClick={handleGeneratePDF} disabled={isGeneratingPdf} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold transition-colors shadow-sm text-sm disabled:opacity-50">
-              {isGeneratingPdf ? (
-                <><svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Bereitet vor...</>
-              ) : (
-                <><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg> Drucken</>
-              )}
-            </button>
           </div>
         </div>
       </div>
