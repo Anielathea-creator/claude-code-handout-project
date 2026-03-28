@@ -664,8 +664,20 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
       innerContainerRect = innerContainer.getBoundingClientRect();
       startMouseX = e.clientX;
       startMouseY = e.clientY;
-      startLeft = parseFloat(el.style.left) || 0;
-      startTop = parseFloat(el.style.top) || 0;
+
+      // Convert visual position to left/top percentages, clearing any right/bottom constraints.
+      // This is needed for elements like the Name field that start with `right: 0` instead of `left`.
+      const elRect = el.getBoundingClientRect();
+      const computedLeft = ((elRect.left - innerContainerRect.left) / innerContainerRect.width) * 100;
+      const computedTop = ((elRect.top - innerContainerRect.top) / innerContainerRect.height) * 100;
+      // Only override if element doesn't already have explicit left/top (avoid rounding drift on subsequent drags)
+      startLeft = el.style.left ? parseFloat(el.style.left) : computedLeft;
+      startTop = el.style.top ? parseFloat(el.style.top) : computedTop;
+      // Commit left/top and clear conflicting right/bottom
+      el.style.left = `${startLeft.toFixed(1)}%`;
+      el.style.top = `${startTop.toFixed(1)}%`;
+      el.style.right = '';
+      el.style.bottom = '';
       // Don't preventDefault yet — allow initial click to focus text
     };
 
@@ -3108,7 +3120,7 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
 
       // Build deterministic HTML with fixed standard layout
       const extraTextBlock = coverExtraText.trim()
-        ? `<div class="cover-draggable" style="position: absolute; left: 5%; right: 5%; bottom: 2%; resize: both; overflow: hidden; min-width: 100px; min-height: 30px; cursor: move;">
+        ? `<div class="cover-draggable" style="position: absolute; left: 5%; top: 78%; width: 90%; resize: both; overflow: hidden; min-width: 100px; min-height: 30px; cursor: move;">
             <p contenteditable="true" class="editable text-[12pt] text-gray-500 italic text-center" style="cursor: text;">${coverExtraText}</p>
           </div>`
         : '';

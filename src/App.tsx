@@ -58,20 +58,47 @@ export default function App() {
     return () => clearInterval(interval);
   }, [activeProjectId, projects, handleAddSnapshot]);
 
+  // Save to localStorage on page unload as a safety net for the 3s debounce
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      try {
+        localStorage.setItem('dossier_quicksave', JSON.stringify(projects));
+      } catch (e) {
+        // localStorage may be full (e.g. many large base64 images) — silently ignore
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [projects]);
+
   // Load from storage on mount
   useEffect(() => {
     const initStorage = async () => {
       try {
         // 1. Try loading from IndexedDB first
         let savedProjects = await loadProjects();
-        
-        // 2. If IndexedDB is empty, check LocalStorage for migration
+
+        // 2. Check for a quicksave written to localStorage on the last page unload.
+        //    This catches cases where the IndexedDB auto-save (3 s debounce) hadn't
+        //    fired yet before the user reloaded the page.
+        const quickSaveStr = localStorage.getItem('dossier_quicksave');
+        if (quickSaveStr) {
+          try {
+            const quickProjects = JSON.parse(quickSaveStr);
+            if (Array.isArray(quickProjects) && quickProjects.length > 0) {
+              // Prefer the quicksave — it reflects the most recent in-memory state
+              savedProjects = quickProjects;
+            }
+          } catch (_) { /* ignore malformed quicksave */ }
+          // Always clear it so a future reload won't use a stale quicksave
+          localStorage.removeItem('dossier_quicksave');
+        }
+
+        // 3. If IndexedDB is empty and no quicksave, check LocalStorage for legacy migration
         if (!savedProjects) {
           const legacyData = localStorage.getItem('dossier_projects');
           if (legacyData) {
-            console.log('Migrating data from LocalStorage to IndexedDB...');
             savedProjects = JSON.parse(legacyData);
-            // We'll save it to IndexedDB in the next auto-save cycle
           }
         }
 
