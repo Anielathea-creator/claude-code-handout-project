@@ -40,23 +40,6 @@ interface EditorProps {
   onAddSnapshot: (name: string) => void;
 }
 
-const COVER_SLOTS = [
-  { id: 'tl', x: 0, y: 0, label: 'Oben Links' },
-  { id: 'tc', x: 50, y: 0, label: 'Oben Mitte' },
-  { id: 'tr', x: 100, y: 0, label: 'Oben Rechts' },
-  { id: 'mtl', x: 0, y: 25, label: 'Obere Hälfte Links' },
-  { id: 'mtc', x: 50, y: 25, label: 'Obere Hälfte Mitte' },
-  { id: 'mtr', x: 100, y: 25, label: 'Obere Hälfte Rechts' },
-  { id: 'ml', x: 0, y: 50, label: 'Mitte Links' },
-  { id: 'mc', x: 50, y: 50, label: 'Zentrum' },
-  { id: 'mr', x: 100, y: 50, label: 'Mitte Rechts' },
-  { id: 'mbl', x: 0, y: 75, label: 'Untere Hälfte Links' },
-  { id: 'mbc', x: 50, y: 75, label: 'Untere Hälfte Mitte' },
-  { id: 'mbr', x: 100, y: 75, label: 'Untere Hälfte Rechts' },
-  { id: 'bl', x: 0, y: 100, label: 'Unten Links' },
-  { id: 'bc', x: 50, y: 100, label: 'Unten Mitte' },
-  { id: 'br', x: 100, y: 100, label: 'Unten Rechts' },
-];
 
 export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, onAddSnapshot }: EditorProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -303,15 +286,7 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
   const [coverSubtitle, setCoverSubtitle] = useState('');
   const [coverImageDesc, setCoverImageDesc] = useState('');
   const [coverImageStyle, setCoverImageStyle] = useState('realistisch');
-  const [coverLayout, setCoverLayout] = useState('image-center');
-  const [coverElements, setCoverElements] = useState<any[]>([
-    { id: 'title', type: 'title', label: 'Titel', x: 50, y: 0, slotId: 'tc', placed: true },
-    { id: 'subtitle', type: 'subtitle', label: 'Untertitel', x: 50, y: 25, slotId: 'mtc', placed: true },
-    { id: 'image', type: 'image', label: 'Bild', x: 50, y: 50, slotId: 'mc', placed: true },
-    { id: 'name', type: 'name', label: 'Name', x: 50, y: 100, slotId: 'bc', placed: true },
-  ]);
-  const [draggedElementId, setDraggedElementId] = useState<string | null>(null);
-  const coverPreviewRef = useRef<HTMLDivElement>(null);
+  const [coverExtraText, setCoverExtraText] = useState('');
 
   const [isGeneratingCover, setIsGeneratingCover] = useState(false);
   const [coverError, setCoverError] = useState('');
@@ -653,6 +628,13 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
       if (target.nodeType === 3) target = target.parentElement as HTMLElement;
       if (!target?.closest) return;
 
+      // Clear text-editing lock on any cover element when clicking outside it
+      const editingEl = document.querySelector('.cover-draggable[data-editing="true"]') as HTMLElement | null;
+      if (editingEl && !editingEl.contains(target)) {
+        editingEl.removeAttribute('data-editing');
+        editingEl.style.cursor = 'move';
+      }
+
       const coverContainer = target.closest('.cover-page-container') as HTMLElement;
       if (!coverContainer) return;
 
@@ -665,6 +647,16 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
         el = el.parentElement as HTMLElement;
       }
       if (!el || el === innerContainer || el.style.position !== 'absolute') return;
+
+      // If element is locked in text-editing mode, skip drag
+      if (el.dataset.editing === 'true') return;
+
+      // Detect double-click (e.detail >= 2) on text elements: enter editing mode instead of dragging
+      if (e.detail >= 2 && !el.classList.contains('resizable-cover-image-wrapper')) {
+        el.setAttribute('data-editing', 'true');
+        el.style.cursor = 'text';
+        return;
+      }
 
       isDragging = true;
       dragTarget = el;
@@ -3068,15 +3060,11 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     }
   };
 
-  const removeElement = (id: string) => {
-    setCoverElements(prev => prev.filter(el => el.id !== id));
-  };
-
   const handleGenerateCover = async () => {
     if (!coverTitle.trim()) return;
     setIsGeneratingCover(true);
     setCoverError('');
-    
+
     // Take snapshot before cover generation
     onAddSnapshot('Vor Titelseite');
 
@@ -3087,7 +3075,7 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
       }
       const ai = new GoogleGenAI({ apiKey });
 
-      // 1. Generate Image
+      // Generate Image
       const imageResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: {
@@ -3114,78 +3102,47 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
         }
       }
 
-      // 2. Generate HTML Layout
-      const layoutDescription = coverElements
-        .map(el => {
-          const slot = COVER_SLOTS.find(s => s.id === el.slotId);
-          const posDesc = slot 
-            ? `Fixe Position: ${slot.label} (x=${slot.x}%, y=${slot.y}%)` 
-            : `Freie Position: x=${el.x.toFixed(1)}%, y=${el.y.toFixed(1)}%`;
-          return `- ${el.label} (${el.type}): ${posDesc}`;
-        })
-        .join('\n');
+      const imgSrc = imageUrl || 'https://picsum.photos/seed/cover/800/800';
+      const safePrompt = coverImageDesc.replace(/"/g, '&quot;');
+      const themeColor = theme || 'blue';
 
-      const systemInstruction = `Du bist ein Grafikdesigner für Lehrmittel. Erstelle den HTML-Code für eine professionelle A4-Titelseite.
-      Nutze Tailwind CSS. Das Farbschema ist: ${theme || 'blue'}.
-      WICHTIG: Gib NUR den HTML-Code zurück, ohne Markdown-Formatierung.
-      
-      LAYOUT-VORGABEN (EXAKT EINHALTEN):
-      Das Layout basiert auf einem Raster mit fixen Ankerpunkten (Slots).
-      ${layoutDescription}
-      
-      WICHTIG: 
-      - Nutze die angegebenen Prozentwerte (x, y) für die absolute Positionierung.
-      - Elemente dürfen sich NIEMALS überschneiden. Achte auf ausreichende Abstände.
-      - Alle Elemente müssen innerhalb der Seitenränder (2cm von jeder Kante) platziert werden.
-      
-      TECHNISCHE ANWEISUNGEN:
-      - Nutze für den Hauptcontainer: <div class="cover-page-wrapper" data-cover="true"><div class="cover-page-container avoid-break relative w-full h-[27cm] p-[2cm] box-border bg-white print:bg-white overflow-hidden">
-      - Füge innerhalb des Hauptcontainers einen weiteren Container ein: <div class="relative w-full h-full">
-      - Nutze ABSOLUTE POSITIONIERUNG für alle Elemente (Titel, Untertitel, Bild, Name, Textfelder) INNERHALB dieses inneren Containers.
-      - Jedes Element muss ein <div> mit "position: absolute; left: [x]%; top: [y]%; transform: translate(-50%, -50%);" sein.
-      - Haupttitel: "${coverTitle}" (Klasse: editable text-[36pt] leading-none font-black text-${theme || 'blue'}-800 text-center w-full max-w-[90%], Attribut: contenteditable="true")
-      - Untertitel: "${coverSubtitle}" (Klasse: editable text-[20pt] leading-snug font-medium text-gray-600 text-center w-full max-w-[90%], Attribut: contenteditable="true")
-      - Bild: Nutze EXAKT den Platzhalter __IMAGE_URL__ als src. 
-        Das Bild MUSS in einem resizable Wrapper liegen:
-        <div class="resizable-cover-image-wrapper" style="width: 300px; height: auto; resize: both; overflow: hidden; display: flex; align-items: center; justify-content: center; position: absolute;">
-          <img src="__IMAGE_URL__" class="cover-image cursor-pointer w-full h-full object-contain border-2 border-gray-300 rounded-xl p-2 shadow-sm" />
-        </div>
-        WICHTIG: Der resizable-cover-image-wrapper selbst bekommt die absolute Positionierung (left/top/transform).
-      - Info-Box (Name): "Name: _______________________" (Klasse: editable text-[14pt] p-2, Attribut: contenteditable="true").
-      - Leere Textfelder: Falls vorhanden, nutze einen Platzhaltertext wie "Zusatztext hier..." (Klasse: editable text-[12pt] text-gray-400 italic, Attribut: contenteditable="true").
-      - Schließe den inneren Container und den Hauptcontainer.
-      - SEITENUMBRIUCH: Füge am Ende (außerhalb des Hauptcontainers, aber innerhalb des cover-page-wrapper) ein <div class="page-break"></div> ein. Schließe danach den cover-page-wrapper mit </div>.`;
+      // Build deterministic HTML with fixed standard layout
+      const extraTextBlock = coverExtraText.trim()
+        ? `<div class="cover-draggable" style="position: absolute; left: 5%; right: 5%; bottom: 2%; resize: both; overflow: hidden; min-width: 100px; min-height: 30px; cursor: move;">
+            <p contenteditable="true" class="editable text-[12pt] text-gray-500 italic text-center" style="cursor: text;">${coverExtraText}</p>
+          </div>`
+        : '';
 
-      const htmlResponse = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Erstelle die Titelseite. Titel: ${coverTitle}, Untertitel: ${coverSubtitle}. Layout: ${layoutDescription}`,
-        config: {
-          systemInstruction: systemInstruction,
-        }
-      });
-
-      let generatedHtml = htmlResponse.text || '';
-      generatedHtml = generatedHtml.replace(/\`\`\`html/gi, '').replace(/\`\`\`/g, '').trim();
-      
-      // Replace placeholder with actual base64 image
-      if (imageUrl) {
-        generatedHtml = generatedHtml.replace(/__IMAGE_URL__/g, imageUrl);
-      } else {
-        generatedHtml = generatedHtml.replace(/__IMAGE_URL__/g, 'https://picsum.photos/seed/cover/800/800');
-      }
-
-      // Add prompt data attribute to the image for later regeneration
-      generatedHtml = generatedHtml.replace(/class="cover-image/g, `data-prompt="${coverImageDesc.replace(/"/g, '&quot;')}" class="cover-image`);
-
-      if (!generatedHtml) {
-          throw new Error("Leere Antwort von der KI erhalten.");
-      }
+      const generatedHtml = `<div class="cover-page-wrapper" data-cover="true">
+  <div class="cover-page-container avoid-break relative w-full h-[27cm] p-[2cm] box-border bg-white print:bg-white overflow-hidden">
+    <div class="cover-inner-container relative w-full h-full">
+      <!-- Name: top right -->
+      <div class="cover-draggable" style="position: absolute; right: 0; top: 0; resize: both; overflow: hidden; min-width: 120px; min-height: 30px; cursor: move;">
+        <p contenteditable="true" class="editable text-[14pt] text-right" style="cursor: text;">Name: _______________________</p>
+      </div>
+      <!-- Title: center upper area -->
+      <div class="cover-draggable" style="position: absolute; left: 5%; right: 5%; top: 18%; resize: both; overflow: hidden; min-width: 100px; min-height: 40px; cursor: move;">
+        <h1 contenteditable="true" class="editable text-[36pt] leading-tight font-black text-${themeColor}-800 text-center" style="cursor: text;">${coverTitle}</h1>
+      </div>
+      <!-- Subtitle: below title -->
+      <div class="cover-draggable" style="position: absolute; left: 5%; right: 5%; top: 32%; resize: both; overflow: hidden; min-width: 100px; min-height: 30px; cursor: move;">
+        <p contenteditable="true" class="editable text-[20pt] leading-snug font-medium text-gray-600 text-center" style="cursor: text;">${coverSubtitle || ''}</p>
+      </div>
+      <!-- Image: center lower half -->
+      <div class="cover-draggable resizable-cover-image-wrapper" style="width: 300px; resize: both; overflow: hidden; position: absolute; left: 50%; top: 55%; transform: translate(-50%, -50%); cursor: move;">
+        <img src="${imgSrc}" data-prompt="${safePrompt}" class="cover-image w-full h-full object-contain border-2 border-gray-300 rounded-xl p-2 shadow-sm" style="cursor: move;" />
+      </div>
+      ${extraTextBlock}
+    </div>
+  </div>
+  <div class="page-break"></div>
+</div>`;
 
       saveHistoryState();
-      
+
       const root = document.getElementById('dossier-root');
       if (root) {
-        // Remove all existing cover pages and their immediate next sibling if it's a page-break
+        // Remove all existing cover pages
         const existingWrappers = root.querySelectorAll('.cover-page-wrapper, [data-cover="true"], .title-page-placeholder');
         existingWrappers.forEach(wrapper => {
           const nextSibling = wrapper.nextElementSibling;
@@ -3204,12 +3161,11 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
           existingCover.remove();
         });
 
-        // Also check for any loose cover images
         root.querySelectorAll('.cover-image').forEach(el => el.remove());
 
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = generatedHtml;
-        
+
         const frag = document.createDocumentFragment();
         let firstElement: HTMLElement | null = null;
         while (tempDiv.firstChild) {
@@ -3218,20 +3174,21 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
           }
           frag.appendChild(tempDiv.firstChild);
         }
-        
+
         root.insertBefore(frag, root.firstChild);
-        
+
         if (firstElement) {
           setTimeout(() => firstElement.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
         }
       }
-      
+
       setTimeout(saveHistoryState, 50);
       setShowCoverModal(false);
       setCoverStep(1);
       setCoverTitle('');
       setCoverSubtitle('');
       setCoverImageDesc('');
+      setCoverExtraText('');
     } catch (error: any) {
       let errorMessage = "Fehler bei der Generierung: " + error.message;
       if (error.message?.includes('429')) {
@@ -3319,16 +3276,6 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
       return;
     }
 
-    // Handle cover image regeneration
-    if (target.tagName === 'IMG' && target.classList.contains('cover-image')) {
-      const prompt = target.getAttribute('data-prompt');
-      if (prompt) {
-        setRegenTarget({ img: target as HTMLImageElement, prompt });
-        setShowRegenConfirm(true);
-        return;
-      }
-    }
-    
     // Handle image alignment buttons
     if (target.closest('.align-img-left')) {
       const wrapper = target.closest('.draggable-image-wrapper') as HTMLElement;
@@ -3429,6 +3376,24 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     if (!target) return;
     if (target.nodeType === 3) target = target.parentElement as HTMLElement;
     if (!target || !target.closest) return;
+
+    // Handle cover image regeneration on double-click
+    if (target.tagName === 'IMG' && target.classList.contains('cover-image')) {
+      const prompt = target.getAttribute('data-prompt');
+      if (prompt) {
+        setRegenTarget({ img: target as HTMLImageElement, prompt });
+        setShowRegenConfirm(true);
+        return;
+      }
+    }
+
+    // Handle double-click on cover text elements: lock element in place for text editing
+    const coverDraggable = target.closest('.cover-draggable') as HTMLElement | null;
+    if (coverDraggable && !coverDraggable.classList.contains('resizable-cover-image-wrapper')) {
+      coverDraggable.setAttribute('data-editing', 'true');
+      coverDraggable.style.cursor = 'text';
+      return;
+    }
 
     const root = document.getElementById('dossier-root');
     if (!root) return;
@@ -3677,15 +3642,15 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
             </div>
             
             <div className="mb-8 flex items-center justify-center gap-4">
-              {[1, 2, 3].map(s => (
+              {[1, 2].map(s => (
                 <div key={s} className="flex items-center gap-2">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold transition-all ${coverStep === s ? 'bg-indigo-600 text-white scale-110 shadow-lg shadow-indigo-100' : coverStep > s ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
                     {coverStep > s ? '✓' : s}
                   </div>
                   <div className={`text-xs font-bold uppercase tracking-wider ${coverStep === s ? 'text-indigo-600' : 'text-gray-400'}`}>
-                    {s === 1 ? 'Titel' : s === 2 ? 'Abbildung' : 'Layout'}
+                    {s === 1 ? 'Titel' : 'Abbildung'}
                   </div>
-                  {s < 3 && <div className="w-8 h-px bg-gray-100"></div>}
+                  {s < 2 && <div className="w-8 h-px bg-gray-100"></div>}
                 </div>
               ))}
             </div>
@@ -3706,12 +3671,22 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-indigo-700 mb-2 ml-1 uppercase tracking-wider">Untertitel</label>
-                    <input 
+                    <input
                       type="text"
                       value={coverSubtitle}
                       onChange={(e) => setCoverSubtitle(e.target.value)}
                       className="w-full border-2 border-indigo-50 rounded-2xl p-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none text-lg transition-all shadow-inner bg-gray-50/50"
                       placeholder="z.B. Eine Entdeckungsreise durch die Natur"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-indigo-700 mb-2 ml-1 uppercase tracking-wider">Optionaler Zusatztext</label>
+                    <input
+                      type="text"
+                      value={coverExtraText}
+                      onChange={(e) => setCoverExtraText(e.target.value)}
+                      className="w-full border-2 border-indigo-50 rounded-2xl p-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none text-lg transition-all shadow-inner bg-gray-50/50"
+                      placeholder="z.B. Klasse 5b – Frühling 2026 (erscheint unter dem Bild)"
                     />
                   </div>
                 </div>
@@ -3746,158 +3721,6 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
                 </div>
               )}
 
-              {coverStep === 3 && (
-                <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-                  <div className="flex flex-col md:flex-row gap-6">
-                    {/* TOOLBOX */}
-                    <div className="w-full md:w-48 space-y-3">
-                      <label className="block text-xs font-black text-indigo-400 uppercase tracking-widest mb-2">Elemente</label>
-                      <div className="grid grid-cols-2 md:grid-cols-1 gap-2">
-                        {[
-                          { type: 'title', label: 'Titel', icon: 'T' },
-                          { type: 'subtitle', label: 'Untertitel', icon: 't' },
-                          { type: 'image', label: 'Bild', icon: '🖼️' },
-                          { type: 'name', label: 'Name', icon: '👤' },
-                          { type: 'text', label: 'Textfeld', icon: '📝' },
-                        ].map(item => {
-                          const exists = coverElements.some(el => el.type === item.type && item.type !== 'text');
-                          return (
-                            <button
-                              key={item.type}
-                              onClick={() => {
-                                if (item.type === 'text') {
-                                  const newId = `text-${Date.now()}`;
-                                  setCoverElements(prev => [...prev, { id: newId, type: 'text', label: 'Textfeld', x: 50, y: 75, slotId: 'mbc', placed: true }]);
-                                } else if (!exists) {
-                                  // Default slots for specific types
-                                  let defaultSlot = 'mc';
-                                  if (item.type === 'title') defaultSlot = 'tc';
-                                  if (item.type === 'subtitle') defaultSlot = 'mtc';
-                                  if (item.type === 'name') defaultSlot = 'bc';
-                                  
-                                  const slot = COVER_SLOTS.find(s => s.id === defaultSlot) || COVER_SLOTS[4];
-                                  setCoverElements(prev => [...prev, { id: item.type, type: item.type, label: item.label, x: slot.x, y: slot.y, slotId: slot.id, placed: true }]);
-                                }
-                              }}
-                              disabled={exists}
-                              className={`flex items-center gap-2 p-3 rounded-xl border-2 font-bold text-sm transition-all ${exists ? 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed' : 'bg-white border-indigo-100 text-indigo-700 hover:border-indigo-300 hover:shadow-md active:scale-95'}`}
-                            >
-                              <span className="text-lg">{item.icon}</span>
-                              {item.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <p className="text-[10px] text-gray-400 mt-4 leading-relaxed italic">
-                        Klicke auf ein Element, um es hinzuzufügen. Ziehe es auf der Vorlage an die gewünschte Position (rastet an fixen Punkten ein).
-                      </p>
-                      <button 
-                        onClick={() => setCoverElements([
-                          { id: 'title', type: 'title', label: 'Titel', x: 50, y: 0, slotId: 'tc', placed: true },
-                          { id: 'subtitle', type: 'subtitle', label: 'Untertitel', x: 50, y: 25, slotId: 'mtc', placed: true },
-                          { id: 'image', type: 'image', label: 'Bild', x: 50, y: 50, slotId: 'mc', placed: true },
-                          { id: 'name', type: 'name', label: 'Name', x: 50, y: 100, slotId: 'bc', placed: true },
-                        ])}
-                        className="text-[10px] text-indigo-400 hover:text-indigo-600 font-bold uppercase tracking-widest mt-4 flex items-center gap-1"
-                      >
-                        <Undo2 size={10} /> Layout zurücksetzen
-                      </button>
-                    </div>
-
-                    {/* A4 PREVIEW */}
-                    <div className="flex-1 flex flex-col items-center">
-                      <label className="block text-xs font-black text-indigo-400 uppercase tracking-widest mb-4 self-start">Layout-Vorschau (A4)</label>
-                      <div 
-                        className="relative bg-white shadow-2xl border border-gray-200 rounded-sm overflow-hidden p-[9.5%] box-border"
-                        style={{ width: '280px', height: '396px' }} // A4 Ratio
-                        onMouseUp={() => setDraggedElementId(null)}
-                        onMouseLeave={() => setDraggedElementId(null)}
-                      >
-                        {/* Margins Guide */}
-                        <div className="absolute inset-0 border border-dashed border-indigo-200 pointer-events-none m-[9.5%]"></div>
-                        <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[8px] text-gray-300 uppercase font-bold tracking-tighter">2cm Seitenrand</div>
-                        
-                        {/* Content Area */}
-                        <div 
-                          className="relative w-full h-full"
-                          onMouseMove={(e) => {
-                            if (draggedElementId) {
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              let x = ((e.clientX - rect.left) / rect.width) * 100;
-                              let y = ((e.clientY - rect.top) / rect.height) * 100;
-                              
-                              // Snap to grid
-                              const snapThreshold = 8; // percent
-                              let snappedSlot = null;
-                              for (const slot of COVER_SLOTS) {
-                                const dist = Math.sqrt(Math.pow(x - slot.x, 2) + Math.pow(y - slot.y, 2));
-                                if (dist < snapThreshold) {
-                                  x = slot.x;
-                                  y = slot.y;
-                                  snappedSlot = slot.id;
-                                  break;
-                                }
-                              }
-
-                              setCoverElements(prev => prev.map(el => 
-                                el.id === draggedElementId ? { ...el, x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)), slotId: snappedSlot } : el
-                              ));
-                            }
-                          }}
-                        >
-                          {/* Grid Slots */}
-                          {COVER_SLOTS.map(slot => (
-                            <div 
-                              key={slot.id}
-                              className="absolute w-3 h-3 rounded-full bg-indigo-50 border border-indigo-100 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center group/slot"
-                              style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
-                            >
-                              <div className="w-1 h-1 rounded-full bg-indigo-200 group-hover/slot:bg-indigo-400 transition-colors"></div>
-                              <span className="absolute top-4 text-[6px] text-indigo-300 font-bold whitespace-nowrap opacity-0 group-hover/slot:opacity-100 transition-opacity">{slot.label}</span>
-                            </div>
-                          ))}
-
-                          {/* Elements */}
-                          {coverElements.map(el => (
-                            <div
-                              key={el.id}
-                              onMouseDown={(e) => { e.preventDefault(); setDraggedElementId(el.id); }}
-                              className={`absolute cursor-move select-none group transition-all ${draggedElementId === el.id ? 'z-50 scale-105' : 'z-10'}`}
-                              style={{ 
-                                left: `${el.x}%`, 
-                                top: `${el.y}%`, 
-                                transform: 'translate(-50%, -50%)' 
-                              }}
-                            >
-                              <div className={`px-3 py-1.5 rounded-lg border-2 shadow-sm flex items-center gap-2 whitespace-nowrap ${draggedElementId === el.id ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white border-indigo-200 text-indigo-700 hover:border-indigo-400'}`}>
-                                <span className="text-xs font-black uppercase tracking-tighter">{el.label}</span>
-                                {el.slotId && (
-                                  <span className={`text-[8px] font-bold px-1 rounded ${draggedElementId === el.id ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-400'}`}>
-                                    {COVER_SLOTS.find(s => s.id === el.slotId)?.label}
-                                  </span>
-                                )}
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); removeElement(el.id); }}
-                                  className={`w-4 h-4 flex items-center justify-center rounded-full text-[10px] ${draggedElementId === el.id ? 'bg-white/20 hover:bg-white/40 text-white' : 'bg-gray-100 hover:bg-red-100 hover:text-red-500 text-gray-400'}`}
-                                >
-                                  &times;
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-
-                          {coverElements.length === 0 && (
-                            <div className="absolute inset-0 flex items-center justify-center p-8 text-center">
-                              <p className="text-gray-300 text-sm italic">Füge Elemente aus der Toolbox hinzu...</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {coverError && (
                 <div className="p-4 bg-red-50 border-2 border-red-100 text-red-700 text-sm font-bold rounded-2xl flex items-center gap-3">
                   <span className="text-xl">⚠️</span>
@@ -3923,8 +3746,8 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
                   >
                     Abbrechen
                   </button>
-                  {coverStep < 3 ? (
-                    <button 
+                  {coverStep < 2 ? (
+                    <button
                       onClick={() => setCoverStep(prev => prev + 1)}
                       disabled={coverStep === 1 && !coverTitle.trim()}
                       className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-2xl shadow-lg shadow-indigo-100 disabled:opacity-50 transition-all flex items-center gap-2"
@@ -3932,7 +3755,7 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
                       Weiter →
                     </button>
                   ) : (
-                    <button 
+                    <button
                       onClick={handleGenerateCover}
                       disabled={isGeneratingCover || !coverImageDesc.trim()}
                       className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-black rounded-2xl shadow-lg shadow-indigo-100 disabled:opacity-50 disabled:shadow-none transition-all flex items-center gap-2 transform active:scale-95"
