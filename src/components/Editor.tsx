@@ -1730,6 +1730,46 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
           }
         }
       }
+    } else if (e.key === 'Enter' && !e.shiftKey) {
+      // Enter in komplexen <li>-Elementen: neue eigenständige <li> erzeugen
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const anchor = sel.anchorNode;
+      const el = anchor instanceof HTMLElement ? anchor : anchor?.parentElement;
+      if (!el) return;
+
+      const li = el.closest('li');
+      if (!li || !li.closest('#dossier-root')) return;
+
+      // Einfache <li> (direkt editierbar) → Browser-Default lassen
+      const childEditables = li.querySelectorAll('.editable');
+      if (childEditables.length <= 1 && li.hasAttribute('contenteditable')) return;
+
+      // Komplexe <li> → neue eigenständige <li> erzeugen
+      e.preventDefault();
+      saveHistoryState();
+
+      const newLi = li.cloneNode(false) as HTMLElement;
+      Array.from(li.children).forEach(child => {
+        const clone = (child as HTMLElement).cloneNode(false) as HTMLElement;
+        clone.textContent = '';
+        clone.setAttribute('contenteditable', 'true');
+        if (!clone.classList.contains('editable')) clone.classList.add('editable');
+        newLi.appendChild(clone);
+      });
+
+      li.after(newLi);
+
+      const firstEditable = newLi.querySelector('.editable') as HTMLElement;
+      if (firstEditable) {
+        firstEditable.focus();
+        const range = document.createRange();
+        range.selectNodeContents(firstEditable);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+      saveHistoryState();
     }
   };
 
@@ -2374,16 +2414,22 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     // Ensure any newly created elements (e.g. new <li> from Enter key) are editable
     const root = document.getElementById('dossier-root');
     if (root) {
-      root.querySelectorAll('li, p, h1, h2, h3, h4, td, th, ol, ul').forEach(el => {
+      root.querySelectorAll('li, p, h1, h2, h3, h4, td, th, ol, ul, span, b, i, strong, em').forEach(el => {
         const element = el as HTMLElement;
         if (!element.hasAttribute('contenteditable') &&
             !element.classList.contains('page-break') &&
             !element.classList.contains('avoid-break') &&
+            !element.classList.contains('cover-page-container') &&
+            !element.classList.contains('cover-page-wrapper') &&
+            !element.classList.contains('draggable-image-wrapper') &&
             element.id !== 'toc-list' &&
             element.parentElement?.id !== 'dossier-root') {
           element.setAttribute('contenteditable', 'true');
           element.style.userSelect = 'text';
           element.style.webkitUserSelect = 'text';
+          if (!element.classList.contains('editable') && !element.classList.contains('is-answer')) {
+            element.classList.add('editable');
+          }
         }
       });
     }
