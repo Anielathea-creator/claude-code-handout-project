@@ -17,7 +17,17 @@
     cursor: text;
     outline: none;
   }
-  
+
+  /* Table resize cursor overrides — must beat .editable { cursor: text } */
+  #dossier-root.table-col-resize,
+  #dossier-root.table-col-resize * {
+    cursor: col-resize !important;
+  }
+  #dossier-root.table-row-resize,
+  #dossier-root.table-row-resize * {
+    cursor: row-resize !important;
+  }
+
   #dossier-root .editable:hover {
     background-color: rgba(0, 0, 0, 0.02);
   }

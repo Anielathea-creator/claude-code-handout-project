@@ -113,7 +113,82 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     if (!target) return;
     if (target.nodeType === 3) target = target.parentElement as HTMLElement;
     if (!target || !target.closest) return;
-    
+
+    // 0. Table column/row resize (runs before all other logic)
+    {
+      const cell = target.closest('td, th') as HTMLElement | null;
+      if (cell) {
+        const table = cell.closest('table') as HTMLTableElement | null;
+        if (table && !table.classList.contains('rechenmauer-table')) {
+          const rect = cell.getBoundingClientRect();
+          const THRESHOLD = 12;
+          const row = cell.closest('tr') as HTMLTableRowElement | null;
+          const isLastCol = row ? cell === row.cells[row.cells.length - 1] : false;
+          const isFirstCol = cell.cellIndex === 0;
+
+          // Column resize: right edge of current cell OR left edge (resize previous column pair)
+          const nearRightEdge = Math.abs(e.clientX - rect.right) <= THRESHOLD && !isLastCol;
+          const nearLeftEdge = Math.abs(e.clientX - rect.left) <= THRESHOLD && !isFirstCol;
+
+          if ((nearRightEdge || nearLeftEdge) && row) {
+            e.preventDefault();
+            e.stopPropagation();
+            table.style.tableLayout = 'fixed';
+            const root = document.getElementById('dossier-root');
+            if (root) root.classList.add('table-col-resize');
+            const leftColIndex = nearLeftEdge ? cell.cellIndex - 1 : cell.cellIndex;
+            const rightColIndex = leftColIndex + 1;
+            const leftCells = getCellsInColumn(table, leftColIndex);
+            const rightCells = getCellsInColumn(table, rightColIndex);
+            const lw = (row.cells[leftColIndex] as HTMLElement).getBoundingClientRect().width;
+            const rw = (row.cells[rightColIndex] as HTMLElement).getBoundingClientRect().width;
+            leftCells.forEach(c => { c.style.width = lw + 'px'; });
+            rightCells.forEach(c => { c.style.width = rw + 'px'; });
+            tableResizeRef.current = {
+              active: true, type: 'col', leftCells, rightCells,
+              startX: e.clientX, startLeftWidth: lw, startRightWidth: rw,
+              rowCells: [], startY: 0, startRowHeight: 0,
+            };
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            return;
+          }
+
+          // Row resize: bottom edge of current row OR top edge (resize previous row)
+          const nearBottomEdge = Math.abs(e.clientY - rect.bottom) <= THRESHOLD;
+          const isActualFirstRow = row ? row.rowIndex === 0 : true;
+          const nearTopEdge = Math.abs(e.clientY - rect.top) <= THRESHOLD && !isActualFirstRow;
+
+          if (nearBottomEdge || nearTopEdge) {
+            e.preventDefault();
+            e.stopPropagation();
+            const root = document.getElementById('dossier-root');
+            if (root) root.classList.add('table-row-resize');
+            let targetRow: HTMLTableRowElement;
+            if (nearTopEdge) {
+              const allRows = Array.from(table.rows);
+              const currentRowIdx = allRows.indexOf(row!);
+              targetRow = allRows[currentRowIdx - 1];
+            } else {
+              targetRow = row!;
+            }
+            if (!targetRow) return;
+            const rowCells = Array.from(targetRow.cells) as HTMLElement[];
+            const rh = (targetRow.cells[0] as HTMLElement).getBoundingClientRect().height;
+            rowCells.forEach(c => { c.style.minHeight = rh + 'px'; });
+            tableResizeRef.current = {
+              active: true, type: 'row', leftCells: [], rightCells: [],
+              startX: 0, startLeftWidth: 0, startRightWidth: 0,
+              rowCells, startY: e.clientY, startRowHeight: rh,
+            };
+            document.body.style.cursor = 'row-resize';
+            document.body.style.userSelect = 'none';
+            return;
+          }
+        }
+      }
+    }
+
     // 1. Marker Mode - Place new marker
     if (markerModeRef.current && (target.tagName === 'IMG' || target.closest('.marker-container') || target.closest('.draggable-image-wrapper'))) {
       if (!target.closest('button') && !target.closest('.delete-marker') && !target.classList.contains('delete-img') && !target.closest('.align-img-left') && !target.closest('.align-img-right') && !target.closest('.align-img-center')) {
@@ -166,6 +241,54 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     if (marker && !target.classList.contains('delete-marker') && !target.classList.contains('marker-label')) {
       e.preventDefault();
       setDragMarker(marker);
+    }
+  };
+
+  const handleRootMouseMove = (e: React.MouseEvent) => {
+    if (tableResizeRef.current.active) return;
+
+    const root = document.getElementById('dossier-root');
+    if (!root) return;
+
+    let target = e.target as HTMLElement;
+    if (!target || target.nodeType === 3) target = (target as HTMLElement)?.parentElement as HTMLElement;
+    if (!target?.closest) {
+      root.classList.remove('table-col-resize', 'table-row-resize');
+      return;
+    }
+
+    const cell = target.closest('td, th') as HTMLElement | null;
+    if (!cell) {
+      root.classList.remove('table-col-resize', 'table-row-resize');
+      return;
+    }
+
+    const table = cell.closest('table') as HTMLTableElement | null;
+    if (!table || table.classList.contains('rechenmauer-table')) {
+      root.classList.remove('table-col-resize', 'table-row-resize');
+      return;
+    }
+
+    const rect = cell.getBoundingClientRect();
+    const THRESHOLD = 12;
+    const row = cell.closest('tr') as HTMLTableRowElement | null;
+    const isLastCol = row ? cell === row.cells[row.cells.length - 1] : false;
+    const isFirstCol = cell.cellIndex === 0;
+    const isActualFirstRow = row ? row.rowIndex === 0 : true;
+
+    const nearRightEdge = Math.abs(e.clientX - rect.right) <= THRESHOLD && !isLastCol;
+    const nearLeftEdge = Math.abs(e.clientX - rect.left) <= THRESHOLD && !isFirstCol;
+    const nearBottomEdge = Math.abs(e.clientY - rect.bottom) <= THRESHOLD;
+    const nearTopEdge = Math.abs(e.clientY - rect.top) <= THRESHOLD && !isActualFirstRow;
+
+    if (nearRightEdge || nearLeftEdge) {
+      root.classList.remove('table-row-resize');
+      root.classList.add('table-col-resize');
+    } else if (nearBottomEdge || nearTopEdge) {
+      root.classList.remove('table-col-resize');
+      root.classList.add('table-row-resize');
+    } else {
+      root.classList.remove('table-col-resize', 'table-row-resize');
     }
   };
 
@@ -303,6 +426,24 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
   const savedSelectionRef = useRef<Range | null>(null); 
 
   const isInternalChangeRef = useRef(false);
+
+  const tableResizeRef = useRef<{
+    active: boolean;
+    type: 'col' | 'row' | null;
+    leftCells: HTMLElement[];
+    rightCells: HTMLElement[];
+    startX: number;
+    startLeftWidth: number;
+    startRightWidth: number;
+    rowCells: HTMLElement[];
+    startY: number;
+    startRowHeight: number;
+  }>({
+    active: false, type: null,
+    leftCells: [], rightCells: [],
+    startX: 0, startLeftWidth: 0, startRightWidth: 0,
+    rowCells: [], startY: 0, startRowHeight: 0,
+  });
 
   useEffect(() => {
     if (notification) {
@@ -488,6 +629,15 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     onChange(currentHtml);
   };
 
+  const getCellsInColumn = (table: HTMLTableElement, colIndex: number): HTMLElement[] => {
+    const cells: HTMLElement[] = [];
+    Array.from(table.rows).forEach(row => {
+      const cell = row.cells[colIndex] as HTMLElement | undefined;
+      if (cell) cells.push(cell);
+    });
+    return cells;
+  };
+
   // Returns the selectable block for a given element.
   // Always returns the direct child of the page container that contains the element.
   // This ensures the whole block is selected (not a nested .avoid-break sub-element).
@@ -609,6 +759,54 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
 
     return () => {
       document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+  }, []);
+
+  // --- TABLE COLUMN & ROW RESIZE ---
+  useEffect(() => {
+    const MIN_COL = 30;
+    const MIN_ROW = 20;
+
+    const onMouseMove = (e: MouseEvent) => {
+      const s = tableResizeRef.current;
+      if (!s.active) return;
+
+      if (s.type === 'col') {
+        const dx = e.clientX - s.startX;
+        let l = s.startLeftWidth + dx;
+        let r = s.startRightWidth - dx;
+        if (l < MIN_COL) { l = MIN_COL; r = s.startLeftWidth + s.startRightWidth - MIN_COL; }
+        if (r < MIN_COL) { r = MIN_COL; l = s.startLeftWidth + s.startRightWidth - MIN_COL; }
+        s.leftCells.forEach(c => { c.style.width = l + 'px'; });
+        s.rightCells.forEach(c => { c.style.width = r + 'px'; });
+      } else if (s.type === 'row') {
+        const newH = Math.max(MIN_ROW, s.startRowHeight + (e.clientY - s.startY));
+        s.rowCells.forEach(c => { c.style.minHeight = newH + 'px'; });
+      }
+    };
+
+    const onMouseUp = () => {
+      if (!tableResizeRef.current.active) return;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      const root = document.getElementById('dossier-root');
+      if (root) {
+        root.classList.remove('table-col-resize', 'table-row-resize');
+      }
+      tableResizeRef.current = {
+        active: false, type: null,
+        leftCells: [], rightCells: [],
+        startX: 0, startLeftWidth: 0, startRightWidth: 0,
+        rowCells: [], startY: 0, startRowHeight: 0,
+      };
+      saveHistoryState();
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    return () => {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
     };
@@ -3700,6 +3898,7 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
         onInput={handleRootInput} 
         onClick={handleRootClick} 
         onMouseDown={handleMarkerMouseDown}
+        onMouseMove={handleRootMouseMove}
         onDoubleClick={handleRootDoubleClick}
         onKeyDown={handleRootKeyDown}
         onPaste={handleRootPaste}
