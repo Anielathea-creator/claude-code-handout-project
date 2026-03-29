@@ -792,25 +792,32 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     }
   };
 
+  // Find the closest ancestor span with a given class from a selection range
+  const findMarkedSpan = (range: Range, className: string): HTMLElement | null => {
+    const getEl = (node: Node): Element | null =>
+      node instanceof Element ? node : node.parentElement;
+    return (getEl(range.startContainer)?.closest(`.${className}`) as HTMLElement) ??
+           (getEl(range.endContainer)?.closest(`.${className}`) as HTMLElement) ??
+           null;
+  };
+
   const markAsAnswer = () => {
     restoreSelection();
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
-    // Toggle off if selection is already inside a marked span
-    let node: Node | null = range.commonAncestorContainer;
-    while (node) {
-      if (node instanceof HTMLElement && node.classList.contains('is-answer')) {
-        saveHistoryState();
-        const parent = node.parentNode;
-        if (parent) {
-          while (node.firstChild) parent.insertBefore(node.firstChild, node);
-          parent.removeChild(node);
-        }
-        saveHistoryState();
-        return;
+    // Toggle off if selection is already inside an is-answer span
+    const existing = findMarkedSpan(range, 'is-answer');
+    if (existing) {
+      saveHistoryState();
+      const parent = existing.parentNode;
+      if (parent) {
+        while (existing.firstChild) parent.insertBefore(existing.firstChild, existing);
+        parent.removeChild(existing);
+        parent.normalize();
       }
-      node = node.parentNode;
+      saveHistoryState();
+      return;
     }
     saveHistoryState();
     const span = document.createElement('span');
@@ -847,19 +854,17 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     if (!sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
     // Toggle off if selection is already inside a marked span
-    let node: Node | null = range.commonAncestorContainer;
-    while (node) {
-      if (node instanceof HTMLElement && node.classList.contains('is-strikethrough-answer')) {
-        saveHistoryState();
-        const parent = node.parentNode;
-        if (parent) {
-          while (node.firstChild) parent.insertBefore(node.firstChild, node);
-          parent.removeChild(node);
-        }
-        saveHistoryState();
-        return;
+    const existing = findMarkedSpan(range, 'is-strikethrough-answer');
+    if (existing) {
+      saveHistoryState();
+      const parent = existing.parentNode;
+      if (parent) {
+        while (existing.firstChild) parent.insertBefore(existing.firstChild, existing);
+        parent.removeChild(existing);
+        parent.normalize();
       }
-      node = node.parentNode;
+      saveHistoryState();
+      return;
     }
     saveHistoryState();
     const span = document.createElement('span');
@@ -881,19 +886,17 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     if (!sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
     // Toggle off if selection is already inside a marked span
-    let node: Node | null = range.commonAncestorContainer;
-    while (node) {
-      if (node instanceof HTMLElement && node.classList.contains('is-highlight-answer')) {
-        saveHistoryState();
-        const parent = node.parentNode;
-        if (parent) {
-          while (node.firstChild) parent.insertBefore(node.firstChild, node);
-          parent.removeChild(node);
-        }
-        saveHistoryState();
-        return;
+    const existing = findMarkedSpan(range, 'is-highlight-answer');
+    if (existing) {
+      saveHistoryState();
+      const parent = existing.parentNode;
+      if (parent) {
+        while (existing.firstChild) parent.insertBefore(existing.firstChild, existing);
+        parent.removeChild(existing);
+        parent.normalize();
       }
-      node = node.parentNode;
+      saveHistoryState();
+      return;
     }
     saveHistoryState();
     const span = document.createElement('span');
