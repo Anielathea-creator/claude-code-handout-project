@@ -137,9 +137,18 @@ export function AIChat({
           const chat = aiClient.chats.create({
             model: 'gemini-3-flash-preview',
             config: {
+              maxOutputTokens: 65536,
               systemInstruction: `Du bist ein Frontend-Entwickler und Lehrmittelautor. Der Nutzer hat ein Dokument mit Aufgaben hochgeladen und Anweisungen gegeben.
 Generiere nun den vollständigen HTML-Code für das Dossier basierend auf dem Dokument und den Anweisungen.
 Verwende Tailwind CSS für das Styling. Das Farbschema ist: ${theme || 'blue'}.
+
+VOLLSTÄNDIGKEIT (PFLICHT – OBERSTE PRIORITÄT):
+Du MUSST JEDE EINZELNE Aufgabe aus dem hochgeladenen Dokument übernehmen – ohne Ausnahme.
+- Keine Aufgabe darf ausgelassen, zusammengefasst oder mit einer anderen verschmolzen werden.
+- Erstelle so viele Seiten wie nötig, um ALLE Aufgaben unterzubringen.
+- Falls das Dokument 20 Aufgaben enthält, müssen exakt 20 Aufgaben im generierten HTML erscheinen.
+- Wenn du unsicher bist, ob etwas eine eigenständige Aufgabe ist: Übernimm es als eigene Aufgabe.
+- Zähle beim Generieren die Aufgaben mit und stelle sicher, dass die Anzahl mit dem Dokument übereinstimmt.
 
 AUFGABEN-ZUORDNUNG ZU TEMPLATES (PFLICHT):
 Analysiere jede Aufgabe aus dem hochgeladenen Dokument und ordne sie dem am besten passenden Template aus der Liste unten zu. Gehe dabei so vor:
@@ -168,6 +177,7 @@ ${allTemplatesForImport}
 
 WICHTIG FÜR DAS LAYOUT:
 ACHTUNG: Jeder direkte Container im Dossier ist EXAKT EINE A4-Seite (29.7cm hoch). Inhalt der überläuft wird HART ABGESCHNITTEN! Du musst die Seitenaufteilung selbst steuern.
+WICHTIG: Erstelle so viele Seiten-Container wie nötig, um ALLE Aufgaben unterzubringen. Die Anzahl der Seiten ist NICHT begrenzt. Kürze oder überspringe NIEMALS Aufgaben, um sie auf weniger Seiten zu pressen.
 
 1. TITELBLATT: Nur ein einfacher Platzhalter mit dem Hauptthema als Überschrift – KEINE Bilder, KEINE Name/Datum-Felder, KEINE Dekoration. Die Gestaltung erfolgt später durch den Nutzer.
 2. Seitenränder: Nutze überall "p-[2.5cm]" für alle Seiten-Container.
@@ -390,6 +400,7 @@ Wenn du <action type="update_html"> nutzt, antworte NUR mit diesem Tag und dem v
         model: 'gemini-3-flash-preview',
         history: pruneHistoryForApi(chatHistory),
         config: {
+          maxOutputTokens: 65536,
           systemInstruction: `Du bist ein Frontend-Entwickler und Lehrmittelautor. Der Nutzer hat den Entwurf bestätigt.
 Generiere nun den vollständigen HTML-Code für das Dossier basierend auf dem Entwurf und dem Briefing.
 Verwende Tailwind CSS für das Styling. Das Farbschema ist: ${theme || 'blue'}.
@@ -415,6 +426,7 @@ ${templatesHtml || 'Keine spezifischen Templates gewählt. Nutze Standard-Strukt
 
 WICHTIG FÜR DAS LAYOUT:
 ACHTUNG: Jeder direkte Container im Dossier ist EXAKT EINE A4-Seite (29.7cm hoch). Inhalt der überläuft wird HART ABGESCHNITTEN! Du musst die Seitenaufteilung selbst steuern.
+WICHTIG: Erstelle so viele Seiten-Container wie nötig, um ALLE Aufgaben unterzubringen. Die Anzahl der Seiten ist NICHT begrenzt. Kürze oder überspringe NIEMALS Aufgaben, um sie auf weniger Seiten zu pressen.
 
 1. TITELBLATT: Nur ein einfacher Platzhalter mit dem Hauptthema als Überschrift – KEINE Bilder, KEINE Name/Datum-Felder, KEINE Dekoration. Die Gestaltung erfolgt später durch den Nutzer.
 2. Seitenränder: Nutze überall "p-[2.5cm]" für alle Seiten-Container.

@@ -201,7 +201,7 @@ Bitte erstelle basierend auf diesem Briefing zunächst NUR einen groben Entwurf 
 - **Visueller Stil:** ${data.theme}
 - **Spezifische Anweisungen:** ${data.importInstructions || 'Keine spezifischen Anweisungen'}
 
-Ich habe eine Datei mit bestehenden Aufgaben hochgeladen. Bitte extrahiere die Aufgaben aus der Datei und übertrage sie direkt in das HTML-Layout des Dossiers. Befolge dabei meine spezifischen Anweisungen strikt.`;
+Ich habe eine Datei mit bestehenden Aufgaben hochgeladen. Bitte extrahiere ALLE Aufgaben aus der Datei – jede einzelne, ohne Ausnahme – und übertrage sie vollständig in das HTML-Layout des Dossiers. Es darf keine Aufgabe ausgelassen, zusammengefasst oder mit einer anderen verschmolzen werden. Erstelle so viele Seiten wie nötig. Befolge dabei meine spezifischen Anweisungen strikt.`;
 
       const parts: any[] = [{ text: briefingMessage }];
       
