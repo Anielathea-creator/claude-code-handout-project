@@ -794,10 +794,25 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
 
   const markAsAnswer = () => {
     restoreSelection();
-    saveHistoryState();
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
+    // Toggle off if selection is already inside a marked span
+    let node: Node | null = range.commonAncestorContainer;
+    while (node) {
+      if (node instanceof HTMLElement && node.classList.contains('is-answer')) {
+        saveHistoryState();
+        const parent = node.parentNode;
+        if (parent) {
+          while (node.firstChild) parent.insertBefore(node.firstChild, node);
+          parent.removeChild(node);
+        }
+        saveHistoryState();
+        return;
+      }
+      node = node.parentNode;
+    }
+    saveHistoryState();
     const span = document.createElement('span');
     span.className = 'is-answer';
     span.contentEditable = 'true';
@@ -828,10 +843,25 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
 
   const markAsStrikethrough = () => {
     restoreSelection();
-    saveHistoryState();
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
+    // Toggle off if selection is already inside a marked span
+    let node: Node | null = range.commonAncestorContainer;
+    while (node) {
+      if (node instanceof HTMLElement && node.classList.contains('is-strikethrough-answer')) {
+        saveHistoryState();
+        const parent = node.parentNode;
+        if (parent) {
+          while (node.firstChild) parent.insertBefore(node.firstChild, node);
+          parent.removeChild(node);
+        }
+        saveHistoryState();
+        return;
+      }
+      node = node.parentNode;
+    }
+    saveHistoryState();
     const span = document.createElement('span');
     span.className = 'is-strikethrough-answer';
     span.contentEditable = 'true';
@@ -847,10 +877,25 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
 
   const markAsHighlight = () => {
     restoreSelection();
-    saveHistoryState();
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
+    // Toggle off if selection is already inside a marked span
+    let node: Node | null = range.commonAncestorContainer;
+    while (node) {
+      if (node instanceof HTMLElement && node.classList.contains('is-highlight-answer')) {
+        saveHistoryState();
+        const parent = node.parentNode;
+        if (parent) {
+          while (node.firstChild) parent.insertBefore(node.firstChild, node);
+          parent.removeChild(node);
+        }
+        saveHistoryState();
+        return;
+      }
+      node = node.parentNode;
+    }
+    saveHistoryState();
     const span = document.createElement('span');
     span.className = 'is-highlight-answer';
     span.contentEditable = 'true';
@@ -4160,6 +4205,8 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
         .editable:focus { background-color: #f1f5f9; outline: 2px dashed #cbd5e1; }
 
         .avoid-break { break-inside: avoid; page-break-inside: avoid; }
+        /* Einheitlicher Abstand zwischen aufeinanderfolgenden Inhaltsblöcken */
+        #dossier-root .avoid-break + .avoid-break { margin-top: 2rem !important; }
 
         .page-break { height: 2rem; background: transparent !important; border: none; margin: 0; padding: 0; display: block; pointer-events: none; outline: none !important; }
         .page-break::after { display: none; }
