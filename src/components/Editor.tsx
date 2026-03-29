@@ -374,35 +374,37 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
 
       root.querySelectorAll('.editable, .is-answer, p, h1, h2, h3, h4, td, th, li, ol, ul, span, b, i, strong, em, div').forEach(el => {
         const element = el as HTMLElement;
-        // Don't make the whole root editable, only the specific elements
-        if (element.id !== 'dossier-root' && !element.hasAttribute('contenteditable')) {
-          // Check if it's a structural container we should NOT make editable
-          if (
-            element.classList.contains('page-break') ||
-            element.classList.contains('avoid-break') ||
-            element.classList.contains('cover-page-container') ||
-            element.classList.contains('cover-page-wrapper') ||
-            element.classList.contains('draggable-image-wrapper') ||
-            element.id === 'toc-list' ||
-            element.parentElement?.id === 'dossier-root'
-          ) {
-             return;
-          }
-          
-          // For DIVs, only make them editable if they contain direct text nodes to avoid breaking layout
-          if (element.tagName === 'DIV') {
-            const hasDirectText = Array.from(element.childNodes).some(node => node.nodeType === 3 && node.textContent?.trim());
-            if (!hasDirectText) return;
-          }
+        if (element.id === 'dossier-root') return;
 
+        // Check if it's a structural container we should NOT make editable
+        if (
+          element.classList.contains('page-break') ||
+          element.classList.contains('avoid-break') ||
+          element.classList.contains('cover-page-container') ||
+          element.classList.contains('cover-page-wrapper') ||
+          element.classList.contains('draggable-image-wrapper') ||
+          element.id === 'toc-list' ||
+          element.parentElement?.id === 'dossier-root'
+        ) {
+           return;
+        }
+
+        // For DIVs, only make them editable if they contain direct text nodes to avoid breaking layout
+        if (element.tagName === 'DIV') {
+          const hasDirectText = Array.from(element.childNodes).some(node => node.nodeType === 3 && node.textContent?.trim());
+          if (!hasDirectText) return;
+        }
+
+        if (!element.hasAttribute('contenteditable')) {
           element.setAttribute('contenteditable', 'true');
-          // Ensure it's selectable
           element.style.userSelect = 'text';
           element.style.webkitUserSelect = 'text';
+        }
 
-          if (!element.classList.contains('editable') && !element.classList.contains('is-answer')) {
-            element.classList.add('editable');
-          }
+        // Immer .editable sicherstellen — auch bei Elementen die schon contenteditable haben
+        // (z.B. alte Dossiers ohne .editable-Klasse)
+        if (!element.classList.contains('editable') && !element.classList.contains('is-answer')) {
+          element.classList.add('editable');
         }
       });
       // Ensure page containers (direct children of dossier-root) are never editable
