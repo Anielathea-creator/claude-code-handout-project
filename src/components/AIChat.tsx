@@ -131,8 +131,8 @@ export function AIChat({
         hasRequestedDraftRef.current = true;
         setIsGeneratingHtml(true);
         try {
-          const selectedTemplates = EXERCISE_TEMPLATES.filter(t => selectedTemplateIds?.includes(t.id));
-          const templatesHtml = selectedTemplates.map(t => `Template ID: ${t.id}\nName: ${t.name}\nHTML: ${t.html}`).join('\n\n---\n\n');
+          // In import mode, provide ALL templates so the AI can match each task to the best fitting one
+          const allTemplatesForImport = EXERCISE_TEMPLATES.map(t => `Template ID: ${t.id}\nName: ${t.name}\nHTML:\n${t.html}`).join('\n\n---\n\n');
 
           const chat = aiClient.chats.create({
             model: 'gemini-3-flash-preview',
@@ -141,8 +141,14 @@ export function AIChat({
 Generiere nun den vollständigen HTML-Code für das Dossier basierend auf dem Dokument und den Anweisungen.
 Verwende Tailwind CSS für das Styling. Das Farbschema ist: ${theme || 'blue'}.
 
-WICHTIG FÜR AUFGABEN:
-Nutze die mitgelieferten HTML-Templates als STRUKTURELLE VORLAGE (HTML-Klassen, Layout). Die Templates enthalten absichtlich minimalen Platzhalter-Inhalt für manuelle Bearbeitung – beim GENERIEREN musst du den Inhalt massiv ausbauen!
+AUFGABEN-ZUORDNUNG ZU TEMPLATES (PFLICHT):
+Analysiere jede Aufgabe aus dem hochgeladenen Dokument und ordne sie dem am besten passenden Template aus der Liste unten zu. Gehe dabei so vor:
+1. Erkenne den Aufgabentyp (z.B. Lückentext, Konjugation, Fehler korrigieren, offene Frage, Tabelle, usw.)
+2. Wähle das Template, dessen Struktur und Layout am besten zum Aufgabentyp passt.
+3. Nutze die HTML-Struktur dieses Templates als Gerüst und fülle es mit dem echten Inhalt aus dem Dokument.
+4. Wenn keine Aufgabe exakt zu einem Template passt: Gestalte diese Aufgabe selbst, aber verwende dabei dieselben CSS-Klassen, Abstände und Layout-Elemente wie die anderen Templates (editable, gap-line, schreib-linie, is-answer, avoid-break usw.), damit das Gesamtbild einheitlich bleibt.
+
+WICHTIG: Die Templates enthalten absichtlich minimalen Platzhalter-Inhalt – beim Generieren musst du den echten Inhalt aus dem hochgeladenen Dokument einsetzen und bei Bedarf ausbauen!
 
 MINDEST-INHALTSANFORDERUNGEN (PFLICHT beim Generieren):
 - Tabellen: Mindestens 6-8 Zeilen mit vollständigem, themenspezifischem Inhalt
@@ -157,13 +163,13 @@ MINDEST-INHALTSANFORDERUNGEN (PFLICHT beim Generieren):
 Passe das Theme-Farbschema an: text-${theme || 'blue'}-700
 Beachte zudem folgende spezifische Anweisungen des Lehrers: ${taskInstructions || 'Keine'}
 
-VERFÜGBARE TEMPLATES (Strukturvorlagen):
-${templatesHtml || 'Keine spezifischen Templates gewählt. Nutze Standard-Strukturen.'}
+ALLE VERFÜGBAREN TEMPLATES (wähle für jede Aufgabe das passendste):
+${allTemplatesForImport}
 
 WICHTIG FÜR DAS LAYOUT:
 ACHTUNG: Jeder direkte Container im Dossier ist EXAKT EINE A4-Seite (29.7cm hoch). Inhalt der überläuft wird HART ABGESCHNITTEN! Du musst die Seitenaufteilung selbst steuern.
 
-1. TITELBLATT (GENAU EINE SEITE): Alle Titelblatt-Elemente in EINEM Container. KEINE page-break darin!
+1. TITELBLATT: Nur ein einfacher Platzhalter mit dem Hauptthema als Überschrift – KEINE Bilder, KEINE Name/Datum-Felder, KEINE Dekoration. Die Gestaltung erfolgt später durch den Nutzer.
 2. Seitenränder: Nutze überall "p-[2.5cm]" für alle Seiten-Container.
 3. SEITENAUFTEILUNG – PFLICHT:
    a) Titelblatt: 1 Container → page-break
@@ -187,9 +193,9 @@ WICHTIG FÜR DIE ANTWORT:
 Antworte AUSSCHLIESSLICH mit dem HTML-Code. Keine Markdown-Formatierung, kein Text davor/danach.
 Strukturiere das HTML wie folgt:
 1. Start-Container: <div class="max-w-4xl mx-auto bg-white shadow-lg rounded-xl">
-2. Titelseite (EINE Seite, alles in EINEM Container):
+2. Titelseite – NUR ein einfacher Platzhalter mit dem Hauptthema als Überschrift. KEINE aufwändige Gestaltung, KEIN Bild, KEINE Name/Datum-Felder. Exakt dieses HTML verwenden:
    <div class="title-page-placeholder p-[2.5cm] min-h-[29.7cm] flex flex-col justify-center items-center relative border-b border-gray-100">
-     <!-- Übertitel (h3), Haupttitel (h1), Symbol/Dekoration, Untertitel (p), Name/Datum/Klasse unten (absolute bottom-[2.5cm]) -->
+     <h1 contenteditable="true" class="editable text-[36pt] font-black text-${theme || 'blue'}-700 text-center">[HAUPTTHEMA HIER EINSETZEN]</h1>
    </div>
 3. <div class="page-break avoid-break"></div>
 4. Inhaltsverzeichnis: <div class="p-[2.5cm]"><h2 class="editable text-[20pt] font-bold mb-6 border-b-2 border-black pb-2" contenteditable="true">Inhaltsverzeichnis</h2><ul id="toc-list" class="space-y-1 mb-8 max-w-2xl text-[14pt]"><li class="italic text-gray-500">Klicke oben auf "Inhaltsverzeichnis Auto-Sync"...</li></ul></div>
@@ -205,10 +211,10 @@ Strukturiere das HTML wie folgt:
           const messageContent = chatHistory[0].parts ? chatHistory[0].parts : chatHistory[0].content;
           const response = await chat.sendMessage({ message: messageContent as any });
           let html = response.text || '';
-          
+
           // Clean up markdown formatting if the model still includes it
           html = html.replace(/^```html\n?/, '').replace(/\n?```$/, '').trim();
-          
+
           onConfirmDraft(html);
         } catch (error: any) {
           console.error('Import HTML generation error:', error);
@@ -410,7 +416,7 @@ ${templatesHtml || 'Keine spezifischen Templates gewählt. Nutze Standard-Strukt
 WICHTIG FÜR DAS LAYOUT:
 ACHTUNG: Jeder direkte Container im Dossier ist EXAKT EINE A4-Seite (29.7cm hoch). Inhalt der überläuft wird HART ABGESCHNITTEN! Du musst die Seitenaufteilung selbst steuern.
 
-1. TITELBLATT (GENAU EINE SEITE): Alle Titelblatt-Elemente in EINEM Container. KEINE page-break darin!
+1. TITELBLATT: Nur ein einfacher Platzhalter mit dem Hauptthema als Überschrift – KEINE Bilder, KEINE Name/Datum-Felder, KEINE Dekoration. Die Gestaltung erfolgt später durch den Nutzer.
 2. Seitenränder: Nutze überall "p-[2.5cm]" für alle Seiten-Container.
 3. SEITENAUFTEILUNG – PFLICHT:
    a) Titelblatt: 1 Container → page-break
@@ -434,9 +440,9 @@ WICHTIG FÜR DIE ANTWORT:
 Antworte AUSSCHLIESSLICH mit dem HTML-Code. Keine Markdown-Formatierung, kein Text davor/danach.
 Strukturiere das HTML wie folgt:
 1. Start-Container: <div class="max-w-4xl mx-auto bg-white shadow-lg rounded-xl">
-2. Titelseite (EINE Seite, alles in EINEM Container):
+2. Titelseite – NUR ein einfacher Platzhalter mit dem Hauptthema als Überschrift. KEINE aufwändige Gestaltung, KEIN Bild, KEINE Name/Datum-Felder. Exakt dieses HTML verwenden:
    <div class="title-page-placeholder p-[2.5cm] min-h-[29.7cm] flex flex-col justify-center items-center relative border-b border-gray-100">
-     <!-- Übertitel (h3), Haupttitel (h1), Symbol/Dekoration, Untertitel (p), Name/Datum/Klasse unten (absolute bottom-[2.5cm]) -->
+     <h1 contenteditable="true" class="editable text-[36pt] font-black text-${theme || 'blue'}-700 text-center">[HAUPTTHEMA HIER EINSETZEN]</h1>
    </div>
 3. <div class="page-break avoid-break"></div>
 4. Inhaltsverzeichnis: <div class="p-[2.5cm]"><h2 class="editable text-[20pt] font-bold mb-6 border-b-2 border-black pb-2" contenteditable="true">Inhaltsverzeichnis</h2><ul id="toc-list" class="space-y-1 mb-8 max-w-2xl text-[14pt]"><li class="italic text-gray-500">Klicke oben auf "Inhaltsverzeichnis Auto-Sync"...</li></ul></div>

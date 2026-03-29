@@ -1072,6 +1072,84 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
     </div>
   </div>
 </div>`
+  },
+  {
+    id: "satz_transformator",
+    name: "Satz-Transformator (mit Pfeil)",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Sätze verwandeln</h3>
+  <p class="editable text-gray-900 mb-4" contenteditable="true">Schreibe den Satz in der geforderten Form neu auf.</p>
+  <div class="mb-6">
+    <p class="editable font-bold text-gray-900 mb-1" contenteditable="true">Ich baue ein Baumhaus. (Futur)</p>
+    <div class="flex gap-2 items-start">
+      <span class="text-gray-500 font-bold mt-2">→</span>
+      <div class="schreib-linie editable text-THEME-600 italic flex-1" style="min-height: 2.5rem;" contenteditable="true">
+        <span class="is-answer">Ich werde ein Baumhaus bauen.</span>
+      </div>
+    </div>
+  </div>
+  <div class="mb-6">
+    <p class="editable font-bold text-gray-900 mb-1" contenteditable="true">Der Zug fährt ab. (Präteritum)</p>
+    <div class="flex gap-2 items-start">
+      <span class="text-gray-500 font-bold mt-2">→</span>
+      <div class="schreib-linie editable text-THEME-600 italic flex-1" style="min-height: 2.5rem;" contenteditable="true">
+        <span class="is-answer">Der Zug fuhr ab.</span>
+      </div>
+    </div>
+  </div>
+</div>`
+  },
+  {
+    id: "klammer_luecken",
+    name: "Lückentext (Klammer-Modus)",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Verben einsetzen</h3>
+  <p class="editable text-gray-900 mb-4" contenteditable="true">Setze das Verb in der Klammer in der passenden Personalform ein.</p>
+  <div class="leading-loose space-y-2">
+    <p class="editable text-gray-900" contenteditable="true">
+      Gestern <span class="gap-line min-w-[100px] inline-block text-center"><span class="is-answer text-THEME-600 italic">fiel</span></span> der Junge auf die Nase. (fallen)
+    </p>
+    <p class="editable text-gray-900" contenteditable="true">
+      Wir <span class="gap-line min-w-[100px] inline-block text-center"><span class="is-answer text-THEME-600 italic">lachten</span></span> über den lustigen Witz. (lachen)
+    </p>
+  </div>
+</div>`
+  },
+  {
+    id: "konjugations_faecher",
+    name: "Konjugations-Fächer",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Konjugieren</h3>
+  <p class="editable text-gray-900 mb-4" contenteditable="true">Setze das Verb "singen" in alle Personalformen.</p>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-12 w-full max-w-lg">
+    <div class="flex items-end gap-2 text-gray-900"><span class="w-20 font-bold editable" contenteditable="true">ich</span> <span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer text-THEME-600 italic">singe</span></span></div>
+    <div class="flex items-end gap-2 text-gray-900"><span class="w-20 font-bold editable" contenteditable="true">wir</span> <span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer text-THEME-600 italic">singen</span></span></div>
+    <div class="flex items-end gap-2 text-gray-900"><span class="w-20 font-bold editable" contenteditable="true">du</span> <span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer text-THEME-600 italic">singst</span></span></div>
+    <div class="flex items-end gap-2 text-gray-900"><span class="w-20 font-bold editable" contenteditable="true">ihr</span> <span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer text-THEME-600 italic">singt</span></span></div>
+    <div class="flex items-end gap-2 text-gray-900"><span class="w-20 font-bold editable" contenteditable="true">er/sie/es</span> <span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer text-THEME-600 italic">singt</span></span></div>
+    <div class="flex items-end gap-2 text-gray-900"><span class="w-20 font-bold editable" contenteditable="true">sie</span> <span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer text-THEME-600 italic">singen</span></span></div>
+  </div>
+</div>`
+  },
+  {
+    id: "korrektur_zeile",
+    name: "Korrektur-Zeile (Fehler finden)",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Fehler reparieren</h3>
+  <p class="editable text-gray-900 mb-4" contenteditable="true">Streiche das falsch gebildete Wort durch und schreibe es richtig auf die Linie.</p>
+  <div class="space-y-4">
+    <div class="flex items-end gap-4">
+      <p class="editable text-gray-900 flex-1" contenteditable="true">Der Hund <span class="is-strikethrough-answer text-red-600">beisste</span> in den Knochen.</p>
+      <span class="text-gray-500 font-bold">→</span>
+      <div class="w-40 border-b border-gray-400 editable text-center leading-tight pb-1" contenteditable="true"><span class="is-answer text-THEME-600 italic">biss</span></div>
+    </div>
+    <div class="flex items-end gap-4">
+      <p class="editable text-gray-900 flex-1" contenteditable="true">Gestern <span class="is-strikethrough-answer text-red-600">fallte</span> ich vom Stuhl.</p>
+      <span class="text-gray-500 font-bold">→</span>
+      <div class="w-40 border-b border-gray-400 editable text-center leading-tight pb-1" contenteditable="true"><span class="is-answer text-THEME-600 italic">fiel</span></div>
+    </div>
+  </div>
+</div>`
   }
 ];
 

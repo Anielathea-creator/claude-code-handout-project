@@ -292,6 +292,7 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
   const [coverError, setCoverError] = useState('');
   const [showRegenConfirm, setShowRegenConfirm] = useState(false);
   const [regenTarget, setRegenTarget] = useState<{img: HTMLImageElement, prompt: string} | null>(null);
+  const coverUploadInputRef = useRef<HTMLInputElement>(null);
   const [zoom, setZoom] = useState(1);
   const [notification, setNotification] = useState<{message: string, type: 'error' | 'success'} | null>(null);
   const [aiSubtaskCount, setAiSubtaskCount] = useState(1);
@@ -651,8 +652,13 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
       // If element is locked in text-editing mode, skip drag
       if (el.dataset.editing === 'true') return;
 
-      // Detect double-click (e.detail >= 2) on text elements: enter editing mode instead of dragging
-      if (e.detail >= 2 && !el.classList.contains('resizable-cover-image-wrapper')) {
+      // If the click landed directly on editable text content, enter editing mode immediately.
+      // This prevents the drag handler from firing when the user tries to click-drag to select text.
+      // The image wrapper is excluded so double-click on the cover image still triggers regeneration.
+      const isClickOnEditableContent = !!(
+        target.classList.contains('editable') || target.closest('.editable')
+      );
+      if (isClickOnEditableContent && !el.classList.contains('resizable-cover-image-wrapper')) {
         el.setAttribute('data-editing', 'true');
         el.style.cursor = 'text';
         return;
@@ -1016,16 +1022,37 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     const dossierRoot = document.getElementById('dossier-root');
     if (!dossierRoot) return;
 
-    const pageContainer = activeBlock.parentElement;
-    // Only move blocks that are inside a page container (not direct children of dossier-root)
-    if (!pageContainer || pageContainer === dossierRoot) return;
+    let blockToMove = activeBlock;
+    let pageContainer = blockToMove.parentElement;
+
+    // If activeBlock is a direct child of dossier-root (e.g. a page container was selected),
+    // try to find a movable content block inside it instead.
+    if (pageContainer === dossierRoot) {
+      // Check if the activeBlock is actually a page container with content blocks inside.
+      // In that case, we can't move the page itself — skip silently.
+      // But if there's a focused editable inside, use findBlockForElement to get the right block.
+      const focused = document.activeElement as HTMLElement;
+      if (focused && blockToMove.contains(focused)) {
+        const correctBlock = findBlockForElement(focused);
+        if (correctBlock && correctBlock !== blockToMove && correctBlock.parentElement !== dossierRoot) {
+          blockToMove = correctBlock;
+          pageContainer = blockToMove.parentElement;
+        } else {
+          return;
+        }
+      } else {
+        return;
+      }
+    }
+
+    if (!pageContainer) return;
 
     saveHistoryState();
 
     if (direction === 'up') {
-      if (activeBlock.previousElementSibling) {
+      if (blockToMove.previousElementSibling) {
         // Normal case: swap with previous sibling within same page
-        pageContainer.insertBefore(activeBlock, activeBlock.previousElementSibling);
+        pageContainer.insertBefore(blockToMove, blockToMove.previousElementSibling);
       } else {
         // At top of page: move to last position of previous page container
         let prev = pageContainer.previousElementSibling;
@@ -1033,13 +1060,13 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
           prev = prev.previousElementSibling;
         }
         if (prev && prev !== dossierRoot) {
-          prev.appendChild(activeBlock);
+          prev.appendChild(blockToMove);
         }
       }
     } else {
-      if (activeBlock.nextElementSibling) {
+      if (blockToMove.nextElementSibling) {
         // Normal case: swap with next sibling within same page
-        pageContainer.insertBefore(activeBlock.nextElementSibling, activeBlock);
+        pageContainer.insertBefore(blockToMove.nextElementSibling, blockToMove);
       } else {
         // At bottom of page: move to first position of next page container
         let next = pageContainer.nextElementSibling;
@@ -1047,22 +1074,39 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
           next = next.nextElementSibling;
         }
         if (next) {
-          next.insertBefore(activeBlock, next.firstChild);
+          next.insertBefore(blockToMove, next.firstChild);
         }
       }
     }
 
+    // Update activeBlock to the moved block so subsequent operations use the correct reference
+    setActiveBlock(blockToMove);
+    document.querySelectorAll('.active-block-highlight').forEach(el => el.classList.remove('active-block-highlight'));
+    blockToMove.classList.add('active-block-highlight');
+
     repaginate();
     saveHistoryState();
-    activeBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    blockToMove.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
   const copiedBlockRef = useRef<string | null>(null);
 
   const handleCopyBlock = () => {
-    if (activeBlock) {
-      copiedBlockRef.current = activeBlock.outerHTML;
+    if (!activeBlock) return;
+    const dossierRoot = document.getElementById('dossier-root');
+
+    // If activeBlock is a page container (direct child of root), try to find the actual content block
+    let blockToCopy = activeBlock;
+    if (dossierRoot && activeBlock.parentElement === dossierRoot && !activeBlock.classList.contains('page-break')) {
+      const focused = document.activeElement as HTMLElement;
+      if (focused && activeBlock.contains(focused)) {
+        const correctBlock = findBlockForElement(focused);
+        if (correctBlock && correctBlock !== activeBlock && correctBlock.parentElement !== dossierRoot) {
+          blockToCopy = correctBlock;
+        }
+      }
     }
+    copiedBlockRef.current = blockToCopy.outerHTML;
   };
 
   const handlePasteBlock = () => {
@@ -3389,40 +3433,44 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     if (target.nodeType === 3) target = target.parentElement as HTMLElement;
     if (!target || !target.closest) return;
 
-    // Handle cover image regeneration on double-click
+    // Handle cover image change on double-click (regenerate or upload own image)
     if (target.tagName === 'IMG' && target.classList.contains('cover-image')) {
-      const prompt = target.getAttribute('data-prompt');
-      if (prompt) {
-        setRegenTarget({ img: target as HTMLImageElement, prompt });
-        setShowRegenConfirm(true);
-        return;
-      }
+      const prompt = target.getAttribute('data-prompt') || '';
+      setRegenTarget({ img: target as HTMLImageElement, prompt });
+      setShowRegenConfirm(true);
+      return;
     }
 
     // Handle double-click on cover text elements: lock element in place for text editing
+    // and select all text so the user can immediately apply formatting (e.g. font size).
     const coverDraggable = target.closest('.cover-draggable') as HTMLElement | null;
     if (coverDraggable && !coverDraggable.classList.contains('resizable-cover-image-wrapper')) {
       coverDraggable.setAttribute('data-editing', 'true');
       coverDraggable.style.cursor = 'text';
+      // Select all text in the editable child after the browser's own word-selection has fired
+      const editable = coverDraggable.querySelector('[contenteditable="true"]') as HTMLElement | null;
+      if (editable) {
+        editable.focus();
+        setTimeout(() => {
+          const range = document.createRange();
+          range.selectNodeContents(editable);
+          const sel = window.getSelection();
+          if (sel) {
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+        }, 0);
+      }
       return;
     }
 
     const root = document.getElementById('dossier-root');
     if (!root) return;
 
-    // For double click, we ALWAYS want to select the outermost block (direct child of dossier-root)
-    let block: HTMLElement | null = null;
-    let current: HTMLElement | null = target;
-    
-    while (current && current.parentElement !== root && current !== root) {
-      current = current.parentElement;
-    }
-    
-    if (current && current.parentElement === root) {
-      block = current;
-    }
+    // Use findBlockForElement to get the correct exercise block (not the page container)
+    const block = findBlockForElement(target);
 
-    if (block) {
+    if (block && block !== root) {
       const isEditable = target.classList.contains('editable') || target.closest('.editable') || target.contentEditable === 'true';
       const isCover = block.classList.contains('cover-page-wrapper') || block.classList.contains('cover-page-container') || block.hasAttribute('data-cover');
 
@@ -3430,19 +3478,26 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
         e.preventDefault();
         // Clear text selection to make it clear the block is selected
         window.getSelection()?.removeAllRanges();
-        
+
         document.querySelectorAll('.active-block-highlight').forEach(el => el.classList.remove('active-block-highlight'));
         if (!isCover) {
           block.classList.add('active-block-highlight');
         }
         setActiveBlock(block);
-        
+
         // Focus root to receive key events
         root.focus({ preventScroll: true });
       } else {
-        // Bei Doppelklick auf Text: Normales Verhalten (Text auswählen)
-        document.querySelectorAll('.active-block-highlight').forEach(el => el.classList.remove('active-block-highlight'));
-        setActiveBlock(block);
+        // Bei Doppelklick auf Text: Normales Verhalten (Text auswählen),
+        // aber Block-Highlight beibehalten damit der aktive Block sichtbar bleibt
+        const currentBlock = findBlockForElement(target);
+        if (currentBlock) {
+          document.querySelectorAll('.active-block-highlight').forEach(el => el.classList.remove('active-block-highlight'));
+          if (!isCover) {
+            currentBlock.classList.add('active-block-highlight');
+          }
+          setActiveBlock(currentBlock);
+        }
       }
     }
   };
@@ -3794,32 +3849,66 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
         <div className="absolute inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] p-8 w-full max-w-md border border-indigo-100 animate-in fade-in zoom-in duration-200">
             <h3 className="text-2xl font-black text-indigo-900 mb-4 flex items-center gap-3">
-              <span className="text-3xl">🔄</span>
-              Bild neu generieren?
+              <span className="text-3xl">🖼️</span>
+              Titelbild ändern?
             </h3>
             <p className="text-gray-600 mb-8 leading-relaxed">
-              Möchtest du dieses Bild durch ein neues ersetzen? Deine Texte und das restliche Layout bleiben dabei unverändert.
+              Möchtest du das Titelbild neu generieren lassen oder ein eigenes Bild von deinem Computer einfügen?
             </p>
-            <div className="flex gap-4">
-              <button 
-                onClick={() => { setShowRegenConfirm(false); setRegenTarget(null); }}
-                className="flex-1 py-3 text-gray-500 hover:text-gray-700 font-bold transition-colors"
-              >
-                Abbrechen
-              </button>
-              <button 
+            <div className="flex flex-col gap-3">
+              <button
                 onClick={() => {
-                  if (regenTarget) {
+                  if (regenTarget && regenTarget.prompt) {
                     handleRegenerateCoverImage(regenTarget.img, regenTarget.prompt);
                   }
                   setShowRegenConfirm(false);
                   setRegenTarget(null);
                 }}
-                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-2xl shadow-lg shadow-indigo-100 transition-all transform active:scale-95"
+                disabled={!regenTarget?.prompt}
+                className={`w-full py-3 font-black rounded-2xl shadow-lg transition-all transform active:scale-95 ${regenTarget?.prompt ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100' : 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'}`}
               >
-                Ja, neu generieren
+                🔄 Neu generieren
+              </button>
+              <button
+                onClick={() => {
+                  coverUploadInputRef.current?.click();
+                }}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl shadow-lg shadow-emerald-100 transition-all transform active:scale-95"
+              >
+                📁 Eigenes Bild einfügen
+              </button>
+              <button
+                onClick={() => { setShowRegenConfirm(false); setRegenTarget(null); }}
+                className="w-full py-3 text-gray-500 hover:text-gray-700 font-bold transition-colors"
+              >
+                Abbrechen
               </button>
             </div>
+            <input
+              ref={coverUploadInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file || !regenTarget) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  const dataUrl = ev.target?.result as string;
+                  if (dataUrl && regenTarget.img) {
+                    onAddSnapshot('Vor eigenes Bild einfügen');
+                    regenTarget.img.src = dataUrl;
+                    regenTarget.img.removeAttribute('data-prompt');
+                    regenTarget.img.setAttribute('data-custom-upload', 'true');
+                    saveHistoryState();
+                  }
+                  setShowRegenConfirm(false);
+                  setRegenTarget(null);
+                };
+                reader.readAsDataURL(file);
+                e.target.value = '';
+              }}
+            />
           </div>
         </div>
       )}
@@ -4372,12 +4461,18 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
           <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={() => { restoreSelection(); saveHistoryState(); document.execCommand('underline', false); saveHistoryState(); }} className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded underline transition-colors" title="Unterstrichen">U</button>
           
           <select defaultValue="18px" onMouseDown={() => saveSelection()} onChange={(e) => applyExactFontSize(e.target.value)} className="h-8 bg-white border border-gray-300 rounded text-xs px-1 outline-none focus:border-blue-500" title="Schriftgröße">
+            <option value="8px">8px</option>
             <option value="14px">14px</option>
             <option value="16px">16px</option>
             <option value="18px">18px</option>
             <option value="20px">20px</option>
             <option value="24px">24px</option>
             <option value="32px">32px</option>
+            <option value="40px">40px</option>
+            <option value="48px">48px</option>
+            <option value="56px">56px</option>
+            <option value="64px">64px</option>
+            <option value="72px">72px</option>
           </select>
 
           <div className="relative" ref={colorPickerRef}>
