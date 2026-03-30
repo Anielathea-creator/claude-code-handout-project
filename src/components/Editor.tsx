@@ -210,6 +210,13 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
   const [lastRange, setLastRange] = useState<Range | null>(null);
   const [pendingImageTarget, setPendingImageTarget] = useState<HTMLElement | null>(null);
 
+  const SPACING_OPTIONS = [
+    { label: '1', cls: 'space-y-1', title: 'Kompakt (4px)' },
+    { label: '2', cls: 'space-y-2', title: 'Normal (8px)' },
+    { label: '3', cls: 'space-y-4', title: 'Mittel (16px)' },
+    { label: '4', cls: 'space-y-6', title: 'Gross (24px)' },
+  ];
+
   const FRAME_DESIGNS = [
     { id: 'vintage', name: 'Vintage', icon: '📜', description: 'Klassischer Rahmen' },
     { id: 'floral', name: 'Blumen', icon: '🌸', description: 'Florale Ecken' },
@@ -3039,6 +3046,16 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     setNotification({ message: `Rahmen angewendet`, type: 'success' });
   };
 
+  const handleListSpacing = (spacingClass: string) => {
+    if (!activeBlock) return;
+    const list = activeBlock.querySelector('ul, ol');
+    if (!list) return;
+    saveHistoryState();
+    Array.from(list.classList).filter(c => c.startsWith('space-y-')).forEach(c => list.classList.remove(c));
+    list.classList.add(spacingClass);
+    saveHistoryState();
+  };
+
   const handleApplyColor = (colorClass: string) => {
     if (!activeBlock) return;
     saveHistoryState();
@@ -3691,6 +3708,13 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
       wrapper.style.marginBottom = zoom > 1 ? `${heightAdjustment}%` : '0';
     }
   }, [zoom]);
+
+  const activeListSpacing = useMemo(() => {
+    if (!activeBlock) return null;
+    const list = activeBlock.querySelector('ul, ol');
+    if (!list) return null;
+    return Array.from(list.classList).find(c => c.startsWith('space-y-')) || 'none';
+  }, [activeBlock]);
 
   const dossierContent = useMemo(() => {
     return (
@@ -4695,6 +4719,28 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
             <Minus size={14} /><span className="text-[10px] font-bold ml-0.5">S</span>
           </button>
         </div>
+
+        {/* --- LISTEN-ABSTAND --- */}
+        {activeListSpacing !== null && (
+          <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-1 py-1 rounded-lg">
+            <span className="text-[10px] font-bold text-amber-800 mr-1">Abstand:</span>
+            {SPACING_OPTIONS.map(opt => (
+              <button
+                key={opt.cls}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => handleListSpacing(opt.cls)}
+                className={`w-7 h-7 flex items-center justify-center text-xs font-bold rounded transition-colors ${
+                  activeListSpacing === opt.cls
+                    ? 'bg-amber-500 text-white'
+                    : 'hover:bg-amber-100 text-amber-700'
+                }`}
+                title={opt.title}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* REIHE 2: Lösungs-Funktionen */}
