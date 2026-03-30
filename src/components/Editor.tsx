@@ -4668,42 +4668,46 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
           </div>
 
           {/* --- ZEILENABSTAND DROPDOWN --- */}
-          {activeHasList && (
-            <div className="relative" ref={spacingDropdownRef}>
-              <button
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => setShowSpacingDropdown(!showSpacingDropdown)}
-                className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded transition-colors text-gray-600"
-                title="Zeilenabstand"
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                  <line x1="5" y1="3" x2="14" y2="3" />
-                  <line x1="5" y1="8" x2="14" y2="8" />
-                  <line x1="5" y1="13" x2="14" y2="13" />
-                  <polyline points="2.5,5 2.5,1.5" />
-                  <polyline points="1.5,2.5 2.5,1.5 3.5,2.5" />
-                  <polyline points="2.5,11 2.5,14.5" />
-                  <polyline points="1.5,13.5 2.5,14.5 3.5,13.5" />
-                </svg>
-              </button>
+          <div className="relative" ref={spacingDropdownRef}>
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                if (!activeHasList) {
+                  alert('Bitte wähle zuerst einen Aufgabenblock mit Teilaufgaben aus.');
+                  return;
+                }
+                setShowSpacingDropdown(!showSpacingDropdown);
+              }}
+              className={`w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded transition-colors ${activeHasList ? 'text-gray-600' : 'text-gray-300'}`}
+              title="Zeilenabstand"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                <line x1="5" y1="3" x2="14" y2="3" />
+                <line x1="5" y1="8" x2="14" y2="8" />
+                <line x1="5" y1="13" x2="14" y2="13" />
+                <polyline points="2.5,5 2.5,1.5" />
+                <polyline points="1.5,2.5 2.5,1.5 3.5,2.5" />
+                <polyline points="2.5,11 2.5,14.5" />
+                <polyline points="1.5,13.5 2.5,14.5 3.5,13.5" />
+              </svg>
+            </button>
 
-              {showSpacingDropdown && (
-                <div className="absolute bottom-full left-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-xl py-1 z-[60] min-w-[120px]">
-                  {SPACING_OPTIONS.map(opt => (
-                    <button
-                      key={opt.value}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => handleListSpacing(opt.value)}
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 transition-colors"
-                      title={opt.title}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+            {showSpacingDropdown && (
+              <div className="absolute bottom-full left-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-xl py-1 z-[60] min-w-[120px]">
+                {SPACING_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleListSpacing(opt.value)}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 transition-colors"
+                    title={opt.title}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="h-8 w-px bg-gray-300 mx-1"></div>
