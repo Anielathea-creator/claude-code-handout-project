@@ -4600,6 +4600,7 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
           box-sizing: border-box !important;
           box-shadow: 0 4px 20px rgba(0,0,0,0.18);
           overflow: clip !important;
+          padding-bottom: 1.5cm !important;
         }
         
         .cover-page-container {
