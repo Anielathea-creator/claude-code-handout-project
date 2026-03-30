@@ -374,35 +374,37 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
 
       root.querySelectorAll('.editable, .is-answer, p, h1, h2, h3, h4, td, th, li, ol, ul, span, b, i, strong, em, div').forEach(el => {
         const element = el as HTMLElement;
-        // Don't make the whole root editable, only the specific elements
-        if (element.id !== 'dossier-root' && !element.hasAttribute('contenteditable')) {
-          // Check if it's a structural container we should NOT make editable
-          if (
-            element.classList.contains('page-break') ||
-            element.classList.contains('avoid-break') ||
-            element.classList.contains('cover-page-container') ||
-            element.classList.contains('cover-page-wrapper') ||
-            element.classList.contains('draggable-image-wrapper') ||
-            element.id === 'toc-list' ||
-            element.parentElement?.id === 'dossier-root'
-          ) {
-             return;
-          }
-          
-          // For DIVs, only make them editable if they contain direct text nodes to avoid breaking layout
-          if (element.tagName === 'DIV') {
-            const hasDirectText = Array.from(element.childNodes).some(node => node.nodeType === 3 && node.textContent?.trim());
-            if (!hasDirectText) return;
-          }
+        if (element.id === 'dossier-root') return;
 
+        // Check if it's a structural container we should NOT make editable
+        if (
+          element.classList.contains('page-break') ||
+          element.classList.contains('avoid-break') ||
+          element.classList.contains('cover-page-container') ||
+          element.classList.contains('cover-page-wrapper') ||
+          element.classList.contains('draggable-image-wrapper') ||
+          element.id === 'toc-list' ||
+          element.parentElement?.id === 'dossier-root'
+        ) {
+           return;
+        }
+
+        // For DIVs, only make them editable if they contain direct text nodes to avoid breaking layout
+        if (element.tagName === 'DIV') {
+          const hasDirectText = Array.from(element.childNodes).some(node => node.nodeType === 3 && node.textContent?.trim());
+          if (!hasDirectText) return;
+        }
+
+        if (!element.hasAttribute('contenteditable')) {
           element.setAttribute('contenteditable', 'true');
-          // Ensure it's selectable
           element.style.userSelect = 'text';
           element.style.webkitUserSelect = 'text';
+        }
 
-          if (!element.classList.contains('editable') && !element.classList.contains('is-answer')) {
-            element.classList.add('editable');
-          }
+        // Immer .editable sicherstellen — auch bei Elementen die schon contenteditable haben
+        // (z.B. alte Dossiers ohne .editable-Klasse)
+        if (!element.classList.contains('editable') && !element.classList.contains('is-answer')) {
+          element.classList.add('editable');
         }
       });
       // Ensure page containers (direct children of dossier-root) are never editable
@@ -792,12 +794,34 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     }
   };
 
+  // Find the closest ancestor span with a given class from a selection range
+  const findMarkedSpan = (range: Range, className: string): HTMLElement | null => {
+    const getEl = (node: Node): Element | null =>
+      node instanceof Element ? node : node.parentElement;
+    return (getEl(range.startContainer)?.closest(`.${className}`) as HTMLElement) ??
+           (getEl(range.endContainer)?.closest(`.${className}`) as HTMLElement) ??
+           null;
+  };
+
   const markAsAnswer = () => {
     restoreSelection();
-    saveHistoryState();
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
+    // Toggle off if selection is already inside an is-answer span
+    const existing = findMarkedSpan(range, 'is-answer');
+    if (existing) {
+      saveHistoryState();
+      const parent = existing.parentNode;
+      if (parent) {
+        while (existing.firstChild) parent.insertBefore(existing.firstChild, existing);
+        parent.removeChild(existing);
+        parent.normalize();
+      }
+      saveHistoryState();
+      return;
+    }
+    saveHistoryState();
     const span = document.createElement('span');
     span.className = 'is-answer';
     span.contentEditable = 'true';
@@ -828,10 +852,23 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
 
   const markAsStrikethrough = () => {
     restoreSelection();
-    saveHistoryState();
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
+    // Toggle off if selection is already inside a marked span
+    const existing = findMarkedSpan(range, 'is-strikethrough-answer');
+    if (existing) {
+      saveHistoryState();
+      const parent = existing.parentNode;
+      if (parent) {
+        while (existing.firstChild) parent.insertBefore(existing.firstChild, existing);
+        parent.removeChild(existing);
+        parent.normalize();
+      }
+      saveHistoryState();
+      return;
+    }
+    saveHistoryState();
     const span = document.createElement('span');
     span.className = 'is-strikethrough-answer';
     span.contentEditable = 'true';
@@ -847,10 +884,23 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
 
   const markAsHighlight = () => {
     restoreSelection();
-    saveHistoryState();
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
+    // Toggle off if selection is already inside a marked span
+    const existing = findMarkedSpan(range, 'is-highlight-answer');
+    if (existing) {
+      saveHistoryState();
+      const parent = existing.parentNode;
+      if (parent) {
+        while (existing.firstChild) parent.insertBefore(existing.firstChild, existing);
+        parent.removeChild(existing);
+        parent.normalize();
+      }
+      saveHistoryState();
+      return;
+    }
+    saveHistoryState();
     const span = document.createElement('span');
     span.className = 'is-highlight-answer';
     span.contentEditable = 'true';
@@ -1320,29 +1370,134 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     return () => root?.removeEventListener('click', handlePlaceholderClick);
   }, []);
 
-  const handleAddRow = () => {
-    if (!activeTableCell) return;
-    saveHistoryState();
-    const row = activeTableCell.closest('tr');
-    const table = activeTableCell.closest('table');
-    if (row && table) {
-      const isRechenmauer = table.classList.contains('rechenmauer-table');
-      const newRow = row.cloneNode(true) as HTMLTableRowElement;
-      newRow.querySelectorAll('.editable').forEach(el => el.innerHTML = '...');
-      
-      if (isRechenmauer) {
-        // Bei Rechenmauer: Ein Feld mehr hinzufügen
-        const lastCell = newRow.cells[newRow.cells.length - 1];
-        if (lastCell) {
-          const newCell = lastCell.cloneNode(true) as HTMLTableCellElement;
-          newCell.innerHTML = '...';
-          newRow.appendChild(newCell);
-        }
-      }
-      
-      row.parentNode?.insertBefore(newRow, row.nextSibling);
+  const clearClonedContent = (element: HTMLElement) => {
+    // Nur echte Eingabefelder leeren, Strukturelemente (→, Labels) beibehalten
+    element.querySelectorAll('.editable[contenteditable="true"]').forEach(el => {
+      (el as HTMLElement).innerHTML = '...';
+    });
+    if (element.classList.contains('editable') &&
+        element.getAttribute('contenteditable') === 'true') {
+      element.innerHTML = '...';
     }
-    saveHistoryState();
+  };
+
+  const getRepeatableGroup = (item: HTMLElement): HTMLElement[] => {
+    const parent = item.parentElement;
+    if (!parent) return [item];
+    const children = Array.from(parent.children) as HTMLElement[];
+    const idx = children.indexOf(item);
+    if (idx === -1) return [item];
+
+    const tag = item.tagName;
+    const group: HTMLElement[] = [item];
+
+    for (let i = idx + 1; i < children.length; i++) {
+      if (children[i].tagName === tag) break;
+      group.push(children[i]);
+    }
+
+    return group;
+  };
+
+  const findRepeatableItem = (element: HTMLElement, boundary: HTMLElement): HTMLElement | null => {
+    const blockTags = ['div', 'p', 'section', 'article'];
+    const headingTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+    let current: HTMLElement | null = element;
+
+    while (current && current !== boundary) {
+      const parent = current.parentElement;
+      if (!parent || parent === boundary.parentElement) break;
+
+      const tag = current.tagName.toLowerCase();
+      if (!blockTags.includes(tag) || headingTags.includes(tag)) {
+        current = parent;
+        continue;
+      }
+
+      const sameTagSiblings = Array.from(parent.children).filter(child => {
+        if (child === current) return false;
+        const childTag = child.tagName.toLowerCase();
+        if (headingTags.includes(childTag)) return false;
+        if ((child as HTMLElement).classList?.contains('no-print')) return false;
+        return childTag === tag;
+      });
+
+      if (sameTagSiblings.length >= 1) {
+        return current;
+      }
+
+      current = parent;
+    }
+
+    return null;
+  };
+
+  const handleAddRow = () => {
+    // Fall 1: Tabellenzelle (bestehende Logik)
+    if (activeTableCell) {
+      saveHistoryState();
+      const row = activeTableCell.closest('tr');
+      const table = activeTableCell.closest('table');
+      if (row && table) {
+        const isRechenmauer = table.classList.contains('rechenmauer-table');
+        const newRow = row.cloneNode(true) as HTMLTableRowElement;
+        newRow.querySelectorAll('.editable').forEach(el => el.innerHTML = '...');
+
+        if (isRechenmauer) {
+          const lastCell = newRow.cells[newRow.cells.length - 1];
+          if (lastCell) {
+            const newCell = lastCell.cloneNode(true) as HTMLTableCellElement;
+            newCell.innerHTML = '...';
+            newRow.appendChild(newCell);
+          }
+        }
+
+        row.parentNode?.insertBefore(newRow, row.nextSibling);
+      }
+      saveHistoryState();
+      return;
+    }
+
+    // Fall 2 & 3: Nicht-Tabellen-Aufgabenblöcke
+    // activeEditable wird bei jedem selectionchange gesetzt und bleibt erhalten,
+    // auch wenn der Fokus durch den Button-Klick zum Toolbar wechselt.
+    if (!activeEditable) return;
+    const element = activeEditable;
+
+    const editorRoot = document.getElementById('dossier-root');
+    if (!editorRoot || !editorRoot.contains(element)) return;
+
+    // Fall 2: Listen-Element
+    const listItem = element.closest('li') as HTMLElement;
+    if (listItem && editorRoot.contains(listItem)) {
+      saveHistoryState();
+      const newItem = listItem.cloneNode(true) as HTMLElement;
+      clearClonedContent(newItem);
+      listItem.parentNode?.insertBefore(newItem, listItem.nextSibling);
+      saveHistoryState();
+      return;
+    }
+
+    // Fall 3: Wiederholendes Block-Element (div, p)
+    const boundary = (element.closest('.avoid-break') as HTMLElement) || activeBlock;
+    if (!boundary) return;
+
+    const repeatableItem = findRepeatableItem(element, boundary);
+    if (repeatableItem) {
+      saveHistoryState();
+      const group = getRepeatableGroup(repeatableItem);
+      const lastInGroup = group[group.length - 1];
+      let insertAfter = lastInGroup;
+
+      for (const el of group) {
+        const clone = el.cloneNode(true) as HTMLElement;
+        clearClonedContent(clone);
+        insertAfter.parentNode?.insertBefore(clone, insertAfter.nextSibling);
+        insertAfter = clone;
+      }
+      saveHistoryState();
+      return;
+    }
   };
 
   const handleDeleteRow = () => {
@@ -1682,6 +1837,46 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
           }
         }
       }
+    } else if (e.key === 'Enter' && !e.shiftKey) {
+      // Enter in komplexen <li>-Elementen: neue eigenständige <li> erzeugen
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const anchor = sel.anchorNode;
+      const el = anchor instanceof HTMLElement ? anchor : anchor?.parentElement;
+      if (!el) return;
+
+      const li = el.closest('li');
+      if (!li || !li.closest('#dossier-root')) return;
+
+      // Einfache <li> (direkt editierbar) → Browser-Default lassen
+      const childEditables = li.querySelectorAll('.editable');
+      if (childEditables.length <= 1 && li.hasAttribute('contenteditable')) return;
+
+      // Komplexe <li> → neue eigenständige <li> erzeugen
+      e.preventDefault();
+      saveHistoryState();
+
+      const newLi = li.cloneNode(false) as HTMLElement;
+      Array.from(li.children).forEach(child => {
+        const clone = (child as HTMLElement).cloneNode(false) as HTMLElement;
+        clone.textContent = '';
+        clone.setAttribute('contenteditable', 'true');
+        if (!clone.classList.contains('editable')) clone.classList.add('editable');
+        newLi.appendChild(clone);
+      });
+
+      li.after(newLi);
+
+      const firstEditable = newLi.querySelector('.editable') as HTMLElement;
+      if (firstEditable) {
+        firstEditable.focus();
+        const range = document.createRange();
+        range.selectNodeContents(firstEditable);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+      saveHistoryState();
     }
   };
 
@@ -2326,16 +2521,22 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     // Ensure any newly created elements (e.g. new <li> from Enter key) are editable
     const root = document.getElementById('dossier-root');
     if (root) {
-      root.querySelectorAll('li, p, h1, h2, h3, h4, td, th, ol, ul').forEach(el => {
+      root.querySelectorAll('li, p, h1, h2, h3, h4, td, th, ol, ul, span, b, i, strong, em').forEach(el => {
         const element = el as HTMLElement;
         if (!element.hasAttribute('contenteditable') &&
             !element.classList.contains('page-break') &&
             !element.classList.contains('avoid-break') &&
+            !element.classList.contains('cover-page-container') &&
+            !element.classList.contains('cover-page-wrapper') &&
+            !element.classList.contains('draggable-image-wrapper') &&
             element.id !== 'toc-list' &&
             element.parentElement?.id !== 'dossier-root') {
           element.setAttribute('contenteditable', 'true');
           element.style.userSelect = 'text';
           element.style.webkitUserSelect = 'text';
+          if (!element.classList.contains('editable') && !element.classList.contains('is-answer')) {
+            element.classList.add('editable');
+          }
         }
       });
     }
@@ -4160,6 +4361,8 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
         .editable:focus { background-color: #f1f5f9; outline: 2px dashed #cbd5e1; }
 
         .avoid-break { break-inside: avoid; page-break-inside: avoid; }
+        /* Einheitlicher Abstand zwischen aufeinanderfolgenden Inhaltsblöcken */
+        #dossier-root .avoid-break + .avoid-break { margin-top: 2rem !important; }
 
         .page-break { height: 2rem; background: transparent !important; border: none; margin: 0; padding: 0; display: block; pointer-events: none; outline: none !important; }
         .page-break::after { display: none; }
