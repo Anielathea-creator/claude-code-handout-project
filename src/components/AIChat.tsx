@@ -36,6 +36,7 @@ export function AIChat({
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingHtml, setIsGeneratingHtml] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
   const [showSnapshotFeedback, setShowSnapshotFeedback] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasRequestedDraftRef = useRef(false);
@@ -68,6 +69,10 @@ export function AIChat({
     scrollToBottom();
   }, [chatHistory, isGenerating, isGeneratingHtml]);
 
+  useEffect(() => {
+    if (streamingText) scrollToBottom();
+  }, [streamingText]);
+
   const aiClient = useMemo(() => {
     const key = import.meta.env.VITE_GEMINI_API_KEY;
     return key ? new GoogleGenAI({ apiKey: key }) : null;
@@ -93,11 +98,18 @@ export function AIChat({
           });
           
           const messageContent = chatHistory[0].parts ? chatHistory[0].parts : chatHistory[0].content;
-          const response = await chat.sendMessage({ message: messageContent as any });
-          
+          setStreamingText('');
+          const stream = await chat.sendMessageStream({ message: messageContent as any });
+          let fullText = '';
+          for await (const chunk of stream) {
+            fullText += (chunk.text || '');
+            setStreamingText(fullText);
+          }
+          setStreamingText('');
+
           onUpdateHistory([
             ...chatHistory,
-            { role: 'model', content: response.text || 'Kein Entwurf generiert.' },
+            { role: 'model', content: fullText || 'Kein Entwurf generiert.' },
           ]);
         } catch (error: any) {
           console.error('Draft error:', error);
@@ -137,9 +149,18 @@ export function AIChat({
           const chat = aiClient.chats.create({
             model: 'gemini-3-flash-preview',
             config: {
+              maxOutputTokens: 32768,
               systemInstruction: `Du bist ein Frontend-Entwickler und Lehrmittelautor. Der Nutzer hat ein Dokument mit Aufgaben hochgeladen und Anweisungen gegeben.
 Generiere nun den vollständigen HTML-Code für das Dossier basierend auf dem Dokument und den Anweisungen.
 Verwende Tailwind CSS für das Styling. Das Farbschema ist: ${theme || 'blue'}.
+
+VOLLSTÄNDIGKEIT (PFLICHT – OBERSTE PRIORITÄT):
+Du MUSST JEDE EINZELNE Aufgabe aus dem hochgeladenen Dokument übernehmen – ohne Ausnahme.
+- Keine Aufgabe darf ausgelassen, zusammengefasst oder mit einer anderen verschmolzen werden.
+- Erstelle so viele Seiten wie nötig, um ALLE Aufgaben unterzubringen.
+- Falls das Dokument 20 Aufgaben enthält, müssen exakt 20 Aufgaben im generierten HTML erscheinen.
+- Wenn du unsicher bist, ob etwas eine eigenständige Aufgabe ist: Übernimm es als eigene Aufgabe.
+- Zähle beim Generieren die Aufgaben mit und stelle sicher, dass die Anzahl mit dem Dokument übereinstimmt.
 
 AUFGABEN-ZUORDNUNG ZU TEMPLATES (PFLICHT):
 Analysiere jede Aufgabe aus dem hochgeladenen Dokument und ordne sie dem am besten passenden Template aus der Liste unten zu. Gehe dabei so vor:
@@ -168,6 +189,7 @@ ${allTemplatesForImport}
 
 WICHTIG FÜR DAS LAYOUT:
 ACHTUNG: Jeder direkte Container im Dossier ist EXAKT EINE A4-Seite (29.7cm hoch). Inhalt der überläuft wird HART ABGESCHNITTEN! Du musst die Seitenaufteilung selbst steuern.
+WICHTIG: Erstelle so viele Seiten-Container wie nötig, um ALLE Aufgaben unterzubringen. Die Anzahl der Seiten ist NICHT begrenzt. Kürze oder überspringe NIEMALS Aufgaben, um sie auf weniger Seiten zu pressen.
 
 1. TITELBLATT: Nur ein einfacher Platzhalter mit dem Hauptthema als Überschrift – KEINE Bilder, KEINE Name/Datum-Felder, KEINE Dekoration. Die Gestaltung erfolgt später durch den Nutzer.
 2. Seitenränder: Nutze überall "p-[2.5cm]" für alle Seiten-Container.
@@ -209,8 +231,14 @@ Strukturiere das HTML wie folgt:
           });
 
           const messageContent = chatHistory[0].parts ? chatHistory[0].parts : chatHistory[0].content;
-          const response = await chat.sendMessage({ message: messageContent as any });
-          let html = response.text || '';
+          setStreamingText('');
+          const stream = await chat.sendMessageStream({ message: messageContent as any });
+          let html = '';
+          for await (const chunk of stream) {
+            html += (chunk.text || '');
+            setStreamingText(html);
+          }
+          setStreamingText('');
 
           // Clean up markdown formatting if the model still includes it
           html = html.replace(/^```html\n?/, '').replace(/\n?```$/, '').trim();
@@ -322,8 +350,14 @@ Wenn du <action type="update_html"> nutzt, antworte NUR mit diesem Tag und dem v
         },
       });
 
-      const response = await chat.sendMessage({ message: userMessage.content });
-      const responseText = response.text || '';
+      setStreamingText('');
+      const stream = await chat.sendMessageStream({ message: userMessage.content });
+      let responseText = '';
+      for await (const chunk of stream) {
+        responseText += (chunk.text || '');
+        setStreamingText(responseText);
+      }
+      setStreamingText('');
 
       // Check for actions in the response
       if (responseText.includes('<action')) {
@@ -390,6 +424,7 @@ Wenn du <action type="update_html"> nutzt, antworte NUR mit diesem Tag und dem v
         model: 'gemini-3-flash-preview',
         history: pruneHistoryForApi(chatHistory),
         config: {
+          maxOutputTokens: 32768,
           systemInstruction: `Du bist ein Frontend-Entwickler und Lehrmittelautor. Der Nutzer hat den Entwurf bestätigt.
 Generiere nun den vollständigen HTML-Code für das Dossier basierend auf dem Entwurf und dem Briefing.
 Verwende Tailwind CSS für das Styling. Das Farbschema ist: ${theme || 'blue'}.
@@ -415,6 +450,7 @@ ${templatesHtml || 'Keine spezifischen Templates gewählt. Nutze Standard-Strukt
 
 WICHTIG FÜR DAS LAYOUT:
 ACHTUNG: Jeder direkte Container im Dossier ist EXAKT EINE A4-Seite (29.7cm hoch). Inhalt der überläuft wird HART ABGESCHNITTEN! Du musst die Seitenaufteilung selbst steuern.
+WICHTIG: Erstelle so viele Seiten-Container wie nötig, um ALLE Aufgaben unterzubringen. Die Anzahl der Seiten ist NICHT begrenzt. Kürze oder überspringe NIEMALS Aufgaben, um sie auf weniger Seiten zu pressen.
 
 1. TITELBLATT: Nur ein einfacher Platzhalter mit dem Hauptthema als Überschrift – KEINE Bilder, KEINE Name/Datum-Felder, KEINE Dekoration. Die Gestaltung erfolgt später durch den Nutzer.
 2. Seitenränder: Nutze überall "p-[2.5cm]" für alle Seiten-Container.
@@ -455,8 +491,14 @@ Strukturiere das HTML wie folgt:
         },
       });
 
-      const response = await chat.sendMessage({ message: "Entwurf bestätigt. Generiere jetzt das HTML." });
-      let html = response.text || '';
+      setStreamingText('');
+      const stream = await chat.sendMessageStream({ message: "Entwurf bestätigt. Generiere jetzt das HTML." });
+      let html = '';
+      for await (const chunk of stream) {
+        html += (chunk.text || '');
+        setStreamingText(html);
+      }
+      setStreamingText('');
       
       // Clean up markdown formatting if the model still includes it
       html = html.replace(/^```html\n?/, '').replace(/\n?```$/, '').trim();
@@ -542,25 +584,24 @@ Strukturiere das HTML wie folgt:
             </div>
           </div>
         ))}
-        {isGenerating && (
+        {(isGenerating || isGeneratingHtml) && (
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
               🤖
             </div>
-            <div className="p-3 bg-white border border-gray-200 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
-              <span className="animate-pulse">⏳</span>
-              <span className="text-sm text-gray-500">Denkt nach...</span>
-            </div>
-          </div>
-        )}
-        {isGeneratingHtml && (
-          <div className="flex gap-3">
-            <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
-              🤖
-            </div>
-            <div className="p-3 bg-white border border-gray-200 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
-              <span className="animate-spin inline-block">⚙️</span>
-              <span className="text-sm text-gray-500">Generiere Dossier...</span>
+            <div className="p-3 bg-white border border-gray-200 rounded-2xl rounded-tl-none shadow-sm max-w-[85%]">
+              {streamingText ? (
+                <div className="text-sm text-gray-700 prose prose-sm max-w-none">
+                  <ReactMarkdown>{streamingText + ' \u25CD'}</ReactMarkdown>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="animate-pulse">{isGeneratingHtml ? '\u2699\uFE0F' : '\u23F3'}</span>
+                  <span className="text-sm text-gray-500">
+                    {isGeneratingHtml ? 'Generiere Dossier...' : 'Denkt nach...'}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )}

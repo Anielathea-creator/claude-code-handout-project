@@ -1592,29 +1592,134 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     return () => root?.removeEventListener('click', handlePlaceholderClick);
   }, []);
 
-  const handleAddRow = () => {
-    if (!activeTableCell) return;
-    saveHistoryState();
-    const row = activeTableCell.closest('tr');
-    const table = activeTableCell.closest('table');
-    if (row && table) {
-      const isRechenmauer = table.classList.contains('rechenmauer-table');
-      const newRow = row.cloneNode(true) as HTMLTableRowElement;
-      newRow.querySelectorAll('.editable').forEach(el => el.innerHTML = '...');
-      
-      if (isRechenmauer) {
-        // Bei Rechenmauer: Ein Feld mehr hinzufügen
-        const lastCell = newRow.cells[newRow.cells.length - 1];
-        if (lastCell) {
-          const newCell = lastCell.cloneNode(true) as HTMLTableCellElement;
-          newCell.innerHTML = '...';
-          newRow.appendChild(newCell);
-        }
-      }
-      
-      row.parentNode?.insertBefore(newRow, row.nextSibling);
+  const clearClonedContent = (element: HTMLElement) => {
+    // Nur echte Eingabefelder leeren, Strukturelemente (→, Labels) beibehalten
+    element.querySelectorAll('.editable[contenteditable="true"]').forEach(el => {
+      (el as HTMLElement).innerHTML = '...';
+    });
+    if (element.classList.contains('editable') &&
+        element.getAttribute('contenteditable') === 'true') {
+      element.innerHTML = '...';
     }
-    saveHistoryState();
+  };
+
+  const getRepeatableGroup = (item: HTMLElement): HTMLElement[] => {
+    const parent = item.parentElement;
+    if (!parent) return [item];
+    const children = Array.from(parent.children) as HTMLElement[];
+    const idx = children.indexOf(item);
+    if (idx === -1) return [item];
+
+    const tag = item.tagName;
+    const group: HTMLElement[] = [item];
+
+    for (let i = idx + 1; i < children.length; i++) {
+      if (children[i].tagName === tag) break;
+      group.push(children[i]);
+    }
+
+    return group;
+  };
+
+  const findRepeatableItem = (element: HTMLElement, boundary: HTMLElement): HTMLElement | null => {
+    const blockTags = ['div', 'p', 'section', 'article'];
+    const headingTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+    let current: HTMLElement | null = element;
+
+    while (current && current !== boundary) {
+      const parent = current.parentElement;
+      if (!parent || parent === boundary.parentElement) break;
+
+      const tag = current.tagName.toLowerCase();
+      if (!blockTags.includes(tag) || headingTags.includes(tag)) {
+        current = parent;
+        continue;
+      }
+
+      const sameTagSiblings = Array.from(parent.children).filter(child => {
+        if (child === current) return false;
+        const childTag = child.tagName.toLowerCase();
+        if (headingTags.includes(childTag)) return false;
+        if ((child as HTMLElement).classList?.contains('no-print')) return false;
+        return childTag === tag;
+      });
+
+      if (sameTagSiblings.length >= 1) {
+        return current;
+      }
+
+      current = parent;
+    }
+
+    return null;
+  };
+
+  const handleAddRow = () => {
+    // Fall 1: Tabellenzelle (bestehende Logik)
+    if (activeTableCell) {
+      saveHistoryState();
+      const row = activeTableCell.closest('tr');
+      const table = activeTableCell.closest('table');
+      if (row && table) {
+        const isRechenmauer = table.classList.contains('rechenmauer-table');
+        const newRow = row.cloneNode(true) as HTMLTableRowElement;
+        newRow.querySelectorAll('.editable').forEach(el => el.innerHTML = '...');
+
+        if (isRechenmauer) {
+          const lastCell = newRow.cells[newRow.cells.length - 1];
+          if (lastCell) {
+            const newCell = lastCell.cloneNode(true) as HTMLTableCellElement;
+            newCell.innerHTML = '...';
+            newRow.appendChild(newCell);
+          }
+        }
+
+        row.parentNode?.insertBefore(newRow, row.nextSibling);
+      }
+      saveHistoryState();
+      return;
+    }
+
+    // Fall 2 & 3: Nicht-Tabellen-Aufgabenblöcke
+    // activeEditable wird bei jedem selectionchange gesetzt und bleibt erhalten,
+    // auch wenn der Fokus durch den Button-Klick zum Toolbar wechselt.
+    if (!activeEditable) return;
+    const element = activeEditable;
+
+    const editorRoot = document.getElementById('dossier-root');
+    if (!editorRoot || !editorRoot.contains(element)) return;
+
+    // Fall 2: Listen-Element
+    const listItem = element.closest('li') as HTMLElement;
+    if (listItem && editorRoot.contains(listItem)) {
+      saveHistoryState();
+      const newItem = listItem.cloneNode(true) as HTMLElement;
+      clearClonedContent(newItem);
+      listItem.parentNode?.insertBefore(newItem, listItem.nextSibling);
+      saveHistoryState();
+      return;
+    }
+
+    // Fall 3: Wiederholendes Block-Element (div, p)
+    const boundary = (element.closest('.avoid-break') as HTMLElement) || activeBlock;
+    if (!boundary) return;
+
+    const repeatableItem = findRepeatableItem(element, boundary);
+    if (repeatableItem) {
+      saveHistoryState();
+      const group = getRepeatableGroup(repeatableItem);
+      const lastInGroup = group[group.length - 1];
+      let insertAfter = lastInGroup;
+
+      for (const el of group) {
+        const clone = el.cloneNode(true) as HTMLElement;
+        clearClonedContent(clone);
+        insertAfter.parentNode?.insertBefore(clone, insertAfter.nextSibling);
+        insertAfter = clone;
+      }
+      saveHistoryState();
+      return;
+    }
   };
 
   const handleDeleteRow = () => {
