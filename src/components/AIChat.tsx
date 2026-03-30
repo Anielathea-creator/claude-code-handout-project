@@ -136,6 +136,17 @@ export function AIChat({
     }
   }, [isDrafting, chatHistory, isGenerating, aiClient, onUpdateHistory]);
 
+  // Show error if AI client is not available (missing API key)
+  useEffect(() => {
+    if ((isDrafting || isImporting) && chatHistory.length === 1 && !aiClient && !hasRequestedDraftRef.current) {
+      hasRequestedDraftRef.current = true;
+      onUpdateHistory([
+        ...chatHistory,
+        { role: 'model', content: '⚠️ **Kein API-Key gefunden.** Bitte setze die Umgebungsvariable `VITE_GEMINI_API_KEY` oder `GEMINI_API_KEY` und starte den Server neu.' },
+      ]);
+    }
+  }, [isDrafting, isImporting, chatHistory, aiClient, onUpdateHistory]);
+
   // Auto-generate HTML directly if in importing mode
   useEffect(() => {
     if (isImporting && chatHistory.length === 1 && chatHistory[0].role === 'user' && !isGeneratingHtml && aiClient && !hasRequestedDraftRef.current && onConfirmDraft) {
