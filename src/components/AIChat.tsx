@@ -69,6 +69,10 @@ export function AIChat({
     scrollToBottom();
   }, [chatHistory, isGenerating, isGeneratingHtml]);
 
+  useEffect(() => {
+    if (streamingText) scrollToBottom();
+  }, [streamingText]);
+
   const aiClient = useMemo(() => {
     const key = import.meta.env.VITE_GEMINI_API_KEY;
     return key ? new GoogleGenAI({ apiKey: key }) : null;
