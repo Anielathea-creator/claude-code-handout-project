@@ -10,7 +10,8 @@
       "Bash(node -e \"console.log\\(require\\(''c:/Users/aniel/Downloads/handout-workspace-life-editor-13.03.2026 \\(1\\)/node_modules/html2canvas/package.json''\\).version\\)\")",
       "Bash(node -e \"console.log\\(require\\(''c:/Users/aniel/Downloads/handout-workspace-life-editor-13.03.2026 \\(1\\)/node_modules/jspdf/package.json''\\).version\\)\")",
       "Bash(wc -l \"c:\\\\Users\\\\aniel\\\\Downloads\\\\handout-workspace-life-editor-13.03.2026 \\(1\\)\\\\src\\\\components\\\\Editor.tsx\")",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "mcp__Claude_Preview__preview_start"
     ]
   }
 }
