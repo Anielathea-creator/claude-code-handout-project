@@ -2237,10 +2237,21 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
         // shape (e.g. square vs circle) even when Tailwind v4 uses CSS variables.
         const br = style.borderRadius;
         if (br && br !== '0px') cloneEl.style.borderRadius = br;
-        const bs = style.borderStyle;
-        if (bs && bs !== 'none') cloneEl.style.borderStyle = bs;
-        const bw = style.borderWidth;
-        if (bw && bw !== '0px') cloneEl.style.borderWidth = bw;
+        // Use per-side border properties (not shorthand) so asymmetric borders
+        // like Tailwind's `border-b` are preserved correctly in the clone.
+        (['Top', 'Right', 'Bottom', 'Left'] as const).forEach(side => {
+          const bsVal = (style as any)[`border${side}Style`];
+          if (bsVal && bsVal !== 'none') (cloneEl.style as any)[`border${side}Style`] = bsVal;
+          const bwVal = (style as any)[`border${side}Width`];
+          if (bwVal && bwVal !== '0px') (cloneEl.style as any)[`border${side}Width`] = bwVal;
+        });
+
+        // Flatten typography so #dossier-root-scoped font rules survive outside that container.
+        (['fontSize', 'fontWeight', 'fontFamily', 'lineHeight',
+          'letterSpacing', 'textTransform', 'fontStyle'] as const).forEach(prop => {
+          const val = (style as any)[prop];
+          if (val) (cloneEl.style as any)[prop] = val;
+        });
 
         // Aggressively strip anything that might contain oklch and we haven't handled
         if (hasModernColor(style.boxShadow)) cloneEl.style.boxShadow = 'none';
@@ -2249,6 +2260,14 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
         if (hasModernColor(style.borderImage)) cloneEl.style.borderImage = 'none';
         if (hasModernColor(style.outline)) cloneEl.style.outline = 'none';
 
+        // Flatten list properties so bullet position/style survive outside #dossier-root
+        const tag = el.tagName;
+        if (tag === 'UL' || tag === 'OL') {
+          cloneEl.style.listStyleType = style.listStyleType;
+          cloneEl.style.listStylePosition = style.listStylePosition;
+          cloneEl.style.paddingLeft = style.paddingLeft;
+        }
+
         // Ensure tables have borders in PDF
         if (el.tagName === 'TABLE') {
           cloneEl.style.borderCollapse = 'collapse';
@@ -2256,6 +2275,16 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
         }
         if (el.tagName === 'TD' || el.tagName === 'TH') {
           cloneEl.style.border = '1px solid #000';
+          // Flatten cell dimensions so table rows match the editor height
+          const cellH = style.height;
+          if (cellH && cellH !== 'auto') cloneEl.style.height = cellH;
+          const cellMinW = style.minWidth;
+          if (cellMinW && cellMinW !== '0px') cloneEl.style.minWidth = cellMinW;
+          cloneEl.style.paddingTop = style.paddingTop;
+          cloneEl.style.paddingRight = style.paddingRight;
+          cloneEl.style.paddingBottom = style.paddingBottom;
+          cloneEl.style.paddingLeft = style.paddingLeft;
+          cloneEl.style.verticalAlign = style.verticalAlign;
         }
       } catch (e) {
         console.warn('Style flattening error for element', el, e);
@@ -2377,6 +2406,11 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
 
         // --- Now apply all clone modifications (may change element count) ---
 
+        // Propagate hide-solutions state so .hide-solutions .is-answer CSS rules still match
+        if (root.classList.contains('hide-solutions')) {
+          clone.classList.add('hide-solutions');
+        }
+
         // Strip editor-only decorations
         clone.querySelectorAll('.active-block-highlight').forEach(el => el.classList.remove('active-block-highlight'));
         clone.querySelectorAll<HTMLElement>('.no-print').forEach(el => { el.style.display = 'none'; });
@@ -2401,10 +2435,50 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
           }
         }
 
-        // Strip .editable class (editor-only padding/margin that causes overlap)
-        clone.querySelectorAll<HTMLElement>('.editable').forEach(el => {
-          el.classList.remove('editable');
-        });
+        // Strip .editable class but preserve its layout-affecting padding/margin.
+        // .editable adds padding:2px 4px; margin:-2px -4px — removing them shifts spacing.
+        // Read final computed values from the LIVE page (which still has .editable applied).
+        const liveEditables = page.querySelectorAll<HTMLElement>('.editable');
+        const cloneEditables = clone.querySelectorAll<HTMLElement>('.editable');
+        for (let j = 0; j < liveEditables.length && j < cloneEditables.length; j++) {
+          const cs = window.getComputedStyle(liveEditables[j]);
+          const ce = cloneEditables[j];
+          ce.style.paddingTop = cs.paddingTop;
+          ce.style.paddingRight = cs.paddingRight;
+          ce.style.paddingBottom = cs.paddingBottom;
+          ce.style.paddingLeft = cs.paddingLeft;
+          ce.style.marginTop = cs.marginTop;
+          ce.style.marginRight = cs.marginRight;
+          ce.style.marginBottom = cs.marginBottom;
+          ce.style.marginLeft = cs.marginLeft;
+          ce.classList.remove('editable');
+        }
+
+        // Fix border-bottom on inline-block spans (e.g. cover page Name/Klasse/Datum lines).
+        // html2canvas doesn't reliably render border-bottom on empty elements — replace
+        // the CSS border with a background-image gradient line (no new DOM elements needed).
+        {
+          const liveBorderEls = page.querySelectorAll<HTMLElement>('span.border-b, span[class*="border-b-"]');
+          const cloneBorderEls = clone.querySelectorAll<HTMLElement>('span.border-b, span[class*="border-b-"]');
+          for (let j = 0; j < liveBorderEls.length && j < cloneBorderEls.length; j++) {
+            const liveEl = liveBorderEls[j];
+            const cloneEl = cloneBorderEls[j];
+            const cs = window.getComputedStyle(liveEl);
+            const bw = parseFloat(cs.borderBottomWidth);
+            if (bw > 0 && liveEl.offsetHeight > 0) {
+              // Use the already-resolved rgb color from flattenElementStyles
+              const bColor = cloneEl.style.borderBottomColor || cs.borderBottomColor || '#9ca3af';
+              cloneEl.style.borderBottomWidth = '0';
+              cloneEl.style.display = cs.display;
+              cloneEl.style.width = cs.width;
+              cloneEl.style.height = cs.height;
+              // Draw the line at the very bottom via gradient
+              cloneEl.style.backgroundImage = `linear-gradient(to top, ${bColor} ${Math.max(bw, 1)}px, transparent ${Math.max(bw, 1)}px)`;
+              cloneEl.style.backgroundSize = '100% 100%';
+              cloneEl.style.backgroundRepeat = 'no-repeat';
+            }
+          }
+        }
 
         // Fix schreib-linie: html2canvas doesn't support background-attachment:local or CSS variables.
         // Draw lines at the BOTTOM of each line-height block (not the top), so text sits above lines.
@@ -2479,16 +2553,22 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
         // Fix highlight: html2canvas renders background-color at the top of the line box,
         // but the visible text sits lower. Replace background-color with a gradient that
         // starts 7px from the top — text is unaffected, background shifts down.
+        // Skip when hide-solutions is active — highlights must be invisible in student mode.
+        const isHideSolutions = clone.classList.contains('hide-solutions');
         clone.querySelectorAll<HTMLElement>('.is-highlight-answer').forEach(cloneEl => {
           cloneEl.style.backgroundColor = 'transparent';
-          // Gradient starts 7px from top (background shifts down) and extends 7px
-          // below the element via padding-bottom (background grows downward).
-          cloneEl.style.backgroundImage = 'linear-gradient(transparent 7px, #fef08a 7px)';
-          cloneEl.style.backgroundRepeat = 'no-repeat';
-          cloneEl.style.backgroundSize = '100% 100%';
-          // Extend padding-bottom by 7px so the yellow area reaches further down
-          const existingPadBottom = parseFloat(window.getComputedStyle(cloneEl).paddingBottom) || 0;
-          cloneEl.style.paddingBottom = `${existingPadBottom + 7}px`;
+          if (isHideSolutions) {
+            cloneEl.style.backgroundImage = 'none';
+          } else {
+            // Gradient starts 7px from top (background shifts down) and extends 7px
+            // below the element via padding-bottom (background grows downward).
+            cloneEl.style.backgroundImage = 'linear-gradient(transparent 7px, #fef08a 7px)';
+            cloneEl.style.backgroundRepeat = 'no-repeat';
+            cloneEl.style.backgroundSize = '100% 100%';
+            // Extend padding-bottom by 7px so the yellow area reaches further down
+            const existingPadBottom = parseFloat(window.getComputedStyle(cloneEl).paddingBottom) || 0;
+            cloneEl.style.paddingBottom = `${existingPadBottom + 7}px`;
+          }
         });
 
         // Fix strikethrough: html2canvas misrenders text-decoration: line-through.
@@ -2506,6 +2586,26 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
           cloneEl.appendChild(line);
         });
 
+        // Final safety pass: scrub any remaining oklch/oklab from ALL elements in the clone
+        // (covers elements added after flattenElementStyles, e.g. strikethrough line divs).
+        {
+          const scrubCanvas = document.createElement('canvas');
+          scrubCanvas.width = 1; scrubCanvas.height = 1;
+          const scrubCtx = scrubCanvas.getContext('2d', { willReadFrequently: true })!;
+          const scrubCache = new Map<string, string>();
+          const scrubProps = ['color', 'backgroundColor', 'borderColor', 'borderTopColor',
+            'borderRightColor', 'borderBottomColor', 'borderLeftColor', 'outlineColor'];
+          clone.querySelectorAll<HTMLElement>('*').forEach(el => {
+            const cs = window.getComputedStyle(el);
+            scrubProps.forEach(prop => {
+              const val = (cs as any)[prop];
+              if (val && hasModernColor(val)) {
+                (el.style as any)[prop] = resolveColorToRgb(val, scrubCtx, scrubCache);
+              }
+            });
+          });
+        }
+
         const canvas = await html2canvas(clone, {
           scale: 2,
           useCORS: true,
@@ -2515,7 +2615,8 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
           scrollX: 0,
           scrollY: 0,
           onclone: (clonedDoc: Document) => {
-            // Strip any residual oklch from the cloned stylesheets (inline styles above win on specificity)
+            // Strip any residual oklch from ALL stylesheets (inline styles above win on specificity).
+            // Process <style> tags by text replacement:
             clonedDoc.querySelectorAll('style').forEach(styleEl => {
               try {
                 let css = styleEl.innerHTML;
@@ -2526,6 +2627,25 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
                 styleEl.innerHTML = css;
               } catch (_) {}
             });
+            // Also strip oklch from CSSOM rules (covers <link> stylesheets and Vite-injected styles):
+            try {
+              for (const sheet of Array.from(clonedDoc.styleSheets)) {
+                try {
+                  const rules = sheet.cssRules;
+                  for (let r = rules.length - 1; r >= 0; r--) {
+                    const ruleText = rules[r].cssText;
+                    if (/oklch|oklab|color-mix/.test(ruleText)) {
+                      const fixed = ruleText
+                        .replace(/oklch\s*\([^)]+\)/g, 'transparent')
+                        .replace(/oklab\s*\([^)]+\)/g, 'transparent')
+                        .replace(/color-mix\s*\([^)]+\)/g, 'transparent');
+                      sheet.deleteRule(r);
+                      sheet.insertRule(fixed, r);
+                    }
+                  }
+                } catch (_) {} // CORS blocked stylesheets
+              }
+            } catch (_) {}
           },
         });
 
