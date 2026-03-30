@@ -1371,12 +1371,32 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
   }, []);
 
   const clearClonedContent = (element: HTMLElement) => {
-    element.querySelectorAll('[contenteditable="true"]').forEach(el => {
-      el.innerHTML = '';
+    // Nur echte Eingabefelder leeren, Strukturelemente (→, Labels) beibehalten
+    element.querySelectorAll('.editable[contenteditable="true"]').forEach(el => {
+      (el as HTMLElement).innerHTML = '...';
     });
-    if (element.getAttribute('contenteditable') === 'true') {
-      element.innerHTML = '';
+    if (element.classList.contains('editable') &&
+        element.getAttribute('contenteditable') === 'true') {
+      element.innerHTML = '...';
     }
+  };
+
+  const getRepeatableGroup = (item: HTMLElement): HTMLElement[] => {
+    const parent = item.parentElement;
+    if (!parent) return [item];
+    const children = Array.from(parent.children) as HTMLElement[];
+    const idx = children.indexOf(item);
+    if (idx === -1) return [item];
+
+    const tag = item.tagName;
+    const group: HTMLElement[] = [item];
+
+    for (let i = idx + 1; i < children.length; i++) {
+      if (children[i].tagName === tag) break;
+      group.push(children[i]);
+    }
+
+    return group;
   };
 
   const findRepeatableItem = (element: HTMLElement, boundary: HTMLElement): HTMLElement | null => {
@@ -1465,9 +1485,16 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     const repeatableItem = findRepeatableItem(element, boundary);
     if (repeatableItem) {
       saveHistoryState();
-      const newItem = repeatableItem.cloneNode(true) as HTMLElement;
-      clearClonedContent(newItem);
-      repeatableItem.parentNode?.insertBefore(newItem, repeatableItem.nextSibling);
+      const group = getRepeatableGroup(repeatableItem);
+      const lastInGroup = group[group.length - 1];
+      let insertAfter = lastInGroup;
+
+      for (const el of group) {
+        const clone = el.cloneNode(true) as HTMLElement;
+        clearClonedContent(clone);
+        insertAfter.parentNode?.insertBefore(clone, insertAfter.nextSibling);
+        insertAfter = clone;
+      }
       saveHistoryState();
       return;
     }
