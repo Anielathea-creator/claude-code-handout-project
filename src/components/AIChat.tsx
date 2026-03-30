@@ -36,6 +36,7 @@ export function AIChat({
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingHtml, setIsGeneratingHtml] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
   const [showSnapshotFeedback, setShowSnapshotFeedback] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasRequestedDraftRef = useRef(false);
@@ -93,11 +94,18 @@ export function AIChat({
           });
           
           const messageContent = chatHistory[0].parts ? chatHistory[0].parts : chatHistory[0].content;
-          const response = await chat.sendMessage({ message: messageContent as any });
-          
+          setStreamingText('');
+          const stream = await chat.sendMessageStream({ message: messageContent as any });
+          let fullText = '';
+          for await (const chunk of stream) {
+            fullText += (chunk.text || '');
+            setStreamingText(fullText);
+          }
+          setStreamingText('');
+
           onUpdateHistory([
             ...chatHistory,
-            { role: 'model', content: response.text || 'Kein Entwurf generiert.' },
+            { role: 'model', content: fullText || 'Kein Entwurf generiert.' },
           ]);
         } catch (error: any) {
           console.error('Draft error:', error);
@@ -137,7 +145,7 @@ export function AIChat({
           const chat = aiClient.chats.create({
             model: 'gemini-3-flash-preview',
             config: {
-              maxOutputTokens: 65536,
+              maxOutputTokens: 32768,
               systemInstruction: `Du bist ein Frontend-Entwickler und Lehrmittelautor. Der Nutzer hat ein Dokument mit Aufgaben hochgeladen und Anweisungen gegeben.
 Generiere nun den vollständigen HTML-Code für das Dossier basierend auf dem Dokument und den Anweisungen.
 Verwende Tailwind CSS für das Styling. Das Farbschema ist: ${theme || 'blue'}.
@@ -219,8 +227,14 @@ Strukturiere das HTML wie folgt:
           });
 
           const messageContent = chatHistory[0].parts ? chatHistory[0].parts : chatHistory[0].content;
-          const response = await chat.sendMessage({ message: messageContent as any });
-          let html = response.text || '';
+          setStreamingText('');
+          const stream = await chat.sendMessageStream({ message: messageContent as any });
+          let html = '';
+          for await (const chunk of stream) {
+            html += (chunk.text || '');
+            setStreamingText(html);
+          }
+          setStreamingText('');
 
           // Clean up markdown formatting if the model still includes it
           html = html.replace(/^```html\n?/, '').replace(/\n?```$/, '').trim();
@@ -332,8 +346,14 @@ Wenn du <action type="update_html"> nutzt, antworte NUR mit diesem Tag und dem v
         },
       });
 
-      const response = await chat.sendMessage({ message: userMessage.content });
-      const responseText = response.text || '';
+      setStreamingText('');
+      const stream = await chat.sendMessageStream({ message: userMessage.content });
+      let responseText = '';
+      for await (const chunk of stream) {
+        responseText += (chunk.text || '');
+        setStreamingText(responseText);
+      }
+      setStreamingText('');
 
       // Check for actions in the response
       if (responseText.includes('<action')) {
@@ -400,7 +420,7 @@ Wenn du <action type="update_html"> nutzt, antworte NUR mit diesem Tag und dem v
         model: 'gemini-3-flash-preview',
         history: pruneHistoryForApi(chatHistory),
         config: {
-          maxOutputTokens: 65536,
+          maxOutputTokens: 32768,
           systemInstruction: `Du bist ein Frontend-Entwickler und Lehrmittelautor. Der Nutzer hat den Entwurf bestätigt.
 Generiere nun den vollständigen HTML-Code für das Dossier basierend auf dem Entwurf und dem Briefing.
 Verwende Tailwind CSS für das Styling. Das Farbschema ist: ${theme || 'blue'}.
@@ -467,8 +487,14 @@ Strukturiere das HTML wie folgt:
         },
       });
 
-      const response = await chat.sendMessage({ message: "Entwurf bestätigt. Generiere jetzt das HTML." });
-      let html = response.text || '';
+      setStreamingText('');
+      const stream = await chat.sendMessageStream({ message: "Entwurf bestätigt. Generiere jetzt das HTML." });
+      let html = '';
+      for await (const chunk of stream) {
+        html += (chunk.text || '');
+        setStreamingText(html);
+      }
+      setStreamingText('');
       
       // Clean up markdown formatting if the model still includes it
       html = html.replace(/^```html\n?/, '').replace(/\n?```$/, '').trim();
@@ -554,25 +580,24 @@ Strukturiere das HTML wie folgt:
             </div>
           </div>
         ))}
-        {isGenerating && (
+        {(isGenerating || isGeneratingHtml) && (
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
               🤖
             </div>
-            <div className="p-3 bg-white border border-gray-200 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
-              <span className="animate-pulse">⏳</span>
-              <span className="text-sm text-gray-500">Denkt nach...</span>
-            </div>
-          </div>
-        )}
-        {isGeneratingHtml && (
-          <div className="flex gap-3">
-            <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
-              🤖
-            </div>
-            <div className="p-3 bg-white border border-gray-200 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
-              <span className="animate-spin inline-block">⚙️</span>
-              <span className="text-sm text-gray-500">Generiere Dossier...</span>
+            <div className="p-3 bg-white border border-gray-200 rounded-2xl rounded-tl-none shadow-sm max-w-[85%]">
+              {streamingText ? (
+                <div className="text-sm text-gray-700 prose prose-sm max-w-none">
+                  <ReactMarkdown>{streamingText + ' \u25CD'}</ReactMarkdown>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="animate-pulse">{isGeneratingHtml ? '\u2699\uFE0F' : '\u23F3'}</span>
+                  <span className="text-sm text-gray-500">
+                    {isGeneratingHtml ? 'Generiere Dossier...' : 'Denkt nach...'}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )}
