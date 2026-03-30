@@ -2435,24 +2435,13 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
           }
         }
 
-        // Strip .editable class but preserve its layout-affecting padding/margin.
-        // .editable adds padding:2px 4px; margin:-2px -4px — removing them shifts spacing.
-        // Read final computed values from the LIVE page (which still has .editable applied).
-        const liveEditables = page.querySelectorAll<HTMLElement>('.editable');
-        const cloneEditables = clone.querySelectorAll<HTMLElement>('.editable');
-        for (let j = 0; j < liveEditables.length && j < cloneEditables.length; j++) {
-          const cs = window.getComputedStyle(liveEditables[j]);
-          const ce = cloneEditables[j];
-          ce.style.paddingTop = cs.paddingTop;
-          ce.style.paddingRight = cs.paddingRight;
-          ce.style.paddingBottom = cs.paddingBottom;
-          ce.style.paddingLeft = cs.paddingLeft;
-          ce.style.marginTop = cs.marginTop;
-          ce.style.marginRight = cs.marginRight;
-          ce.style.marginBottom = cs.marginBottom;
-          ce.style.marginLeft = cs.marginLeft;
-          ce.classList.remove('editable');
-        }
+        // Strip .editable class. Its padding (2px 4px) and margin (-2px -4px) mostly
+        // cancel out. We must NOT inline margins here because that would override
+        // Tailwind spacing utilities (space-y-*, mb-*, mt-*) which use class-based
+        // margin-top — inline styles would win and break inter-element spacing.
+        clone.querySelectorAll<HTMLElement>('.editable').forEach(el => {
+          el.classList.remove('editable');
+        });
 
         // Fix border-bottom on inline-block spans (e.g. cover page Name/Klasse/Datum lines).
         // html2canvas doesn't reliably render border-bottom on empty elements — replace
@@ -2573,17 +2562,23 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
 
         // Fix strikethrough: html2canvas misrenders text-decoration: line-through.
         // MUST run AFTER stage.appendChild(clone) so offsetHeight is available.
+        // Skip when hide-solutions is active — strikethrough answers must look normal in student mode.
         clone.querySelectorAll<HTMLElement>('.is-strikethrough-answer').forEach(cloneEl => {
           cloneEl.style.textDecoration = 'none';
-          cloneEl.style.position = 'relative';
-          cloneEl.style.display = 'inline-block';
-          cloneEl.style.color = '#2563eb';
-          // Now that clone is in the DOM, offsetHeight returns the real height
-          const h = cloneEl.offsetHeight;
-          const lineTop = Math.round(h / 2) + 8;
-          const line = document.createElement('div');
-          line.style.cssText = `position:absolute;left:-1px;right:-1px;top:${lineTop}px;height:2px;background:#2563eb;pointer-events:none;`;
-          cloneEl.appendChild(line);
+          if (isHideSolutions) {
+            // Student mode: remove blue color, show as normal text
+            cloneEl.style.color = 'inherit';
+          } else {
+            // Teacher mode: draw the strikethrough line manually
+            cloneEl.style.position = 'relative';
+            cloneEl.style.display = 'inline-block';
+            cloneEl.style.color = '#2563eb';
+            const h = cloneEl.offsetHeight;
+            const lineTop = Math.round(h / 2) + 8;
+            const line = document.createElement('div');
+            line.style.cssText = `position:absolute;left:-1px;right:-1px;top:${lineTop}px;height:2px;background:#2563eb;pointer-events:none;`;
+            cloneEl.appendChild(line);
+          }
         });
 
         // Final safety pass: scrub any remaining oklch/oklab from ALL elements in the clone
