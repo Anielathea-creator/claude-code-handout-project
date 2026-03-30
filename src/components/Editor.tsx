@@ -68,6 +68,9 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
       if (colorPickerRef.current && !colorPickerRef.current.contains(event.target as Node)) {
         setShowColorPicker(false);
       }
+      if (spacingDropdownRef.current && !spacingDropdownRef.current.contains(event.target as Node)) {
+        setShowSpacingDropdown(false);
+      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -211,11 +214,14 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
   const [pendingImageTarget, setPendingImageTarget] = useState<HTMLElement | null>(null);
 
   const SPACING_OPTIONS = [
-    { label: '1', cls: 'space-y-1', title: 'Kompakt (4px)' },
-    { label: '2', cls: 'space-y-2', title: 'Normal (8px)' },
-    { label: '3', cls: 'space-y-4', title: 'Mittel (16px)' },
-    { label: '4', cls: 'space-y-6', title: 'Gross (24px)' },
+    { label: 'Kompakt', value: '2', title: 'Kompakt (2px)' },
+    { label: 'Eng', value: '6', title: 'Eng (6px)' },
+    { label: 'Normal', value: '12', title: 'Normal (12px)' },
+    { label: 'Mittel', value: '20', title: 'Mittel (20px)' },
+    { label: 'Gross', value: '32', title: 'Gross (32px)' },
   ];
+  const [showSpacingDropdown, setShowSpacingDropdown] = useState(false);
+  const spacingDropdownRef = useRef<HTMLDivElement>(null);
 
   const FRAME_DESIGNS = [
     { id: 'vintage', name: 'Vintage', icon: '📜', description: 'Klassischer Rahmen' },
@@ -3046,14 +3052,17 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     setNotification({ message: `Rahmen angewendet`, type: 'success' });
   };
 
-  const handleListSpacing = (spacingClass: string) => {
+  const handleListSpacing = (marginPx: string) => {
     if (!activeBlock) return;
     const list = activeBlock.querySelector('ul, ol');
     if (!list) return;
     saveHistoryState();
-    Array.from(list.classList).filter(c => c.startsWith('space-y-')).forEach(c => list.classList.remove(c));
-    list.classList.add(spacingClass);
+    const items = list.querySelectorAll(':scope > li');
+    items.forEach((li, i) => {
+      (li as HTMLElement).style.marginTop = i === 0 ? '0' : `${marginPx}px`;
+    });
     saveHistoryState();
+    setShowSpacingDropdown(false);
   };
 
   const handleApplyColor = (colorClass: string) => {
@@ -3709,11 +3718,9 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     }
   }, [zoom]);
 
-  const activeListSpacing = useMemo(() => {
-    if (!activeBlock) return null;
-    const list = activeBlock.querySelector('ul, ol');
-    if (!list) return null;
-    return Array.from(list.classList).find(c => c.startsWith('space-y-')) || 'none';
+  const activeHasList = useMemo(() => {
+    if (!activeBlock) return false;
+    return !!activeBlock.querySelector('ul, ol');
   }, [activeBlock]);
 
   const dossierContent = useMemo(() => {
@@ -4659,6 +4666,44 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
               </div>
             )}
           </div>
+
+          {/* --- ZEILENABSTAND DROPDOWN --- */}
+          {activeHasList && (
+            <div className="relative" ref={spacingDropdownRef}>
+              <button
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setShowSpacingDropdown(!showSpacingDropdown)}
+                className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded transition-colors text-gray-600"
+                title="Zeilenabstand"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                  <line x1="5" y1="3" x2="14" y2="3" />
+                  <line x1="5" y1="8" x2="14" y2="8" />
+                  <line x1="5" y1="13" x2="14" y2="13" />
+                  <polyline points="2.5,5 2.5,1.5" />
+                  <polyline points="1.5,2.5 2.5,1.5 3.5,2.5" />
+                  <polyline points="2.5,11 2.5,14.5" />
+                  <polyline points="1.5,13.5 2.5,14.5 3.5,13.5" />
+                </svg>
+              </button>
+
+              {showSpacingDropdown && (
+                <div className="absolute bottom-full left-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-xl py-1 z-[60] min-w-[120px]">
+                  {SPACING_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleListSpacing(opt.value)}
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 transition-colors"
+                      title={opt.title}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="h-8 w-px bg-gray-300 mx-1"></div>
@@ -4720,27 +4765,6 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
           </button>
         </div>
 
-        {/* --- LISTEN-ABSTAND --- */}
-        {activeListSpacing !== null && (
-          <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-1 py-1 rounded-lg">
-            <span className="text-[10px] font-bold text-amber-800 mr-1">Abstand:</span>
-            {SPACING_OPTIONS.map(opt => (
-              <button
-                key={opt.cls}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => handleListSpacing(opt.cls)}
-                className={`w-7 h-7 flex items-center justify-center text-xs font-bold rounded transition-colors ${
-                  activeListSpacing === opt.cls
-                    ? 'bg-amber-500 text-white'
-                    : 'hover:bg-amber-100 text-amber-700'
-                }`}
-                title={opt.title}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* REIHE 2: Lösungs-Funktionen */}
