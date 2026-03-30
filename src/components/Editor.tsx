@@ -3052,9 +3052,12 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     setNotification({ message: `Rahmen angewendet`, type: 'success' });
   };
 
+  const findList = (block: HTMLElement): Element | null =>
+    block.matches('ul, ol') ? block : block.querySelector('ul, ol');
+
   const handleListSpacing = (marginPx: string) => {
     if (!activeBlock) return;
-    const list = activeBlock.querySelector('ul, ol');
+    const list = findList(activeBlock);
     if (!list) return;
     saveHistoryState();
     const items = list.querySelectorAll(':scope > li');
@@ -3720,7 +3723,7 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
 
   const activeHasList = useMemo(() => {
     if (!activeBlock) return false;
-    return !!activeBlock.querySelector('ul, ol');
+    return activeBlock.matches('ul, ol') || !!activeBlock.querySelector('ul, ol');
   }, [activeBlock]);
 
   const dossierContent = useMemo(() => {
