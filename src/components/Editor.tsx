@@ -114,80 +114,7 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     if (target.nodeType === 3) target = target.parentElement as HTMLElement;
     if (!target || !target.closest) return;
 
-    // 0. Table column/row resize (runs before all other logic)
-    {
-      const cell = target.closest('td, th') as HTMLElement | null;
-      if (cell) {
-        const table = cell.closest('table') as HTMLTableElement | null;
-        if (table && !table.classList.contains('rechenmauer-table')) {
-          const rect = cell.getBoundingClientRect();
-          const THRESHOLD = 12;
-          const row = cell.closest('tr') as HTMLTableRowElement | null;
-          const isLastCol = row ? cell === row.cells[row.cells.length - 1] : false;
-          const isFirstCol = cell.cellIndex === 0;
-
-          // Column resize: right edge of current cell OR left edge (resize previous column pair)
-          const nearRightEdge = Math.abs(e.clientX - rect.right) <= THRESHOLD && !isLastCol;
-          const nearLeftEdge = Math.abs(e.clientX - rect.left) <= THRESHOLD && !isFirstCol;
-
-          if ((nearRightEdge || nearLeftEdge) && row) {
-            e.preventDefault();
-            e.stopPropagation();
-            table.style.tableLayout = 'fixed';
-            const root = document.getElementById('dossier-root');
-            if (root) root.classList.add('table-col-resize');
-            const leftColIndex = nearLeftEdge ? cell.cellIndex - 1 : cell.cellIndex;
-            const rightColIndex = leftColIndex + 1;
-            const leftCells = getCellsInColumn(table, leftColIndex);
-            const rightCells = getCellsInColumn(table, rightColIndex);
-            const lw = (row.cells[leftColIndex] as HTMLElement).getBoundingClientRect().width;
-            const rw = (row.cells[rightColIndex] as HTMLElement).getBoundingClientRect().width;
-            leftCells.forEach(c => { c.style.width = lw + 'px'; });
-            rightCells.forEach(c => { c.style.width = rw + 'px'; });
-            tableResizeRef.current = {
-              active: true, type: 'col', leftCells, rightCells,
-              startX: e.clientX, startLeftWidth: lw, startRightWidth: rw,
-              rowCells: [], startY: 0, startRowHeight: 0,
-            };
-            document.body.style.cursor = 'col-resize';
-            document.body.style.userSelect = 'none';
-            return;
-          }
-
-          // Row resize: bottom edge of current row OR top edge (resize previous row)
-          const nearBottomEdge = Math.abs(e.clientY - rect.bottom) <= THRESHOLD;
-          const isActualFirstRow = row ? row.rowIndex === 0 : true;
-          const nearTopEdge = Math.abs(e.clientY - rect.top) <= THRESHOLD && !isActualFirstRow;
-
-          if (nearBottomEdge || nearTopEdge) {
-            e.preventDefault();
-            e.stopPropagation();
-            const root = document.getElementById('dossier-root');
-            if (root) root.classList.add('table-row-resize');
-            let targetRow: HTMLTableRowElement;
-            if (nearTopEdge) {
-              const allRows = Array.from(table.rows);
-              const currentRowIdx = allRows.indexOf(row!);
-              targetRow = allRows[currentRowIdx - 1];
-            } else {
-              targetRow = row!;
-            }
-            if (!targetRow) return;
-            const rowCells = Array.from(targetRow.cells) as HTMLElement[];
-            const rh = (targetRow.cells[0] as HTMLElement).getBoundingClientRect().height;
-            rowCells.forEach(c => { c.style.minHeight = rh + 'px'; });
-            tableResizeRef.current = {
-              active: true, type: 'row', leftCells: [], rightCells: [],
-              startX: 0, startLeftWidth: 0, startRightWidth: 0,
-              rowCells, startY: e.clientY, startRowHeight: rh,
-            };
-            document.body.style.cursor = 'row-resize';
-            document.body.style.userSelect = 'none';
-            return;
-          }
-        }
-      }
-    }
+    // Table resize is handled by the document-level capture listener in the useEffect below.
 
     // 1. Marker Mode - Place new marker
     if (markerModeRef.current && (target.tagName === 'IMG' || target.closest('.marker-container') || target.closest('.draggable-image-wrapper'))) {
@@ -435,14 +362,14 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     startX: number;
     startLeftWidth: number;
     startRightWidth: number;
-    rowCells: HTMLElement[];
+    targetRow: HTMLTableRowElement | null;
     startY: number;
     startRowHeight: number;
   }>({
     active: false, type: null,
     leftCells: [], rightCells: [],
     startX: 0, startLeftWidth: 0, startRightWidth: 0,
-    rowCells: [], startY: 0, startRowHeight: 0,
+    targetRow: null, startY: 0, startRowHeight: 0,
   });
 
   useEffect(() => {
@@ -629,15 +556,6 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     onChange(currentHtml);
   };
 
-  const getCellsInColumn = (table: HTMLTableElement, colIndex: number): HTMLElement[] => {
-    const cells: HTMLElement[] = [];
-    Array.from(table.rows).forEach(row => {
-      const cell = row.cells[colIndex] as HTMLElement | undefined;
-      if (cell) cells.push(cell);
-    });
-    return cells;
-  };
-
   // Returns the selectable block for a given element.
   // Always returns the direct child of the page container that contains the element.
   // This ensures the whole block is selected (not a nested .avoid-break sub-element).
@@ -765,9 +683,109 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
   }, []);
 
   // --- TABLE COLUMN & ROW RESIZE ---
+  // Uses document-level listeners (capture phase for mousedown) so it works
+  // independently of the useMemo-cached dossierContent JSX.
   useEffect(() => {
     const MIN_COL = 30;
     const MIN_ROW = 20;
+    const THRESHOLD = 12;
+
+    const getCols = (table: HTMLTableElement, colIndex: number): HTMLElement[] => {
+      const cells: HTMLElement[] = [];
+      Array.from(table.rows).forEach(r => {
+        const c = r.cells[colIndex] as HTMLElement | undefined;
+        if (c) cells.push(c);
+      });
+      return cells;
+    };
+
+    const onMouseDown = (e: MouseEvent) => {
+      let target = e.target as HTMLElement;
+      if (!target) return;
+      if (target.nodeType === 3) target = target.parentElement as HTMLElement;
+      if (!target?.closest) return;
+
+      const cell = target.closest('td, th') as HTMLElement | null;
+      if (!cell) return;
+      const table = cell.closest('table') as HTMLTableElement | null;
+      if (!table || table.classList.contains('rechenmauer-table')) return;
+      // Only act inside #dossier-root
+      if (!cell.closest('#dossier-root')) return;
+
+      const rect = cell.getBoundingClientRect();
+      const row = cell.closest('tr') as HTMLTableRowElement | null;
+      if (!row) return;
+      const isLastCol = cell === row.cells[row.cells.length - 1];
+      const isFirstCol = cell.cellIndex === 0;
+
+      const nearRightEdge = Math.abs(e.clientX - rect.right) <= THRESHOLD && !isLastCol;
+      const nearLeftEdge = Math.abs(e.clientX - rect.left) <= THRESHOLD && !isFirstCol;
+
+      // --- Column resize ---
+      if (nearRightEdge || nearLeftEdge) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        table.style.tableLayout = 'fixed';
+        const root = document.getElementById('dossier-root');
+        if (root) root.classList.add('table-col-resize');
+        const leftColIndex = nearLeftEdge ? cell.cellIndex - 1 : cell.cellIndex;
+        const rightColIndex = leftColIndex + 1;
+        const leftCells = getCols(table, leftColIndex);
+        const rightCells = getCols(table, rightColIndex);
+        const lw = (row.cells[leftColIndex] as HTMLElement).getBoundingClientRect().width;
+        const rw = (row.cells[rightColIndex] as HTMLElement).getBoundingClientRect().width;
+        leftCells.forEach(c => { c.style.width = lw + 'px'; });
+        rightCells.forEach(c => { c.style.width = rw + 'px'; });
+        tableResizeRef.current = {
+          active: true, type: 'col', leftCells, rightCells,
+          startX: e.clientX, startLeftWidth: lw, startRightWidth: rw,
+          targetRow: null, startY: 0, startRowHeight: 0,
+        };
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        return;
+      }
+
+      // --- Row resize ---
+      const nearBottomEdge = Math.abs(e.clientY - rect.bottom) <= THRESHOLD;
+      const isActualFirstRow = row.rowIndex === 0;
+      const nearTopEdge = Math.abs(e.clientY - rect.top) <= THRESHOLD && !isActualFirstRow;
+
+      if (nearBottomEdge || nearTopEdge) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const root = document.getElementById('dossier-root');
+        if (root) root.classList.add('table-row-resize');
+        let targetRow: HTMLTableRowElement;
+        if (nearTopEdge) {
+          const allRows = Array.from(table.rows);
+          const idx = allRows.indexOf(row);
+          targetRow = allRows[idx - 1];
+        } else {
+          targetRow = row;
+        }
+        if (!targetRow) return;
+        // Clean up stale min-height/height on cells from earlier resize attempts
+        // (min-height does NOT work on table-cell elements in Tailwind's CSS).
+        Array.from(targetRow.cells).forEach(c => {
+          (c as HTMLElement).style.minHeight = '';
+          (c as HTMLElement).style.height = '';
+          (c as HTMLElement).style.overflow = '';
+        });
+        // Height must be set on <tr>, not <td> — Tailwind's base CSS prevents
+        // style.height from working on table-cell elements.
+        const rh = targetRow.getBoundingClientRect().height;
+        targetRow.style.height = rh + 'px';
+        tableResizeRef.current = {
+          active: true, type: 'row', leftCells: [], rightCells: [],
+          startX: 0, startLeftWidth: 0, startRightWidth: 0,
+          targetRow, startY: e.clientY, startRowHeight: rh,
+        };
+        document.body.style.cursor = 'row-resize';
+        document.body.style.userSelect = 'none';
+        return;
+      }
+    };
 
     const onMouseMove = (e: MouseEvent) => {
       const s = tableResizeRef.current;
@@ -781,32 +799,38 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
         if (r < MIN_COL) { r = MIN_COL; l = s.startLeftWidth + s.startRightWidth - MIN_COL; }
         s.leftCells.forEach(c => { c.style.width = l + 'px'; });
         s.rightCells.forEach(c => { c.style.width = r + 'px'; });
-      } else if (s.type === 'row') {
+      } else if (s.type === 'row' && s.targetRow) {
         const newH = Math.max(MIN_ROW, s.startRowHeight + (e.clientY - s.startY));
-        s.rowCells.forEach(c => { c.style.minHeight = newH + 'px'; });
+        s.targetRow.style.height = newH + 'px';
       }
     };
 
     const onMouseUp = () => {
       if (!tableResizeRef.current.active) return;
+
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       const root = document.getElementById('dossier-root');
       if (root) {
         root.classList.remove('table-col-resize', 'table-row-resize');
       }
+      // Row height is kept as style.height on <tr> (not converted to min-height,
+      // because min-height does not apply to table-row elements in CSS).
       tableResizeRef.current = {
         active: false, type: null,
         leftCells: [], rightCells: [],
         startX: 0, startLeftWidth: 0, startRightWidth: 0,
-        rowCells: [], startY: 0, startRowHeight: 0,
+        targetRow: null, startY: 0, startRowHeight: 0,
       };
       saveHistoryState();
     };
 
+    // Capture phase: fires BEFORE React handlers and contenteditable behavior
+    document.addEventListener('mousedown', onMouseDown, true);
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
     return () => {
+      document.removeEventListener('mousedown', onMouseDown, true);
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
     };
