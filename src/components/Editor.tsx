@@ -3052,15 +3052,17 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     setNotification({ message: `Rahmen angewendet`, type: 'success' });
   };
 
-  const findList = (block: HTMLElement): Element | null =>
-    block.matches('ul, ol') ? block : block.querySelector('ul, ol');
+  const blockHasListItems = (block: HTMLElement): boolean =>
+    block.matches('ul, ol') || !!block.querySelector('ul, ol, li');
 
   const handleListSpacing = (marginPx: string) => {
     if (!activeBlock) return;
-    const list = findList(activeBlock);
-    if (!list) return;
+    // Finde alle <li>-Elemente im Block (mit oder ohne ul/ol-Wrapper)
+    const items = activeBlock.matches('ul, ol')
+      ? activeBlock.querySelectorAll(':scope > li')
+      : activeBlock.querySelectorAll('li');
+    if (items.length === 0) return;
     saveHistoryState();
-    const items = list.querySelectorAll(':scope > li');
     items.forEach((li, i) => {
       (li as HTMLElement).style.marginTop = i === 0 ? '0' : `${marginPx}px`;
     });
@@ -3723,7 +3725,7 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
 
   const activeHasList = useMemo(() => {
     if (!activeBlock) return false;
-    return activeBlock.matches('ul, ol') || !!activeBlock.querySelector('ul, ol');
+    return blockHasListItems(activeBlock);
   }, [activeBlock]);
 
   const dossierContent = useMemo(() => {
