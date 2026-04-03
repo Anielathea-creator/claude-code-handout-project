@@ -35,13 +35,14 @@ interface EditorProps {
   html: string;
   onChange: (html: string) => void;
   theme?: string;
+  projectName?: string;
   snapshots: Snapshot[];
   onRestoreSnapshot: (snapshot: Snapshot) => void;
   onAddSnapshot: (name: string) => void;
 }
 
 
-export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, onAddSnapshot }: EditorProps) {
+export function Editor({ html, onChange, theme, projectName, snapshots, onRestoreSnapshot, onAddSnapshot }: EditorProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageUploadRef = useRef<HTMLInputElement>(null);
   const historyDropdownRef = useRef<HTMLDivElement>(null);
@@ -184,7 +185,7 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
       return;
     }
 
-    const cell = target.closest('td, th') as HTMLElement | null;
+    const cell = target.closest('td, th') as HTMLTableCellElement | null;
     if (!cell) {
       root.classList.remove('table-col-resize', 'table-row-resize');
       return;
@@ -705,7 +706,7 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
       if (target.nodeType === 3) target = target.parentElement as HTMLElement;
       if (!target?.closest) return;
 
-      const cell = target.closest('td, th') as HTMLElement | null;
+      const cell = target.closest('td, th') as HTMLTableCellElement | null;
       if (!cell) return;
       const table = cell.closest('table') as HTMLTableElement | null;
       if (!table || table.classList.contains('rechenmauer-table')) return;
@@ -2309,7 +2310,8 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'Mein_Deutsch_Dossier_Backup.json';
+    const safeName = (projectName || 'Mein_Dossier').replace(/[^a-zA-Z0-9äöüÄÖÜß _-]/g, '').replace(/\s+/g, '_');
+    link.download = `${safeName}_Backup.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -2369,7 +2371,7 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
         if (tocPageIndex === -1 && page.querySelector('#toc-list')) tocPageIndex = idx;
       });
 
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
       const A4_W_MM = 210;
       const A4_H_MM = 297;
 
@@ -2419,6 +2421,11 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
           el.style.border = 'none'; el.style.outline = 'none';
         });
 
+        // Fix cover-draggable overflow clipping (Name field etc.)
+        clone.querySelectorAll<HTMLElement>('.cover-draggable').forEach(el => {
+          el.style.overflow = 'visible';
+        });
+
         // Fix absolute+transform positioning for html2canvas compatibility (cover page).
         const liveAbsEls = page.querySelectorAll<HTMLElement>('[style*="translate"]');
         const cloneAbsEls = clone.querySelectorAll<HTMLElement>('[style*="translate"]');
@@ -2435,13 +2442,29 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
           }
         }
 
-        // Strip .editable class. Its padding (2px 4px) and margin (-2px -4px) mostly
-        // cancel out. We must NOT inline margins here because that would override
-        // Tailwind spacing utilities (space-y-*, mb-*, mt-*) which use class-based
-        // margin-top — inline styles would win and break inter-element spacing.
-        clone.querySelectorAll<HTMLElement>('.editable').forEach(el => {
-          el.classList.remove('editable');
-        });
+        // Strip .editable class for PDF export. In the editor, .editable applies
+        // margin: -2px -4px; padding: 2px 4px. The padding and margin cancel out
+        // horizontally (net 0), and vertically the -2px margin causes slight overlap
+        // that html2canvas exaggerates. Strategy:
+        // - Text tags (P, H1-H6, LI): keep .editable's padding for correct element
+        //   sizing and descender buffer. Zero vertical margins to prevent both
+        //   browser defaults (1em), Tailwind oversized margins (mb-4=16px), and
+        //   html2canvas negative-margin overlap. Keep -4px horizontal margin so
+        //   text stays at the same horizontal position as in the editor.
+        // - Non-text elements (TD, TH, SPAN, DIV, UL, etc.): just strip .editable.
+        //   Their padding/dimensions were already flattened by flattenElementStyles.
+        {
+          const textTags = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI']);
+          const liveEditables = page.querySelectorAll<HTMLElement>('.editable');
+          const cloneEditables = clone.querySelectorAll<HTMLElement>('.editable');
+          for (let j = 0; j < liveEditables.length && j < cloneEditables.length; j++) {
+            if (textTags.has(liveEditables[j].tagName)) {
+              cloneEditables[j].style.margin = '0 -4px';
+              cloneEditables[j].style.padding = '2px 4px';
+            }
+            cloneEditables[j].classList.remove('editable');
+          }
+        }
 
         // Fix border-bottom on inline-block spans (e.g. cover page Name/Klasse/Datum lines).
         // html2canvas doesn't reliably render border-bottom on empty elements — replace
@@ -2465,6 +2488,29 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
               cloneEl.style.backgroundImage = `linear-gradient(to top, ${bColor} ${Math.max(bw, 1)}px, transparent ${Math.max(bw, 1)}px)`;
               cloneEl.style.backgroundSize = '100% 100%';
               cloneEl.style.backgroundRepeat = 'no-repeat';
+            }
+          }
+        }
+
+        // Fix gap-line: html2canvas renders border-bottom too high on inline-block elements,
+        // causing text to sit directly on the line instead of above it.
+        // Replace border with an absolutely positioned div for correct placement.
+        {
+          const liveGapLines = page.querySelectorAll<HTMLElement>('.gap-line');
+          const cloneGapLines = clone.querySelectorAll<HTMLElement>('.gap-line');
+          for (let j = 0; j < liveGapLines.length && j < cloneGapLines.length; j++) {
+            const liveEl = liveGapLines[j];
+            const cloneEl = cloneGapLines[j];
+            const cs = window.getComputedStyle(liveEl);
+            const bw = parseFloat(cs.borderBottomWidth);
+            if (bw > 0) {
+              const bColor = cs.borderBottomColor || '#000';
+              cloneEl.style.borderBottom = 'none';
+              cloneEl.style.position = 'relative';
+              cloneEl.style.overflow = 'visible';
+              const line = document.createElement('div');
+              line.style.cssText = `position:absolute;left:0;right:0;bottom:-3px;height:${Math.max(bw, 1.5)}px;background:${bColor};pointer-events:none;`;
+              cloneEl.appendChild(line);
             }
           }
         }
@@ -2671,7 +2717,8 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
         // Target: first visible content should be at this many canvas-pixels from the top.
         // ~90 CSS-px at scale 2 = 180 canvas-px ≈ 2.4cm from page edge.
         const TARGET_TOP = 180;
-        const cropPx = Math.max(0, firstContentRow - TARGET_TOP);
+        const isCoverPage = page.hasAttribute('data-cover') || page.querySelector('.cover-page-container') !== null;
+        const cropPx = isCoverPage ? 0 : Math.max(0, firstContentRow - TARGET_TOP);
 
         let finalCanvas: HTMLCanvasElement;
         if (cropPx > 0) {
@@ -2690,9 +2737,9 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
           finalCanvas = canvas;
         }
 
-        const imgData = finalCanvas.toDataURL('image/jpeg', 0.95);
+        const imgData = finalCanvas.toDataURL('image/png');
         if (i > 0) pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, 0, A4_W_MM, A4_H_MM);
+        pdf.addImage(imgData, 'PNG', 0, 0, A4_W_MM, A4_H_MM);
       }
 
       if (tocPageIndex >= 0) {
@@ -2705,7 +2752,8 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
         }
       }
 
-      pdf.save('Mein_Dossier.pdf');
+      const safePdfName = (projectName || 'Mein_Dossier').replace(/[^a-zA-Z0-9äöüÄÖÜß _-]/g, '').replace(/\s+/g, '_');
+      pdf.save(`${safePdfName}.pdf`);
 
     } catch (err: any) {
       const msg = err?.message || String(err);
@@ -3708,7 +3756,7 @@ export function Editor({ html, onChange, theme, snapshots, onRestoreSnapshot, on
         : '';
 
       const generatedHtml = `<div class="cover-page-wrapper" data-cover="true">
-  <div class="cover-page-container avoid-break relative w-full h-[27cm] p-[2cm] box-border bg-white print:bg-white overflow-hidden">
+  <div class="cover-page-container avoid-break relative w-full h-[29.7cm] p-[2cm] box-border bg-white print:bg-white overflow-hidden">
     <div class="cover-inner-container relative w-full h-full">
       <!-- Name: top right -->
       <div class="cover-draggable" style="position: absolute; right: 0; top: 0; resize: both; overflow: hidden; min-width: 120px; min-height: 30px; cursor: move;">

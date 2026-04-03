@@ -624,10 +624,10 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
       [Bild hier einfügen]
     </div>
     <div class="grid grid-cols-2 gap-x-12 gap-y-4 w-full px-8">
-       <div class="flex items-end gap-2"><span class="font-bold text-gray-500">1.</span> <span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer">Teil 1</span></span></div>
-       <div class="flex items-end gap-2"><span class="font-bold text-gray-500">2.</span> <span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer">Teil 2</span></span></div>
-       <div class="flex items-end gap-2"><span class="font-bold text-gray-500">3.</span> <span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer">Teil 3</span></span></div>
-       <div class="flex items-end gap-2"><span class="font-bold text-gray-500">4.</span> <span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer">Teil 4</span></span></div>
+       <div class="flex items-end gap-2"><span class="font-bold text-gray-500">1.</span> <span class="gap-line editable" contenteditable="true"><span class="is-answer">Teil 1</span></span></div>
+       <div class="flex items-end gap-2"><span class="font-bold text-gray-500">2.</span> <span class="gap-line editable" contenteditable="true"><span class="is-answer">Teil 2</span></span></div>
+       <div class="flex items-end gap-2"><span class="font-bold text-gray-500">3.</span> <span class="gap-line editable" contenteditable="true"><span class="is-answer">Teil 3</span></span></div>
+       <div class="flex items-end gap-2"><span class="font-bold text-gray-500">4.</span> <span class="gap-line editable" contenteditable="true"><span class="is-answer">Teil 4</span></span></div>
     </div>
   </div>
 </div>`
@@ -730,13 +730,13 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
   <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Wörter verwandeln</h3>
   <p class="editable text-gray-600 mb-4" contenteditable="true">Bilde Nomen mit den passenden Wortbausteinen <span class="font-bold">-keit, -heit, -ung, -nis</span>.</p>
   
-  <div class="grid grid-cols-2 gap-x-16 gap-y-4 w-full">
-    <div class="flex items-end gap-2"><span class="text-gray-400 font-bold">•</span><span class="editable min-w-[80px]" contenteditable="true">lesen</span><span>→</span><span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer">die Lesung</span></span></div>
-    <div class="flex items-end gap-2"><span class="text-gray-400 font-bold">•</span><span class="editable min-w-[80px]" contenteditable="true">dunkel</span><span>→</span><span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer">die Dunkelheit</span></span></div>
-    <div class="flex items-end gap-2"><span class="text-gray-400 font-bold">•</span><span class="editable min-w-[80px]" contenteditable="true">gesund</span><span>→</span><span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer">die Gesundheit</span></span></div>
-    <div class="flex items-end gap-2"><span class="text-gray-400 font-bold">•</span><span class="editable min-w-[80px]" contenteditable="true">müde</span><span>→</span><span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer">die Müdigkeit</span></span></div>
-    <div class="flex items-end gap-2"><span class="text-gray-400 font-bold">•</span><span class="editable min-w-[80px]" contenteditable="true">krank</span><span>→</span><span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer">die Krankheit</span></span></div>
-    <div class="flex items-end gap-2"><span class="text-gray-400 font-bold">•</span><span class="editable min-w-[80px]" contenteditable="true">geheim</span><span>→</span><span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer">das Geheimnis</span></span></div>
+  <div class="grid grid-cols-2 gap-x-16 gap-y-2 w-full leading-loose">
+    <p class="editable text-gray-900" contenteditable="true">• lesen → <span class="gap-line"><span class="is-answer">die Lesung</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true">• dunkel → <span class="gap-line"><span class="is-answer">die Dunkelheit</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true">• gesund → <span class="gap-line"><span class="is-answer">die Gesundheit</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true">• müde → <span class="gap-line"><span class="is-answer">die Müdigkeit</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true">• krank → <span class="gap-line"><span class="is-answer">die Krankheit</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true">• geheim → <span class="gap-line"><span class="is-answer">das Geheimnis</span></span></p>
   </div>
 </div>`
   },
@@ -1105,7 +1105,7 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
     html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
   <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Verben einsetzen</h3>
   <p class="editable text-gray-900 mb-4" contenteditable="true">Setze das Verb in der Klammer in der passenden Personalform ein.</p>
-  <div class="leading-loose space-y-2">
+  <div class="leading-loose space-y-1">
     <p class="editable text-gray-900" contenteditable="true">
       Gestern <span class="gap-line min-w-[100px] inline-block text-center"><span class="is-answer text-THEME-600 italic">fiel</span></span> der Junge auf die Nase. (fallen)
     </p>
@@ -1121,13 +1121,13 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
     html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
   <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Konjugieren</h3>
   <p class="editable text-gray-900 mb-4" contenteditable="true">Setze das Verb "singen" in alle Personalformen.</p>
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-12 w-full max-w-lg">
-    <div class="flex items-end gap-2 text-gray-900"><span class="w-20 font-bold editable" contenteditable="true">ich</span> <span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer text-THEME-600 italic">singe</span></span></div>
-    <div class="flex items-end gap-2 text-gray-900"><span class="w-20 font-bold editable" contenteditable="true">wir</span> <span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer text-THEME-600 italic">singen</span></span></div>
-    <div class="flex items-end gap-2 text-gray-900"><span class="w-20 font-bold editable" contenteditable="true">du</span> <span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer text-THEME-600 italic">singst</span></span></div>
-    <div class="flex items-end gap-2 text-gray-900"><span class="w-20 font-bold editable" contenteditable="true">ihr</span> <span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer text-THEME-600 italic">singt</span></span></div>
-    <div class="flex items-end gap-2 text-gray-900"><span class="w-20 font-bold editable" contenteditable="true">er/sie/es</span> <span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer text-THEME-600 italic">singt</span></span></div>
-    <div class="flex items-end gap-2 text-gray-900"><span class="w-20 font-bold editable" contenteditable="true">sie</span> <span class="gap-line flex-1 editable" contenteditable="true"><span class="is-answer text-THEME-600 italic">singen</span></span></div>
+  <div class="grid grid-cols-2 gap-y-2 gap-x-12 w-full max-w-lg leading-loose">
+    <p class="editable text-gray-900" contenteditable="true"><span class="font-bold">ich</span> <span class="gap-line"><span class="is-answer text-THEME-600 italic">singe</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true"><span class="font-bold">wir</span> <span class="gap-line"><span class="is-answer text-THEME-600 italic">singen</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true"><span class="font-bold">du</span> <span class="gap-line"><span class="is-answer text-THEME-600 italic">singst</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true"><span class="font-bold">ihr</span> <span class="gap-line"><span class="is-answer text-THEME-600 italic">singt</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true"><span class="font-bold">er/sie/es</span> <span class="gap-line"><span class="is-answer text-THEME-600 italic">singt</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true"><span class="font-bold">sie</span> <span class="gap-line"><span class="is-answer text-THEME-600 italic">singen</span></span></p>
   </div>
 </div>`
   },
@@ -1137,17 +1137,9 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
     html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
   <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Fehler reparieren</h3>
   <p class="editable text-gray-900 mb-4" contenteditable="true">Streiche das falsch gebildete Wort durch und schreibe es richtig auf die Linie.</p>
-  <div class="space-y-4">
-    <div class="flex items-end gap-4">
-      <p class="editable text-gray-900 flex-1" contenteditable="true">Der Hund <span class="is-strikethrough-answer text-red-600">beisste</span> in den Knochen.</p>
-      <span class="text-gray-500 font-bold">→</span>
-      <div class="w-40 border-b border-gray-400 editable text-center leading-tight pb-1" contenteditable="true"><span class="is-answer text-THEME-600 italic">biss</span></div>
-    </div>
-    <div class="flex items-end gap-4">
-      <p class="editable text-gray-900 flex-1" contenteditable="true">Gestern <span class="is-strikethrough-answer text-red-600">fallte</span> ich vom Stuhl.</p>
-      <span class="text-gray-500 font-bold">→</span>
-      <div class="w-40 border-b border-gray-400 editable text-center leading-tight pb-1" contenteditable="true"><span class="is-answer text-THEME-600 italic">fiel</span></div>
-    </div>
+  <div class="space-y-1 leading-loose">
+    <p class="editable text-gray-900" contenteditable="true">Der Hund <span class="is-strikethrough-answer text-red-600">beisste</span> in den Knochen. → <span class="gap-line"><span class="is-answer text-THEME-600 italic">biss</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true">Gestern <span class="is-strikethrough-answer text-red-600">fallte</span> ich vom Stuhl. → <span class="gap-line"><span class="is-answer text-THEME-600 italic">fiel</span></span></p>
   </div>
 </div>`
   }

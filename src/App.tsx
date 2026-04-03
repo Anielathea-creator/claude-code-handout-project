@@ -356,6 +356,7 @@ Ich habe eine Datei mit bestehenden Aufgaben hochgeladen. Bitte extrahiere ALLE 
                 html={activeProject.html}
                 onChange={handleUpdateHtml}
                 theme={activeProject.theme}
+                projectName={activeProject.name}
                 snapshots={activeProject.snapshots || []}
                 onRestoreSnapshot={handleRestoreSnapshot}
                 onAddSnapshot={handleAddSnapshot}
