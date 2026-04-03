@@ -262,14 +262,21 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
   const [pendingImageTarget, setPendingImageTarget] = useState<HTMLElement | null>(null);
 
   const FRAME_DESIGNS = [
-    { id: 'vintage', name: 'Vintage', icon: '📜', description: 'Klassischer Rahmen' },
-    { id: 'floral', name: 'Blumen', icon: '🌸', description: 'Florale Ecken' },
-    { id: 'abstract', name: 'Basic', icon: '🎨', description: 'Geometrisch' },
-    { id: 'waves', name: 'Wellen', icon: '🌊', description: 'Sanfte Wellen' },
-    { id: 'botanical', name: 'Botanisch', icon: '🌿', description: 'Natur-Look' },
-    { id: 'dotted', name: 'Gepunktet', icon: '💬', description: 'Doppellinie' },
+    { id: 'botanical', name: 'Botanisch', icon: '🌿', description: 'Eukalyptus-Aquarell' },
+    { id: 'floral', name: 'Blumen', icon: '🌸', description: 'Kirschblüten mit Goldrahmen' },
+    { id: 'dotted', name: 'Konfetti', icon: '✨', description: 'Goldenes Konfetti' },
+    { id: 'waves', name: 'Wellen', icon: '🌊', description: 'Blaue Wellen' },
+    { id: 'vintage', name: 'Vintage', icon: '📜', description: 'Viktorianische Verzierungen' },
     { id: 'none', name: 'Kein Rahmen', icon: '🗑️', description: 'Rahmen entfernen' },
   ];
+
+  const FRAME_PADDING: Record<string, string> = {
+    botanical: '30px',
+    floral: '70px',
+    dotted: '50px 32px',
+    waves: '32px 32px 70px 32px',
+    vintage: '50px',
+  };
 
   const COLOR_OPTIONS = [
     { id: 'bg-white', name: 'Weiß', hex: '#ffffff' },
@@ -3167,8 +3174,9 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
       block = block.closest('.avoid-break') as HTMLElement || activeBlock;
     }
 
-    // Ensure position relative
+    // Ensure position relative and allow frame overflow
     block.style.position = 'relative';
+    block.style.overflow = 'visible';
     block.classList.add('avoid-break');
 
     // Wrap content if not already wrapped
@@ -3202,17 +3210,36 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     let svgOverlay = block.querySelector('.frame-overlay') as HTMLElement;
     if (svgOverlay) svgOverlay.remove();
 
+    // Clear any stale inline margin-top from previous frame applications
+    block.style.marginTop = '';
+
     if (frameId === 'none') {
-      contentWrapper.style.padding = '';
+      // Restore original block formatting
+      block.style.position = '';
+      block.style.overflow = '';
+      block.style.marginTop = '';
+
+      // Unwrap content-wrapper: move all children back into the block
+      if (contentWrapper) {
+        while (contentWrapper.firstChild) {
+          block.appendChild(contentWrapper.firstChild);
+        }
+        contentWrapper.remove();
+      }
+
       saveHistoryState();
       setNotification({ message: `Rahmen entfernt`, type: 'success' });
       return;
     }
 
-    // Create new SVG
+    // Create new SVG with dynamic viewBox matching actual block dimensions
+    const blockRect = block.getBoundingClientRect();
+    const W = Math.round(blockRect.width);
+    const H = Math.round(blockRect.height);
+
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "frame-overlay");
-    svg.setAttribute("viewBox", "0 0 1000 1000");
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
     svg.setAttribute("preserveAspectRatio", "none");
     svg.style.position = 'absolute';
     svg.style.inset = '0';
@@ -3220,310 +3247,210 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     svg.style.pointerEvents = 'none';
     svg.style.width = '100%';
     svg.style.height = '100%';
+    svg.style.overflow = 'visible';
 
     let svgContent = '';
 
     if (frameId === 'vintage') {
       svgContent = `
-        <rect x="20" y="20" width="960" height="960" fill="none" stroke="#4b2c20" stroke-width="2" />
-        <path d="M50 20 L20 20 L20 50 M950 20 L980 20 L980 50 M20 950 L20 980 L50 980 M950 980 L980 980 L980 950" fill="none" stroke="#4b2c20" stroke-width="8" stroke-linecap="round" />
-        <circle cx="35" cy="35" r="5" fill="#4b2c20" />
-        <circle cx="965" cy="35" r="5" fill="#4b2c20" />
-        <circle cx="35" cy="965" r="5" fill="#4b2c20" />
-        <circle cx="965" cy="965" r="5" fill="#4b2c20" />
+        <defs>
+          <g id="corner-flourish">
+            <path d="M0,0 C0,-8 8,-20 25,-20 C42,-20 50,-8 47,3 C44,13 30,20 20,17 C13,15 10,8 13,3 C16,-2 23,-2 25,2" fill="none" stroke="#3d2b1f" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M0,0 C-8,0 -20,8 -20,25 C-20,42 -8,50 3,47 C13,44 20,30 17,20 C15,13 8,10 3,13 C-2,16 -2,23 2,25" fill="none" stroke="#3d2b1f" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M25,-20 C36,-30 58,-33 75,-25 C92,-17 92,0 80,8" fill="none" stroke="#5a3e28" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M-20,25 C-30,36 -33,58 -25,75 C-17,92 0,92 8,80" fill="none" stroke="#5a3e28" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M58,-30 Q68,-40 82,-30 Q68,-20 58,-30Z" fill="#5a3e28" opacity="0.5"/>
+            <path d="M-30,58 Q-40,68 -30,82 Q-20,68 -30,58Z" fill="#5a3e28" opacity="0.5"/>
+            <path d="M80,8 C84,13 80,20 75,20" fill="none" stroke="#8b6f47" stroke-width="1.2" stroke-linecap="round"/>
+            <path d="M8,80 C13,84 20,80 20,75" fill="none" stroke="#8b6f47" stroke-width="1.2" stroke-linecap="round"/>
+          </g>
+        </defs>
+        <rect x="18" y="18" width="${W-36}" height="${H-36}" fill="none" stroke="#3d2b1f" stroke-width="1.5" opacity="0.5"/>
+        <rect x="25" y="25" width="${W-50}" height="${H-50}" fill="none" stroke="#3d2b1f" stroke-width="0.8" opacity="0.35"/>
+        <g transform="translate(28,28)"><use href="#corner-flourish"/></g>
+        <g transform="translate(${W-28},28) scale(-1,1)"><use href="#corner-flourish"/></g>
+        <g transform="translate(28,${H-28}) scale(1,-1)"><use href="#corner-flourish"/></g>
+        <g transform="translate(${W-28},${H-28}) scale(-1,-1)"><use href="#corner-flourish"/></g>
       `;
     } else if (frameId === 'floral') {
       svgContent = `
         <defs>
-          <g id="small-flower">
-            <circle cx="0" cy="0" r="6" fill="#f87171" />
-            <!-- 7 Petals -->
-            <ellipse cx="0" cy="-10" rx="5" ry="8" fill="#fca5a5" transform="rotate(0)" />
-            <ellipse cx="0" cy="-10" rx="5" ry="8" fill="#fca5a5" transform="rotate(51.4)" />
-            <ellipse cx="0" cy="-10" rx="5" ry="8" fill="#fca5a5" transform="rotate(102.8)" />
-            <ellipse cx="0" cy="-10" rx="5" ry="8" fill="#fca5a5" transform="rotate(154.2)" />
-            <ellipse cx="0" cy="-10" rx="5" ry="8" fill="#fca5a5" transform="rotate(205.7)" />
-            <ellipse cx="0" cy="-10" rx="5" ry="8" fill="#fca5a5" transform="rotate(257.1)" />
-            <ellipse cx="0" cy="-10" rx="5" ry="8" fill="#fca5a5" transform="rotate(308.5)" />
-            <circle cx="0" cy="0" r="3" fill="#fef08a" />
-          </g>
-          <g id="large-flower">
-            <circle cx="0" cy="0" r="15" fill="#be123c" />
-            <!-- 7 Petals -->
-            <ellipse cx="0" cy="-22" rx="12" ry="18" fill="#fb7185" transform="rotate(0)" />
-            <ellipse cx="0" cy="-22" rx="12" ry="18" fill="#fb7185" transform="rotate(51.4)" />
-            <ellipse cx="0" cy="-22" rx="12" ry="18" fill="#fb7185" transform="rotate(102.8)" />
-            <ellipse cx="0" cy="-22" rx="12" ry="18" fill="#fb7185" transform="rotate(154.2)" />
-            <ellipse cx="0" cy="-22" rx="12" ry="18" fill="#fb7185" transform="rotate(205.7)" />
-            <ellipse cx="0" cy="-22" rx="12" ry="18" fill="#fb7185" transform="rotate(257.1)" />
-            <ellipse cx="0" cy="-22" rx="12" ry="18" fill="#fb7185" transform="rotate(308.5)" />
-            <circle cx="0" cy="0" r="7" fill="#facc15" />
-          </g>
-        </defs>
-        
-        <rect x="50" y="50" width="900" height="900" fill="none" stroke="#d4af37" stroke-width="2" opacity="0.5" />
-        
-        <!-- Corner Flowers (Clusters of 2-3) -->
-        <g transform="translate(50,50)">
-          <g scale="0.7"><use href="#large-flower" /></g>
-          <g transform="translate(30,10) scale(0.4)"><use href="#large-flower" /></g>
-          <g transform="translate(10,30) scale(0.3)"><use href="#large-flower" /></g>
-        </g>
-        <g transform="translate(950,50)">
-          <g scale="0.7"><use href="#large-flower" /></g>
-          <g transform="translate(-30,10) scale(0.4)"><use href="#large-flower" /></g>
-          <g transform="translate(-10,30) scale(0.3)"><use href="#large-flower" /></g>
-        </g>
-        <g transform="translate(50,950)">
-          <g scale="0.7"><use href="#large-flower" /></g>
-          <g transform="translate(30,-10) scale(0.4)"><use href="#large-flower" /></g>
-          <g transform="translate(10,-30) scale(0.3)"><use href="#large-flower" /></g>
-        </g>
-        <g transform="translate(950,950)">
-          <g scale="0.7"><use href="#large-flower" /></g>
-          <g transform="translate(-30,-10) scale(0.4)"><use href="#large-flower" /></g>
-          <g transform="translate(-10,-30) scale(0.3)"><use href="#large-flower" /></g>
-        </g>
-        
-        <!-- Edge Flowers (Small) -->
-        <g opacity="0.8">
-          <!-- Top -->
-          <use href="#small-flower" x="150" y="40" />
-          <use href="#small-flower" x="250" y="55" />
-          <use href="#small-flower" x="350" y="45" />
-          <use href="#small-flower" x="450" y="60" />
-          <use href="#small-flower" x="550" y="40" />
-          <use href="#small-flower" x="650" y="55" />
-          <use href="#small-flower" x="750" y="45" />
-          <use href="#small-flower" x="850" y="60" />
-          
-          <!-- Bottom -->
-          <use href="#small-flower" x="150" y="960" />
-          <use href="#small-flower" x="250" y="945" />
-          <use href="#small-flower" x="350" y="955" />
-          <use href="#small-flower" x="450" y="940" />
-          <use href="#small-flower" x="550" y="960" />
-          <use href="#small-flower" x="650" y="945" />
-          <use href="#small-flower" x="750" y="955" />
-          <use href="#small-flower" x="850" y="940" />
-          
-          <!-- Left -->
-          <use href="#small-flower" x="40" y="150" />
-          <use href="#small-flower" x="55" y="250" />
-          <use href="#small-flower" x="45" y="350" />
-          <use href="#small-flower" x="60" y="450" />
-          <use href="#small-flower" x="40" y="550" />
-          <use href="#small-flower" x="55" y="650" />
-          <use href="#small-flower" x="45" y="750" />
-          <use href="#small-flower" x="60" y="850" />
-          
-          <!-- Right -->
-          <use href="#small-flower" x="960" y="150" />
-          <use href="#small-flower" x="945" y="250" />
-          <use href="#small-flower" x="955" y="350" />
-          <use href="#small-flower" x="940" y="450" />
-          <use href="#small-flower" x="960" y="550" />
-          <use href="#small-flower" x="945" y="650" />
-          <use href="#small-flower" x="955" y="750" />
-          <use href="#small-flower" x="940" y="850" />
-        </g>
-      `;
-    } else if (frameId === 'botanical') {
-      svgContent = `
-        <defs>
-          <linearGradient id="leafGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#4a6741" />
-            <stop offset="100%" stop-color="#2d4a22" />
-          </linearGradient>
-          <linearGradient id="leafGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#7a9a6b" />
-            <stop offset="100%" stop-color="#4a6741" />
-          </linearGradient>
-          <filter id="leafShadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur in="SourceAlpha" stdDeviation="2" />
-            <feOffset dx="1" dy="1" result="offsetblur" />
-            <feComponentTransfer><feFuncA type="linear" slope="0.2" /></feComponentTransfer>
-            <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
+          <filter id="floral-soft" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3"/>
           </filter>
-          <g id="small-leaf-pair">
-            <path d="M0 0 Q 15 -10, 30 0 Q 15 10, 0 0" fill="#4a6741" />
-            <path d="M0 0 Q 15 10, 30 0 Q 15 -10, 0 0" fill="#7a9a6b" transform="rotate(30, 0, 0)" />
+          <g id="cherry-blossom">
+            <ellipse cx="0" cy="-14" rx="8" ry="12" fill="#f9c5d1" opacity="0.9"/>
+            <ellipse cx="0" cy="-14" rx="8" ry="12" fill="#f2a0b3" opacity="0.85" transform="rotate(72)"/>
+            <ellipse cx="0" cy="-14" rx="8" ry="12" fill="#f9c5d1" opacity="0.9" transform="rotate(144)"/>
+            <ellipse cx="0" cy="-14" rx="8" ry="12" fill="#f2a0b3" opacity="0.85" transform="rotate(216)"/>
+            <ellipse cx="0" cy="-14" rx="8" ry="12" fill="#f9c5d1" opacity="0.9" transform="rotate(288)"/>
+            <circle cx="0" cy="0" r="4" fill="#e8849e"/>
+            <circle cx="-1.5" cy="-1.5" r="1" fill="#fce4ec"/>
+            <circle cx="1.5" cy="0.5" r="0.8" fill="#fce4ec"/>
+          </g>
+          <g id="cherry-bud">
+            <ellipse cx="0" cy="0" rx="5" ry="8" fill="#f2a0b3" opacity="0.7"/>
+            <ellipse cx="2" cy="-2" rx="3" ry="5" fill="#f9c5d1" opacity="0.6"/>
+          </g>
+          <g id="petal">
+            <ellipse cx="0" cy="0" rx="5" ry="8" fill="#f9c5d1" opacity="0.4"/>
           </g>
         </defs>
-        
-        <!-- Copper Frame Line -->
-        <rect x="40" y="40" width="920" height="920" fill="none" stroke="#c5a07d" stroke-width="1" opacity="0.6" />
-        
-        <!-- Corner Foliage - Half size and pushed to extreme corners -->
-        <g transform="translate(-60,-60) scale(0.5) rotate(-15)" filter="url(#leafShadow)">
-          <path d="M0 100 Q 150 0, 350 100 Q 200 250, 0 100" fill="url(#leafGrad1)" />
-          <path d="M50 50 Q 200 -50, 400 50 Q 250 200, 500 50" fill="url(#leafGrad2)" transform="rotate(20, 250, 50)" />
+        <rect x="40" y="40" width="${W-80}" height="${H-80}" fill="none" stroke="#c9a84c" stroke-width="1.8" opacity="0.6"/>
+        <!-- Top-left cluster -->
+        <g transform="translate(40,40)">
+          <g transform="translate(-15,-15) scale(2.2)"><use href="#cherry-blossom"/></g>
+          <g transform="translate(40,-10) scale(1.6)"><use href="#cherry-blossom"/></g>
+          <g transform="translate(-10,40) scale(1.6)"><use href="#cherry-blossom"/></g>
+          <g transform="translate(70,20) scale(1.1)"><use href="#cherry-blossom"/></g>
+          <g transform="translate(20,70) scale(1.1)"><use href="#cherry-blossom"/></g>
+          <g transform="translate(100,40) scale(0.7)"><use href="#cherry-bud"/></g>
+          <g transform="translate(40,100) scale(0.7)"><use href="#cherry-bud"/></g>
         </g>
-        
-        <g transform="translate(850,-60) scale(0.5) rotate(25)" filter="url(#leafShadow)">
-          <path d="M0 150 Q 100 0, 300 150 Q 150 300, 0 150" fill="url(#leafGrad1)" />
-          <path d="M100 0 Q 150 100, 100 200" fill="none" stroke="#2d4a22" stroke-width="2" opacity="0.3" />
+        <!-- Bottom-right cluster -->
+        <g transform="translate(${W-40},${H-40})">
+          <g transform="translate(15,15) scale(2.2)"><use href="#cherry-blossom"/></g>
+          <g transform="translate(-40,10) scale(1.6)"><use href="#cherry-blossom"/></g>
+          <g transform="translate(10,-40) scale(1.6)"><use href="#cherry-blossom"/></g>
+          <g transform="translate(-70,-20) scale(1.1)"><use href="#cherry-blossom"/></g>
+          <g transform="translate(-20,-70) scale(1.1)"><use href="#cherry-blossom"/></g>
+          <g transform="translate(-100,-40) scale(0.7)"><use href="#cherry-bud"/></g>
+          <g transform="translate(-40,-100) scale(0.7)"><use href="#cherry-bud"/></g>
         </g>
-        
-        <g transform="translate(-80,850) scale(0.5) rotate(-15)" filter="url(#leafShadow)">
-          <path d="M0 200 Q 250 0, 500 200 Q 300 450, 0 200" fill="url(#leafGrad1)" />
-        </g>
-        
-        <g transform="translate(850,880) scale(0.5) rotate(15)" filter="url(#leafShadow)">
-          <path d="M0 150 Q 150 0, 350 150 Q 200 350, 0 150" fill="url(#leafGrad2)" />
-        </g>
-
-        <!-- Massive amount of small leaves along the edges (Doubled) -->
-        <g opacity="0.7">
-          <!-- Top Edge -->
-          <use href="#small-leaf-pair" x="100" y="20" transform="rotate(10, 100, 20)" />
-          <use href="#small-leaf-pair" x="200" y="15" transform="rotate(-5, 200, 15)" />
-          <use href="#small-leaf-pair" x="300" y="25" transform="rotate(15, 300, 25)" />
-          <use href="#small-leaf-pair" x="400" y="10" transform="rotate(-10, 400, 10)" />
-          <use href="#small-leaf-pair" x="500" y="20" transform="rotate(5, 500, 20)" />
-          <use href="#small-leaf-pair" x="600" y="15" transform="rotate(-5, 600, 15)" />
-          <use href="#small-leaf-pair" x="700" y="25" transform="rotate(10, 700, 25)" />
-          <use href="#small-leaf-pair" x="800" y="10" transform="rotate(-15, 800, 10)" />
-          <use href="#small-leaf-pair" x="900" y="20" transform="rotate(5, 900, 20)" />
-          
-          <!-- Bottom Edge -->
-          <use href="#small-leaf-pair" x="100" y="960" transform="rotate(170, 100, 960)" />
-          <use href="#small-leaf-pair" x="200" y="975" transform="rotate(190, 200, 975)" />
-          <use href="#small-leaf-pair" x="300" y="965" transform="rotate(185, 300, 965)" />
-          <use href="#small-leaf-pair" x="400" y="980" transform="rotate(175, 400, 980)" />
-          <use href="#small-leaf-pair" x="500" y="970" transform="rotate(180, 500, 970)" />
-          <use href="#small-leaf-pair" x="600" y="960" transform="rotate(165, 600, 960)" />
-          <use href="#small-leaf-pair" x="700" y="975" transform="rotate(195, 700, 975)" />
-          <use href="#small-leaf-pair" x="800" y="965" transform="rotate(185, 800, 965)" />
-          <use href="#small-leaf-pair" x="900" y="980" transform="rotate(170, 900, 980)" />
-
-          <!-- Left Edge -->
-          <use href="#small-leaf-pair" x="10" y="100" transform="rotate(80, 10, 100)" />
-          <use href="#small-leaf-pair" x="25" y="200" transform="rotate(100, 25, 200)" />
-          <use href="#small-leaf-pair" x="15" y="300" transform="rotate(90, 15, 300)" />
-          <use href="#small-leaf-pair" x="30" y="400" transform="rotate(110, 30, 400)" />
-          <use href="#small-leaf-pair" x="20" y="500" transform="rotate(85, 20, 500)" />
-          <use href="#small-leaf-pair" x="10" y="600" transform="rotate(95, 10, 600)" />
-          <use href="#small-leaf-pair" x="25" y="700" transform="rotate(105, 25, 700)" />
-          <use href="#small-leaf-pair" x="15" y="800" transform="rotate(80, 15, 800)" />
-          <use href="#small-leaf-pair" x="30" y="900" transform="rotate(115, 30, 900)" />
-
-          <!-- Right Edge -->
-          <use href="#small-leaf-pair" x="970" y="100" transform="rotate(-80, 970, 100)" />
-          <use href="#small-leaf-pair" x="985" y="200" transform="rotate(-100, 985, 200)" />
-          <use href="#small-leaf-pair" x="975" y="300" transform="rotate(-90, 975, 300)" />
-          <use href="#small-leaf-pair" x="990" y="400" transform="rotate(-110, 990, 400)" />
-          <use href="#small-leaf-pair" x="980" y="500" transform="rotate(-85, 980, 500)" />
-          <use href="#small-leaf-pair" x="970" y="600" transform="rotate(-95, 970, 600)" />
-          <use href="#small-leaf-pair" x="985" y="700" transform="rotate(-105, 985, 700)" />
-          <use href="#small-leaf-pair" x="975" y="800" transform="rotate(-80, 975, 800)" />
-          <use href="#small-leaf-pair" x="990" y="900" transform="rotate(-115, 990, 900)" />
-
-          <!-- Random scattered clusters -->
-          <g transform="translate(50,50) scale(0.6)"><use href="#small-leaf-pair" /></g>
-          <g transform="translate(950,50) scale(0.6)"><use href="#small-leaf-pair" /></g>
-          <g transform="translate(50,950) scale(0.6)"><use href="#small-leaf-pair" /></g>
-          <g transform="translate(950,950) scale(0.6)"><use href="#small-leaf-pair" /></g>
-          <g transform="translate(500,40) scale(0.7)"><use href="#small-leaf-pair" /></g>
-          <g transform="translate(500,960) scale(0.7)"><use href="#small-leaf-pair" /></g>
-          <g transform="translate(40,500) scale(0.7)"><use href="#small-leaf-pair" /></g>
-          <g transform="translate(960,500) scale(0.7)"><use href="#small-leaf-pair" /></g>
+        <!-- Falling petals -->
+        <g transform="translate(160,70) rotate(25)"><use href="#petal"/></g>
+        <g transform="translate(110,120) rotate(-15)"><use href="#petal"/></g>
+        <g transform="translate(220,40) rotate(40)"><use href="#petal"/></g>
+        <g transform="translate(${W-160},${H-70}) rotate(200)"><use href="#petal"/></g>
+        <g transform="translate(${W-110},${H-120}) rotate(170)"><use href="#petal"/></g>
+        <g transform="translate(${W-220},${H-40}) rotate(220)"><use href="#petal"/></g>
+        <!-- Soft blurred petals -->
+        <g filter="url(#floral-soft)" opacity="0.3">
+          <g transform="translate(25,160) rotate(30) scale(1.8)"><use href="#petal"/></g>
+          <g transform="translate(15,240) rotate(-20) scale(1.4)"><use href="#petal"/></g>
         </g>
       `;
+    // Note: botanical frame uses external SVG files (img elements) — no svgContent needed.
+    // It is handled separately in the insertion code below.
     } else if (frameId === 'waves') {
+      const h78 = Math.round(H * 0.78);
+      const h85 = Math.round(H * 0.85);
+      const h91 = Math.round(H * 0.91);
       svgContent = `
         <defs>
-          <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stop-color="#1e3a8a" />
-            <stop offset="50%" stop-color="#3b82f6" />
-            <stop offset="100%" stop-color="#1e3a8a" />
+          <linearGradient id="waveGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#0ea5e9" stop-opacity="0.15"/>
+            <stop offset="30%" stop-color="#38bdf8" stop-opacity="0.25"/>
+            <stop offset="60%" stop-color="#0284c7" stop-opacity="0.2"/>
+            <stop offset="100%" stop-color="#0ea5e9" stop-opacity="0.15"/>
           </linearGradient>
-          <filter id="waveShadow" x="-10%" y="-10%" width="120%" height="120%">
-            <feGaussianBlur in="SourceAlpha" stdDeviation="2" />
-            <feOffset dx="0" dy="1" result="offsetblur" />
-            <feComponentTransfer><feFuncA type="linear" slope="0.2" /></feComponentTransfer>
-            <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-          <g id="bubble">
-            <circle cx="0" cy="0" r="4" fill="white" opacity="0.5" />
-            <circle cx="-1" cy="-1" r="1" fill="white" opacity="0.8" />
-          </g>
+          <linearGradient id="waveGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#0284c7" stop-opacity="0.2"/>
+            <stop offset="40%" stop-color="#0ea5e9" stop-opacity="0.35"/>
+            <stop offset="70%" stop-color="#38bdf8" stop-opacity="0.3"/>
+            <stop offset="100%" stop-color="#0284c7" stop-opacity="0.2"/>
+          </linearGradient>
+          <linearGradient id="waveGrad3" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.25"/>
+            <stop offset="50%" stop-color="#7dd3fc" stop-opacity="0.4"/>
+            <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.25"/>
+          </linearGradient>
         </defs>
-
-        <!-- Continuous Wavy Border -->
-        <g filter="url(#waveShadow)">
-          <!-- Top Wave -->
-          <path d="M0 15 Q 50 0, 100 15 T 200 15 T 300 15 T 400 15 T 500 15 T 600 15 T 700 15 T 800 15 T 900 15 T 1000 15 L 1000 0 L 0 0 Z" fill="url(#waveGrad)" opacity="0.8" />
-          <path d="M0 25 Q 50 10, 100 25 T 200 25 T 300 25 T 400 25 T 500 25 T 600 25 T 700 25 T 800 25 T 900 25 T 1000 25" fill="none" stroke="#60a5fa" stroke-width="2" opacity="0.4" />
-          
-          <!-- Bottom Wave -->
-          <g transform="translate(1000, 1000) rotate(180)">
-            <path d="M0 15 Q 50 0, 100 15 T 200 15 T 300 15 T 400 15 T 500 15 T 600 15 T 700 15 T 800 15 T 900 15 T 1000 15 L 1000 0 L 0 0 Z" fill="url(#waveGrad)" opacity="0.8" />
-            <path d="M0 25 Q 50 10, 100 25 T 200 25 T 300 25 T 400 25 T 500 25 T 600 25 T 700 25 T 800 25 T 900 25 T 1000 25" fill="none" stroke="#60a5fa" stroke-width="2" opacity="0.4" />
-          </g>
-          
-          <!-- Left Wave -->
-          <g transform="translate(0, 1000) rotate(-90)">
-            <path d="M0 15 Q 50 0, 100 15 T 200 15 T 300 15 T 400 15 T 500 15 T 600 15 T 700 15 T 800 15 T 900 15 T 1000 15 L 1000 0 L 0 0 Z" fill="url(#waveGrad)" opacity="0.8" />
-            <path d="M0 25 Q 50 10, 100 25 T 200 25 T 300 25 T 400 25 T 500 25 T 600 25 T 700 25 T 800 25 T 900 25 T 1000 25" fill="none" stroke="#60a5fa" stroke-width="2" opacity="0.4" />
-          </g>
-          
-          <!-- Right Wave -->
-          <g transform="translate(1000, 0) rotate(90)">
-            <path d="M0 15 Q 50 0, 100 15 T 200 15 T 300 15 T 400 15 T 500 15 T 600 15 T 700 15 T 800 15 T 900 15 T 1000 15 L 1000 0 L 0 0 Z" fill="url(#waveGrad)" opacity="0.8" />
-            <path d="M0 25 Q 50 10, 100 25 T 200 25 T 300 25 T 400 25 T 500 25 T 600 25 T 700 25 T 800 25 T 900 25 T 1000 25" fill="none" stroke="#60a5fa" stroke-width="2" opacity="0.4" />
-          </g>
-        </g>
-
-        <!-- Small Bubbles -->
-        <g opacity="0.5">
-          <use href="#bubble" x="50" y="10" />
-          <use href="#bubble" x="250" y="8" />
-          <use href="#bubble" x="450" y="12" />
-          <use href="#bubble" x="650" y="7" />
-          <use href="#bubble" x="850" y="11" />
-          
-          <use href="#bubble" x="10" y="150" />
-          <use href="#bubble" x="12" y="350" />
-          <use href="#bubble" x="8" y="550" />
-          <use href="#bubble" x="11" y="750" />
-          <use href="#bubble" x="9" y="950" />
-          
-          <use href="#bubble" x="990" y="250" />
-          <use href="#bubble" x="988" y="450" />
-          <use href="#bubble" x="992" y="650" />
-          <use href="#bubble" x="989" y="850" />
-          
-          <use href="#bubble" x="150" y="990" />
-          <use href="#bubble" x="350" y="992" />
-          <use href="#bubble" x="550" y="988" />
-          <use href="#bubble" x="750" y="991" />
-          <use href="#bubble" x="950" y="989" />
-        </g>
-      `;
-    } else if (frameId === 'abstract') {
-      svgContent = `
-        <rect x="10" y="10" width="980" height="980" fill="none" stroke="#3b82f6" stroke-width="2" />
-        <path d="M0 0 L150 0 L0 150 Z" fill="#3b82f6" />
-        <path d="M1000 0 L850 0 L1000 150 Z" fill="#3b82f6" />
-        <path d="M0 1000 L150 1000 L0 850 Z" fill="#3b82f6" />
-        <path d="M1000 1000 L850 1000 L1000 850 Z" fill="#3b82f6" />
+        <path d="M0,${h78} C${W*0.1},${h78-25} ${W*0.2},${h78+8} ${W*0.3},${h78-15} C${W*0.4},${h78-35} ${W*0.5},${h78-5} ${W*0.6},${h78-20} C${W*0.7},${h78-35} ${W*0.8},${h78-10} ${W*0.9},${h78-30} C${W*0.95},${h78-38} ${W},${h78-22} ${W},${h78-22} L${W},${H} L0,${H} Z" fill="url(#waveGrad1)"/>
+        <path d="M0,${h85} C${W*0.08},${h85-16} ${W*0.16},${h85+8} ${W*0.28},${h85-12} C${W*0.4},${h85-30} ${W*0.48},${h85-2} ${W*0.6},${h85-8} C${W*0.72},${h85-18} ${W*0.83},${h85+2} ${W*0.92},${h85-15} C${W*0.96},${h85-22} ${W},${h85-10} ${W},${h85-10} L${W},${H} L0,${H} Z" fill="url(#waveGrad2)"/>
+        <path d="M0,${h91} C${W*0.12},${h91-15} ${W*0.22},${h91+8} ${W*0.35},${h91-8} C${W*0.48},${h91-20} ${W*0.56},${h91+5} ${W*0.68},${h91-5} C${W*0.8},${h91-15} ${W*0.88},${h91+5} ${W*0.95},${h91-8} C${W*0.98},${h91-12} ${W},${h91-3} ${W},${h91-3} L${W},${H} L0,${H} Z" fill="url(#waveGrad3)"/>
+        <path d="M0,${h85} C${W*0.08},${h85-16} ${W*0.16},${h85+8} ${W*0.28},${h85-12} C${W*0.4},${h85-30} ${W*0.48},${h85-2} ${W*0.6},${h85-8} C${W*0.72},${h85-18} ${W*0.83},${h85+2} ${W*0.92},${h85-15} C${W*0.96},${h85-22} ${W},${h85-10} ${W},${h85-10}" fill="none" stroke="#bae6fd" stroke-width="1.5" opacity="0.4"/>
       `;
     } else if (frameId === 'dotted') {
-      svgContent = `
-        <rect x="5" y="5" width="990" height="990" fill="none" stroke="#6366f1" stroke-width="2" stroke-dasharray="1 20" stroke-linecap="round" />
-        <circle cx="50" cy="50" r="10" fill="#6366f1" />
-        <circle cx="950" cy="50" r="10" fill="#6366f1" />
-        <circle cx="50" cy="950" r="10" fill="#6366f1" />
-        <circle cx="950" cy="950" r="10" fill="#6366f1" />
-      `;
+      // Generate confetti dots programmatically using W and H
+      const dots: string[] = [];
+      // Warm wash
+      dots.push(`<rect x="0" y="0" width="${W}" height="55" fill="#fef9e7" opacity="0.3"/>`);
+      dots.push(`<rect x="0" y="${H-55}" width="${W}" height="55" fill="#fef9e7" opacity="0.3"/>`);
+      const golds = ['#d4a843', '#e8c65a', '#c49530', '#f0d878'];
+      // Top dense row
+      for (let i = 0; i < 24; i++) {
+        const cx = Math.round((i / 23) * (W - 40) + 20);
+        const cy = Math.round(8 + Math.sin(i * 2.7) * 18 + 12);
+        const r = Math.round(3 + Math.abs(Math.sin(i * 1.3)) * 6);
+        const op = (0.6 + Math.abs(Math.cos(i * 0.9)) * 0.35).toFixed(2);
+        dots.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${golds[i % 4]}" opacity="${op}"/>`);
+      }
+      // Top second row
+      for (let i = 0; i < 10; i++) {
+        const cx = Math.round((i / 9) * (W - 60) + 30);
+        const cy = Math.round(42 + Math.sin(i * 3.1) * 8 + 10);
+        const r = Math.round(2 + Math.abs(Math.sin(i * 2.1)) * 4);
+        const op = (0.3 + Math.abs(Math.cos(i * 1.7)) * 0.25).toFixed(2);
+        dots.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${golds[(i+1) % 4]}" opacity="${op}"/>`);
+      }
+      // Bottom dense row
+      for (let i = 0; i < 24; i++) {
+        const cx = Math.round((i / 23) * (W - 40) + 20);
+        const cy = Math.round(H - 8 - Math.sin(i * 2.3) * 18 - 12);
+        const r = Math.round(3 + Math.abs(Math.sin(i * 1.7)) * 6);
+        const op = (0.6 + Math.abs(Math.cos(i * 1.1)) * 0.35).toFixed(2);
+        dots.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${golds[(i+2) % 4]}" opacity="${op}"/>`);
+      }
+      // Bottom second row
+      for (let i = 0; i < 10; i++) {
+        const cx = Math.round((i / 9) * (W - 60) + 30);
+        const cy = Math.round(H - 42 - Math.sin(i * 2.5) * 8 - 10);
+        const r = Math.round(2 + Math.abs(Math.sin(i * 1.9)) * 4);
+        const op = (0.3 + Math.abs(Math.cos(i * 1.3)) * 0.25).toFixed(2);
+        dots.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${golds[(i+3) % 4]}" opacity="${op}"/>`);
+      }
+      // Sparse center
+      dots.push(`<circle cx="${W*0.25}" cy="${H*0.4}" r="2.5" fill="#e8c65a" opacity="0.12"/>`);
+      dots.push(`<circle cx="${W*0.55}" cy="${H*0.35}" r="2" fill="#d4a843" opacity="0.1"/>`);
+      dots.push(`<circle cx="${W*0.75}" cy="${H*0.6}" r="2.5" fill="#f0d878" opacity="0.12"/>`);
+      svgContent = dots.join('\n        ');
     }
 
-    svg.innerHTML = svgContent;
-    block.insertBefore(svg, block.firstChild);
-    
+    // Botanical: two corner pieces — top-left and bottom-right
+    if (frameId === 'botanical') {
+      const frameDiv = document.createElement('div');
+      frameDiv.className = 'frame-overlay';
+      frameDiv.style.position = 'absolute';
+      frameDiv.style.inset = '0';
+      frameDiv.style.zIndex = '-1';
+      frameDiv.style.pointerEvents = 'none';
+      frameDiv.style.overflow = 'visible';
+
+      // Top-left corner piece (viewBox 0 0 827 846, sharp edge at x=137, y=175)
+      // Transform moves image so the sharp inner edge sits ON the block border
+      const topImg = document.createElement('img');
+      topImg.src = '/frames/botanical-top.svg';
+      topImg.style.position = 'absolute';
+      topImg.style.top = '0';
+      topImg.style.left = '0';
+      topImg.style.width = '50%';
+      topImg.style.height = 'auto';
+      topImg.style.pointerEvents = 'none';
+      topImg.style.transform = 'translate(-16.57%, -20.69%)';
+
+      // Bottom-right corner piece (viewBox 0 0 836 692, sharp edge at x=712, y=553)
+      // Transform moves image so the sharp inner edge sits ON the block border
+      const bottomImg = document.createElement('img');
+      bottomImg.src = '/frames/botanical-bottom.svg';
+      bottomImg.style.position = 'absolute';
+      bottomImg.style.bottom = '0';
+      bottomImg.style.right = '0';
+      bottomImg.style.width = '50%';
+      bottomImg.style.height = 'auto';
+      bottomImg.style.pointerEvents = 'none';
+      bottomImg.style.transform = 'translate(14.83%, 20.09%)';
+
+      frameDiv.appendChild(topImg);
+      frameDiv.appendChild(bottomImg);
+      block.insertBefore(frameDiv, block.firstChild);
+    } else {
+      svg.innerHTML = svgContent;
+      block.insertBefore(svg, block.firstChild);
+    }
+
     // Adjust padding to ensure content doesn't touch frame
-    contentWrapper.style.padding = (frameId === 'botanical' || frameId === 'floral') ? '80px' : (frameId === 'waves' ? '60px' : '32px');
+    contentWrapper.style.padding = FRAME_PADDING[frameId] || '32px';
 
     saveHistoryState();
     setNotification({ message: `Rahmen angewendet`, type: 'success' });
@@ -4888,6 +4815,12 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
           pointer-events: none;
           width: 100%;
           height: 100%;
+          overflow: visible;
+        }
+
+        /* Botanical frame extends above the block — auto-apply top margin */
+        #dossier-root .avoid-break:has(.frame-overlay img[src*="botanical"]) {
+          margin-top: 50px !important;
         }
 
         .content-wrapper {
