@@ -273,15 +273,15 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
 
   const COLOR_OPTIONS = [
     { id: 'bg-white', name: 'Weiß', hex: '#ffffff' },
-    { id: 'bg-blue-50', name: 'Blau', hex: '#eff6ff' },
-    { id: 'bg-green-50', name: 'Grün', hex: '#f0fdf4' },
-    { id: 'bg-yellow-50', name: 'Gelb', hex: '#fefce8' },
-    { id: 'bg-red-50', name: 'Rot', hex: '#fef2f2' },
-    { id: 'bg-purple-50', name: 'Violett', hex: '#faf5ff' },
-    { id: 'bg-orange-50', name: 'Orange', hex: '#fff7ed' },
-    { id: 'bg-emerald-50', name: 'Smaragd', hex: '#ecfdf5' },
-    { id: 'bg-cyan-50', name: 'Cyan', hex: '#ecfeff' },
-    { id: 'bg-pink-50', name: 'Rosa', hex: '#fdf2f8' },
+    { id: 'bg-blue-100', name: 'Blau', hex: '#dbeafe' },
+    { id: 'bg-green-100', name: 'Grün', hex: '#dcfce7' },
+    { id: 'bg-yellow-100', name: 'Gelb', hex: '#fef9c3' },
+    { id: 'bg-red-100', name: 'Rot', hex: '#fee2e2' },
+    { id: 'bg-purple-100', name: 'Violett', hex: '#f3e8ff' },
+    { id: 'bg-orange-100', name: 'Orange', hex: '#ffedd5' },
+    { id: 'bg-emerald-100', name: 'Smaragd', hex: '#d1fae5' },
+    { id: 'bg-cyan-100', name: 'Cyan', hex: '#cffafe' },
+    { id: 'bg-pink-100', name: 'Rosa', hex: '#fce7f3' },
   ];
 
   const STANDARD_TEXT_COLORS = [
@@ -3557,22 +3557,39 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     allPossibleBgColors.push('bg-white', 'bg-gray-50', 'bg-gray-100', 'bg-gray-200');
 
     block.classList.remove(...allPossibleBgColors);
-    if (colorClass !== 'bg-white') {
-      block.classList.add(colorClass);
-    }
+
+    // Clear inline styles that would override Tailwind classes
+    block.style.removeProperty('background-color');
+    block.style.removeProperty('border-color');
+    block.style.removeProperty('border-style');
+    block.style.removeProperty('border-width');
+
+    // Remove border classes from main block — borders are managed by the Rahmen feature
+    const blockClasses = Array.from(block.classList);
+    blockClasses.forEach(c => {
+      if (c === 'border' || c === 'border-2' || c === 'border-4' ||
+          themedColors.some(tc => c.startsWith(`border-${tc}-`)) ||
+          c.startsWith('border-gray-') || c.startsWith('border-white')) {
+        block.classList.remove(c);
+      }
+    });
 
     if (colorName) {
-      // 3. Update all nested elements
-      const elementsToUpdate = [block, ...Array.from(block.querySelectorAll('*'))];
-      
-      elementsToUpdate.forEach(el => {
+      // 3. Update all nested elements (excluding the main block)
+      const nestedElements = Array.from(block.querySelectorAll('*'));
+
+      nestedElements.forEach(el => {
         const element = el as HTMLElement;
         if (!element.classList || element.classList.length === 0) return;
 
-        const isMainBlock = element === block;
+        // Clear inline color styles so Tailwind classes take effect
+        element.style.removeProperty('background-color');
+        element.style.removeProperty('border-color');
+        element.style.removeProperty('color');
+
         const currentClasses = Array.from(element.classList);
 
-        // Aggressively replace themed classes (text, border, bg)
+        // Replace themed classes (text, border, bg) on nested elements
         currentClasses.forEach(c => {
           const prefixes = ['text', 'border', 'bg'];
           for (const prefix of prefixes) {
@@ -3586,7 +3603,6 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
                 if (colorName === 'white' || colorName === 'gray') {
                   if (prefix === 'text') element.classList.add('text-gray-800');
                   if (prefix === 'border') element.classList.add('border-gray-300');
-                  // For bg, we don't add a default if it was themed, let it be white/transparent
                 } else {
                   let newWeight = weight;
                   if (prefix === 'border') newWeight = '500';
@@ -3594,12 +3610,9 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
                     const nw = parseInt(weight);
                     newWeight = isNaN(nw) ? '700' : (nw < 600 ? '700' : weight);
                   }
-                  if (prefix === 'bg' && !isMainBlock) newWeight = '50';
-                  
-                  // Don't re-add background to main block here (already handled)
-                  if (!(prefix === 'bg' && isMainBlock)) {
-                    element.classList.add(`${prefix}-${colorName}-${newWeight}`);
-                  }
+                  if (prefix === 'bg') newWeight = '50';
+
+                  element.classList.add(`${prefix}-${colorName}-${newWeight}`);
                 }
               }
             }
@@ -3607,25 +3620,27 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
         });
 
         // 4. Handle structural borders and white boxes
-        const isWhiteBox = (element.classList.contains('bg-white') || element.classList.contains('bg-gray-50')) && !isMainBlock;
+        const isWhiteBox = element.classList.contains('bg-white') || element.classList.contains('bg-gray-50');
         const hasAnyBorder = currentClasses.some(c => c === 'border' || (c.startsWith('border-') && !c.startsWith('border-opacity')));
-        
-        if (isWhiteBox || (hasAnyBorder && !isMainBlock)) {
-          // Ensure it has a themed border color if we are in a themed block
+
+        if (isWhiteBox || hasAnyBorder) {
           if (colorName !== 'white' && colorName !== 'gray') {
-            // Check if it already has a themed border (might have been added above)
             const hasThemedBorder = Array.from(element.classList).some(c => themedColors.some(tc => c.startsWith(`border-${tc}-`)));
             if (!hasThemedBorder) {
               element.classList.add(`border-${colorName}-500`);
             }
           } else if (isWhiteBox) {
-            // For white/gray theme, ensure white boxes have a neutral border
             element.classList.add('border-gray-300');
           }
         }
       });
     }
-    
+
+    // Apply the new background class after the loop so it doesn't get removed
+    if (colorClass !== 'bg-white') {
+      block.classList.add(colorClass);
+    }
+
     saveHistoryState();
     setNotification({ message: `Farbe angewendet`, type: 'success' });
   };
@@ -4749,6 +4764,7 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
         .avoid-break { break-inside: avoid; page-break-inside: avoid; }
         /* Einheitlicher Abstand zwischen aufeinanderfolgenden Inhaltsblöcken */
         #dossier-root .avoid-break + .avoid-break { margin-top: 2rem !important; }
+        #dossier-root h2 + .avoid-break { margin-top: 7px !important; }
 
         .page-break { height: 2rem; background: transparent !important; border: none; margin: 0; padding: 0; display: block; pointer-events: none; outline: none !important; }
         .page-break::after { display: none; }
@@ -4857,7 +4873,6 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
            outline: 2px dashed #3b82f6 !important;
            outline-offset: 2px;
            border-radius: 4px;
-           background-color: transparent !important;
         }
 
         /* FRAME DESIGNS - New SVG Overlay System */

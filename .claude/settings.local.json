@@ -11,7 +11,15 @@
       "Bash(node -e \"console.log\\(require\\(''c:/Users/aniel/Downloads/handout-workspace-life-editor-13.03.2026 \\(1\\)/node_modules/jspdf/package.json''\\).version\\)\")",
       "Bash(wc -l \"c:\\\\Users\\\\aniel\\\\Downloads\\\\handout-workspace-life-editor-13.03.2026 \\(1\\)\\\\src\\\\components\\\\Editor.tsx\")",
       "Bash(npx tsc:*)",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "Bash(netstat -ano)",
+      "Bash(taskkill /PID 5088 /F)",
+      "Bash(cmd /c \"taskkill /PID 5088 /F\")",
+      "Bash(echo \"exit: $?\")",
+      "Bash(cmd /c taskkill /PID 5088 /F)",
+      "Bash(cmd /c \"wmic process where ProcessId=5088 get Name,CommandLine /format:list\")",
+      "Bash(powershell -Command \"Get-Process -Id 5088 | Select-Object Name, Id, Path\")",
+      "Bash(powershell -Command \"Stop-Process -Id 5088 -Force\")"
     ]
   }
 }
