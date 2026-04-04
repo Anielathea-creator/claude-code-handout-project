@@ -264,17 +264,19 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
   const FRAME_DESIGNS = [
     { id: 'botanical', name: 'Botanisch', icon: '🌿', description: 'Eukalyptus-Aquarell' },
     { id: 'floral', name: 'Blumen', icon: '🌸', description: 'Kirschblüten mit Goldrahmen' },
-    { id: 'dotted', name: 'Konfetti', icon: '✨', description: 'Goldenes Konfetti' },
-    { id: 'waves', name: 'Wellen', icon: '🌊', description: 'Blaue Wellen' },
+    { id: 'konfetti', name: 'Konfetti', icon: '✨', description: 'Goldenes Konfetti' },
+    { id: 'welle', name: 'Wellen', icon: '🌊', description: 'Blaue Wellen' },
     { id: 'vintage', name: 'Vintage', icon: '📜', description: 'Viktorianische Verzierungen' },
+    { id: 'abstract', name: 'Abstrakt gemalt', icon: '🎨', description: 'Abstrakte Pinselstriche' },
     { id: 'none', name: 'Kein Rahmen', icon: '🗑️', description: 'Rahmen entfernen' },
   ];
 
   const FRAME_PADDING: Record<string, string> = {
     botanical: '30px',
-    floral: '70px',
-    dotted: '50px 32px',
-    waves: '32px 32px 70px 32px',
+    abstract: '30px',
+    welle: '30px',
+    floral: '32px 38px 52px 38px',
+    konfetti: '50px 85px 65px 85px',
     vintage: '50px',
   };
 
@@ -3174,8 +3176,9 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
       block = block.closest('.avoid-break') as HTMLElement || activeBlock;
     }
 
-    // Ensure position relative and allow frame overflow
+    // Ensure position relative with stacking context and allow frame overflow
     block.style.position = 'relative';
+    block.style.zIndex = '0';
     block.style.overflow = 'visible';
     block.classList.add('avoid-break');
 
@@ -3210,12 +3213,16 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     let svgOverlay = block.querySelector('.frame-overlay') as HTMLElement;
     if (svgOverlay) svgOverlay.remove();
 
-    // Clear any stale inline margin-top from previous frame applications
+    // Clear stale inline styles from previous frame applications
     block.style.marginTop = '';
+    // Remove konfetti's border:none so other frames get correct dimensions
+    if (block.style.border === 'none') block.style.border = '';
+    if (contentWrapper && contentWrapper.style.border === 'none') contentWrapper.style.border = '';
 
     if (frameId === 'none') {
       // Restore original block formatting
       block.style.position = '';
+      block.style.zIndex = '';
       block.style.overflow = '';
       block.style.marginTop = '';
 
@@ -3230,6 +3237,15 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
       saveHistoryState();
       setNotification({ message: `Rahmen entfernt`, type: 'success' });
       return;
+    }
+
+    // Apply padding FIRST so block dimensions are final before measuring
+    if (frameId === 'abstract' && !block.classList.contains('p-6')) {
+      contentWrapper.style.padding = '40px';
+    } else if (frameId === 'floral' && !block.classList.contains('p-6')) {
+      contentWrapper.style.padding = '42px 38px 52px 38px';
+    } else {
+      contentWrapper.style.padding = FRAME_PADDING[frameId] || '32px';
     }
 
     // Create new SVG with dynamic viewBox matching actual block dimensions
@@ -3272,66 +3288,8 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
         <g transform="translate(28,${H-28}) scale(1,-1)"><use href="#corner-flourish"/></g>
         <g transform="translate(${W-28},${H-28}) scale(-1,-1)"><use href="#corner-flourish"/></g>
       `;
-    } else if (frameId === 'floral') {
-      svgContent = `
-        <defs>
-          <filter id="floral-soft" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="3"/>
-          </filter>
-          <g id="cherry-blossom">
-            <ellipse cx="0" cy="-14" rx="8" ry="12" fill="#f9c5d1" opacity="0.9"/>
-            <ellipse cx="0" cy="-14" rx="8" ry="12" fill="#f2a0b3" opacity="0.85" transform="rotate(72)"/>
-            <ellipse cx="0" cy="-14" rx="8" ry="12" fill="#f9c5d1" opacity="0.9" transform="rotate(144)"/>
-            <ellipse cx="0" cy="-14" rx="8" ry="12" fill="#f2a0b3" opacity="0.85" transform="rotate(216)"/>
-            <ellipse cx="0" cy="-14" rx="8" ry="12" fill="#f9c5d1" opacity="0.9" transform="rotate(288)"/>
-            <circle cx="0" cy="0" r="4" fill="#e8849e"/>
-            <circle cx="-1.5" cy="-1.5" r="1" fill="#fce4ec"/>
-            <circle cx="1.5" cy="0.5" r="0.8" fill="#fce4ec"/>
-          </g>
-          <g id="cherry-bud">
-            <ellipse cx="0" cy="0" rx="5" ry="8" fill="#f2a0b3" opacity="0.7"/>
-            <ellipse cx="2" cy="-2" rx="3" ry="5" fill="#f9c5d1" opacity="0.6"/>
-          </g>
-          <g id="petal">
-            <ellipse cx="0" cy="0" rx="5" ry="8" fill="#f9c5d1" opacity="0.4"/>
-          </g>
-        </defs>
-        <rect x="40" y="40" width="${W-80}" height="${H-80}" fill="none" stroke="#c9a84c" stroke-width="1.8" opacity="0.6"/>
-        <!-- Top-left cluster -->
-        <g transform="translate(40,40)">
-          <g transform="translate(-15,-15) scale(2.2)"><use href="#cherry-blossom"/></g>
-          <g transform="translate(40,-10) scale(1.6)"><use href="#cherry-blossom"/></g>
-          <g transform="translate(-10,40) scale(1.6)"><use href="#cherry-blossom"/></g>
-          <g transform="translate(70,20) scale(1.1)"><use href="#cherry-blossom"/></g>
-          <g transform="translate(20,70) scale(1.1)"><use href="#cherry-blossom"/></g>
-          <g transform="translate(100,40) scale(0.7)"><use href="#cherry-bud"/></g>
-          <g transform="translate(40,100) scale(0.7)"><use href="#cherry-bud"/></g>
-        </g>
-        <!-- Bottom-right cluster -->
-        <g transform="translate(${W-40},${H-40})">
-          <g transform="translate(15,15) scale(2.2)"><use href="#cherry-blossom"/></g>
-          <g transform="translate(-40,10) scale(1.6)"><use href="#cherry-blossom"/></g>
-          <g transform="translate(10,-40) scale(1.6)"><use href="#cherry-blossom"/></g>
-          <g transform="translate(-70,-20) scale(1.1)"><use href="#cherry-blossom"/></g>
-          <g transform="translate(-20,-70) scale(1.1)"><use href="#cherry-blossom"/></g>
-          <g transform="translate(-100,-40) scale(0.7)"><use href="#cherry-bud"/></g>
-          <g transform="translate(-40,-100) scale(0.7)"><use href="#cherry-bud"/></g>
-        </g>
-        <!-- Falling petals -->
-        <g transform="translate(160,70) rotate(25)"><use href="#petal"/></g>
-        <g transform="translate(110,120) rotate(-15)"><use href="#petal"/></g>
-        <g transform="translate(220,40) rotate(40)"><use href="#petal"/></g>
-        <g transform="translate(${W-160},${H-70}) rotate(200)"><use href="#petal"/></g>
-        <g transform="translate(${W-110},${H-120}) rotate(170)"><use href="#petal"/></g>
-        <g transform="translate(${W-220},${H-40}) rotate(220)"><use href="#petal"/></g>
-        <!-- Soft blurred petals -->
-        <g filter="url(#floral-soft)" opacity="0.3">
-          <g transform="translate(25,160) rotate(30) scale(1.8)"><use href="#petal"/></g>
-          <g transform="translate(15,240) rotate(-20) scale(1.4)"><use href="#petal"/></g>
-        </g>
-      `;
-    // Note: botanical frame uses external SVG files (img elements) — no svgContent needed.
-    // It is handled separately in the insertion code below.
+    // Note: floral & botanical frames use external SVG files (img elements) via cornerFrameConfig.
+    // They are handled separately in the insertion code below.
     } else if (frameId === 'waves') {
       const h78 = Math.round(H * 0.78);
       const h85 = Math.round(H * 0.85);
@@ -3361,54 +3319,50 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
         <path d="M0,${h91} C${W*0.12},${h91-15} ${W*0.22},${h91+8} ${W*0.35},${h91-8} C${W*0.48},${h91-20} ${W*0.56},${h91+5} ${W*0.68},${h91-5} C${W*0.8},${h91-15} ${W*0.88},${h91+5} ${W*0.95},${h91-8} C${W*0.98},${h91-12} ${W},${h91-3} ${W},${h91-3} L${W},${H} L0,${H} Z" fill="url(#waveGrad3)"/>
         <path d="M0,${h85} C${W*0.08},${h85-16} ${W*0.16},${h85+8} ${W*0.28},${h85-12} C${W*0.4},${h85-30} ${W*0.48},${h85-2} ${W*0.6},${h85-8} C${W*0.72},${h85-18} ${W*0.83},${h85+2} ${W*0.92},${h85-15} C${W*0.96},${h85-22} ${W},${h85-10} ${W},${h85-10}" fill="none" stroke="#bae6fd" stroke-width="1.5" opacity="0.4"/>
       `;
-    } else if (frameId === 'dotted') {
-      // Generate confetti dots programmatically using W and H
-      const dots: string[] = [];
-      // Warm wash
-      dots.push(`<rect x="0" y="0" width="${W}" height="55" fill="#fef9e7" opacity="0.3"/>`);
-      dots.push(`<rect x="0" y="${H-55}" width="${W}" height="55" fill="#fef9e7" opacity="0.3"/>`);
-      const golds = ['#d4a843', '#e8c65a', '#c49530', '#f0d878'];
-      // Top dense row
-      for (let i = 0; i < 24; i++) {
-        const cx = Math.round((i / 23) * (W - 40) + 20);
-        const cy = Math.round(8 + Math.sin(i * 2.7) * 18 + 12);
-        const r = Math.round(3 + Math.abs(Math.sin(i * 1.3)) * 6);
-        const op = (0.6 + Math.abs(Math.cos(i * 0.9)) * 0.35).toFixed(2);
-        dots.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${golds[i % 4]}" opacity="${op}"/>`);
-      }
-      // Top second row
-      for (let i = 0; i < 10; i++) {
-        const cx = Math.round((i / 9) * (W - 60) + 30);
-        const cy = Math.round(42 + Math.sin(i * 3.1) * 8 + 10);
-        const r = Math.round(2 + Math.abs(Math.sin(i * 2.1)) * 4);
-        const op = (0.3 + Math.abs(Math.cos(i * 1.7)) * 0.25).toFixed(2);
-        dots.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${golds[(i+1) % 4]}" opacity="${op}"/>`);
-      }
-      // Bottom dense row
-      for (let i = 0; i < 24; i++) {
-        const cx = Math.round((i / 23) * (W - 40) + 20);
-        const cy = Math.round(H - 8 - Math.sin(i * 2.3) * 18 - 12);
-        const r = Math.round(3 + Math.abs(Math.sin(i * 1.7)) * 6);
-        const op = (0.6 + Math.abs(Math.cos(i * 1.1)) * 0.35).toFixed(2);
-        dots.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${golds[(i+2) % 4]}" opacity="${op}"/>`);
-      }
-      // Bottom second row
-      for (let i = 0; i < 10; i++) {
-        const cx = Math.round((i / 9) * (W - 60) + 30);
-        const cy = Math.round(H - 42 - Math.sin(i * 2.5) * 8 - 10);
-        const r = Math.round(2 + Math.abs(Math.sin(i * 1.9)) * 4);
-        const op = (0.3 + Math.abs(Math.cos(i * 1.3)) * 0.25).toFixed(2);
-        dots.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${golds[(i+3) % 4]}" opacity="${op}"/>`);
-      }
-      // Sparse center
-      dots.push(`<circle cx="${W*0.25}" cy="${H*0.4}" r="2.5" fill="#e8c65a" opacity="0.12"/>`);
-      dots.push(`<circle cx="${W*0.55}" cy="${H*0.35}" r="2" fill="#d4a843" opacity="0.1"/>`);
-      dots.push(`<circle cx="${W*0.75}" cy="${H*0.6}" r="2.5" fill="#f0d878" opacity="0.12"/>`);
-      svgContent = dots.join('\n        ');
     }
+    // Note: konfetti frame uses external SVG file via cornerFrameConfig (fullFrame mode).
 
-    // Botanical: two corner pieces — top-left and bottom-right
-    if (frameId === 'botanical') {
+    // Two-piece corner frames: botanical and abstract
+    const cornerFrameConfig: Record<string, { top: string; bottom: string; topTransform: string; bottomTransform: string; width?: string; bottomWidth?: string; fullFrame?: boolean }> = {
+      botanical: {
+        top: '/frames/botanical-top.svg',
+        bottom: '/frames/botanical-bottom.svg',
+        topTransform: 'translate(-16.57%, -20.69%)',    // sharp edge at x=137, y=175 in 827×846
+        bottomTransform: 'translate(14.83%, 20.09%)',   // sharp edge at x=712, y=553 in 836×692
+      },
+      abstract: {
+        top: '/frames/abstract-top.svg',
+        bottom: '/frames/abstract-bottom.svg',
+        topTransform: 'none',                           // flush inside the block corner
+        bottomTransform: 'none',
+      },
+      floral: {
+        top: '/frames/floral-top.svg',
+        bottom: '/frames/floral-bottom.svg',
+        topTransform: 'translate(-24.4%, -23.4%)',
+        bottomTransform: 'translate(22.4%, 22.4%)',
+        width: '55%',
+        bottomWidth: '45%',
+      },
+      welle: {
+        top: '/frames/welle-top.svg',
+        bottom: '/frames/welle-bottom.svg',
+        topTransform: 'translate(-10.7%, -12.3%)',
+        bottomTransform: 'translate(9.0%, 11.3%)',
+        width: '65%',
+        bottomWidth: '75%',
+      },
+      konfetti: {
+        top: '/frames/konfetti.svg',
+        bottom: '',
+        topTransform: 'none',
+        bottomTransform: 'none',
+        fullFrame: true,
+      },
+    };
+
+    if (cornerFrameConfig[frameId]) {
+      const cfg = cornerFrameConfig[frameId];
       const frameDiv = document.createElement('div');
       frameDiv.className = 'frame-overlay';
       frameDiv.style.position = 'absolute';
@@ -3417,40 +3371,259 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
       frameDiv.style.pointerEvents = 'none';
       frameDiv.style.overflow = 'visible';
 
-      // Top-left corner piece (viewBox 0 0 827 846, sharp edge at x=137, y=175)
-      // Transform moves image so the sharp inner edge sits ON the block border
+      if (cfg.fullFrame) {
+        // Single SVG covering the entire block (e.g. konfetti)
+        const fullImg = document.createElement('img');
+        fullImg.src = cfg.top;
+        fullImg.style.position = 'absolute';
+        fullImg.style.inset = '0';
+        fullImg.style.width = '100%';
+        fullImg.style.height = '100%';
+        fullImg.style.objectFit = 'fill';
+        fullImg.style.pointerEvents = 'none';
+        // Soft feathered edges via CSS mask
+        const fade = '18px';
+        fullImg.style.maskImage = `linear-gradient(to right, transparent, black ${fade}, black calc(100% - ${fade}), transparent), linear-gradient(to bottom, transparent, black ${fade}, black calc(100% - ${fade}), transparent)`;
+        fullImg.style.maskComposite = 'intersect';
+        (fullImg.style as any).webkitMaskImage = fullImg.style.maskImage;
+        (fullImg.style as any).webkitMaskComposite = 'source-in';
+        frameDiv.appendChild(fullImg);
+      }
+
       const topImg = document.createElement('img');
-      topImg.src = '/frames/botanical-top.svg';
+      topImg.src = cfg.top;
       topImg.style.position = 'absolute';
       topImg.style.top = '0';
       topImg.style.left = '0';
-      topImg.style.width = '50%';
+      topImg.style.width = cfg.width || '50%';
       topImg.style.height = 'auto';
       topImg.style.pointerEvents = 'none';
-      topImg.style.transform = 'translate(-16.57%, -20.69%)';
+      topImg.style.transform = cfg.topTransform;
 
-      // Bottom-right corner piece (viewBox 0 0 836 692, sharp edge at x=712, y=553)
-      // Transform moves image so the sharp inner edge sits ON the block border
       const bottomImg = document.createElement('img');
-      bottomImg.src = '/frames/botanical-bottom.svg';
+      bottomImg.src = cfg.bottom;
       bottomImg.style.position = 'absolute';
       bottomImg.style.bottom = '0';
       bottomImg.style.right = '0';
-      bottomImg.style.width = '50%';
+      bottomImg.style.width = cfg.bottomWidth || cfg.width || '50%';
       bottomImg.style.height = 'auto';
       bottomImg.style.pointerEvents = 'none';
-      bottomImg.style.transform = 'translate(14.83%, 20.09%)';
+      bottomImg.style.transform = cfg.bottomTransform;
 
-      frameDiv.appendChild(topImg);
-      frameDiv.appendChild(bottomImg);
+      // Add flowing edge lines for welle frame
+      if (frameId === 'welle') {
+        const svgNS = 'http://www.w3.org/2000/svg';
+        const bw = block.clientWidth;
+        const bh = block.clientHeight;
+        const edgeSvg = document.createElementNS(svgNS, 'svg');
+        edgeSvg.setAttribute('viewBox', `-15 -15 ${bw + 30} ${bh + 30}`);
+        edgeSvg.setAttribute('overflow', 'visible');
+        edgeSvg.style.position = 'absolute';
+        edgeSvg.style.top = '-15px';
+        edgeSvg.style.left = '-15px';
+        edgeSvg.style.width = 'calc(100% + 30px)';
+        edgeSvg.style.height = 'calc(100% + 30px)';
+        edgeSvg.style.pointerEvents = 'none';
+
+        const wavePath = (x1: number, y1: number, x2: number, y2: number, amp: number, segs: number, phase: number) => {
+          const dx = x2 - x1, dy = y2 - y1;
+          const len = Math.sqrt(dx * dx + dy * dy);
+          const nx = -dy / len, ny = dx / len;
+          let d = `M${x1.toFixed(1)},${y1.toFixed(1)}`;
+          for (let i = 0; i < segs; i++) {
+            const a = amp * Math.sin(Math.PI * (phase + i * 0.8));
+            const mx = x1 + dx * (i + 0.5) / segs + nx * a;
+            const my = y1 + dy * (i + 0.5) / segs + ny * a;
+            const ex = x1 + dx * (i + 1) / segs;
+            const ey = y1 + dy * (i + 1) / segs;
+            d += ` Q${mx.toFixed(1)},${my.toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}`;
+          }
+          return d;
+        };
+
+        const edgeLines = [
+          { color: '#DAEEF8', w: 5, op: 0.6, amp: 12, phase: 0 },
+          { color: '#B9DDF0', w: 3.5, op: 0.7, amp: 9, phase: 1.3 },
+          { color: '#8EC6E6', w: 2.5, op: 0.55, amp: 7, phase: 2.6 },
+          { color: '#73B6DE', w: 2, op: 0.65, amp: 5, phase: 0.8 },
+        ];
+
+        const edges = [
+          [0, 0, bw, 0],     // top
+          [bw, 0, bw, bh],   // right
+          [bw, bh, 0, bh],   // bottom
+          [0, bh, 0, 0],     // left
+        ];
+
+        edgeLines.forEach((line) => {
+          edges.forEach(([x1, y1, x2, y2]) => {
+            const len = Math.sqrt((x2-x1)**2 + (y2-y1)**2);
+            const segs = Math.max(5, Math.round(len / 45));
+            const path = document.createElementNS(svgNS, 'path');
+            path.setAttribute('d', wavePath(x1, y1, x2, y2, line.amp, segs, line.phase));
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke', line.color);
+            path.setAttribute('stroke-width', String(line.w));
+            path.setAttribute('opacity', String(line.op));
+            path.setAttribute('stroke-linecap', 'round');
+            edgeSvg.appendChild(path);
+          });
+        });
+
+        frameDiv.appendChild(edgeSvg);
+      }
+
+      // Add scattered leaf decorations along edges for floral frame
+      if (frameId === 'floral') {
+        const svgNS = 'http://www.w3.org/2000/svg';
+        const bw = block.clientWidth;
+        const bh = block.clientHeight;
+        const leafSvg = document.createElementNS(svgNS, 'svg');
+        leafSvg.setAttribute('viewBox', `0 0 ${bw} ${bh}`);
+        leafSvg.setAttribute('overflow', 'visible');
+        leafSvg.style.position = 'absolute';
+        leafSvg.style.top = '0';
+        leafSvg.style.left = '0';
+        leafSvg.style.width = '100%';
+        leafSvg.style.height = '100%';
+        leafSvg.style.pointerEvents = 'none';
+
+        const leafColors = ['#566678', '#5c6e83', '#6f7e8c', '#748396', '#46576c'];
+        // Leaf shape: pointed oval with a center vein
+        const makeLeaf = (size: number, color: string, opacity: number, tx: number, ty: number, rot: number) => {
+          const g = document.createElementNS(svgNS, 'g');
+          g.setAttribute('transform', `translate(${tx.toFixed(1)},${ty.toFixed(1)}) rotate(${rot.toFixed(0)})`);
+          g.setAttribute('opacity', String(opacity.toFixed(2)));
+          // Leaf body
+          const body = document.createElementNS(svgNS, 'path');
+          body.setAttribute('d', `M0,0 C${size * 0.25},${-size * 0.5} ${size * 0.75},${-size * 0.5} ${size},0 C${size * 0.75},${size * 0.15} ${size * 0.25},${size * 0.15} 0,0 Z`);
+          body.setAttribute('fill', color);
+          g.appendChild(body);
+          // Center vein
+          const vein = document.createElementNS(svgNS, 'line');
+          vein.setAttribute('x1', String(size * 0.1));
+          vein.setAttribute('y1', '0');
+          vein.setAttribute('x2', String(size * 0.9));
+          vein.setAttribute('y2', '0');
+          vein.setAttribute('stroke', '#3a4a5c');
+          vein.setAttribute('stroke-width', '0.5');
+          vein.setAttribute('opacity', '0.4');
+          g.appendChild(vein);
+          return g;
+        };
+
+        // Seeded pseudo-random for consistent placement
+        const seeded = (i: number) => ((Math.sin(i * 127.1 + 311.7) * 43758.5453) % 1 + 1) % 1;
+
+        // Manually place leaf clusters matching the reference layout
+        // Each entry: position on edge (0-1), edge index, and slight variation seed
+        // Edges: 0=left (top→bottom), 1=top (left→right), 2=right (top→bottom), 3=bottom (left→right)
+        // flowAngle: left=90 (down), top=0 (right), right=90 (down), bottom=0 (right)
+        // perpOverride: force perpendicular offset (0 = on line, negative = outside block)
+        // rotOverride: force main leaf rotation angle
+        const leafPositions: Array<{ edge: number; t: number; perpOverride?: number; rotOverride?: number }> = [
+          // LEFT edge — dense, ~6 clusters flowing downward
+          { edge: 0, t: 0.12 },
+          { edge: 0, t: 0.24 },
+          { edge: 0, t: 0.37 },
+          { edge: 0, t: 0.52 },
+          { edge: 0, t: 0.68 },   // #2: shifted 20px down (was 0.65)
+          { edge: 0, t: 0.882 },  // shifted 25px further down from visual position
+          // TOP edge — 3 clusters flowing rightward
+          { edge: 1, t: 0.38 },
+          { edge: 1, t: 0.55, rotOverride: 0, perpOverride: 0 },  // #1: middle leaf → point RIGHT, touch line
+          { edge: 1, t: 0.814, perpOverride: 0 },  // shifted 30px right, touch line
+          // RIGHT edge — 3-4 clusters flowing downward
+          { edge: 2, t: 0.19, perpOverride: 0 },   // #4: shifted 20px up (was 0.22), touch line
+          { edge: 2, t: 0.42 },
+          { edge: 2, t: 0.62 },
+          { edge: 2, t: 0.78 },
+          // BOTTOM edge — dense, ~5 clusters flowing rightward
+          { edge: 3, t: 0.15, perpOverride: 0 },    // #3: shifted 20px left (was 0.18), touch line
+          { edge: 3, t: 0.32, perpOverride: 0 },    // #3: touch line
+          { edge: 3, t: 0.48, perpOverride: 0 },    // #3: touch line
+          { edge: 3, t: 0.62 },
+          { edge: 3, t: 0.78 },
+        ];
+
+        const edgeCoords = [
+          { x1: 0, y1: 0, x2: 0, y2: bh, flowAngle: 90 },      // left: top→bottom, tips DOWN
+          { x1: 0, y1: 0, x2: bw, y2: 0, flowAngle: 0 },        // top: left→right, tips RIGHT
+          { x1: bw, y1: 0, x2: bw, y2: bh, flowAngle: 90 },     // right: top→bottom, tips DOWN
+          { x1: 0, y1: bh, x2: bw, y2: bh, flowAngle: 0 },      // bottom: left→right, tips RIGHT
+        ];
+
+        leafPositions.forEach((pos, idx) => {
+          const ec = edgeCoords[pos.edge];
+          const dx = ec.x2 - ec.x1;
+          const dy = ec.y2 - ec.y1;
+          const len = Math.sqrt(dx * dx + dy * dy);
+          const nx = -dy / len; // outward normal (points INTO block)
+          const ny = dx / len;
+
+          // Position on the edge with MORE jitter for irregular spacing
+          const cx = ec.x1 + dx * pos.t;
+          const cy = ec.y1 + dy * pos.t;
+          const jitterAlong = (seeded(idx * 11 + 1) - 0.5) * 30;
+          // Perpendicular: use override if set, otherwise random
+          const perpOffset = pos.perpOverride !== undefined ? pos.perpOverride : (seeded(idx * 11 + 12) - 0.5) * 18;
+          const px = cx + (dx / len) * jitterAlong + nx * perpOffset;
+          const py = cy + (dy / len) * jitterAlong + ny * perpOffset;
+
+          // Main leaf — 13-21px
+          const size = 13 + seeded(idx * 11 + 2) * 8;
+          const color = leafColors[Math.floor(seeded(idx * 11 + 3) * leafColors.length)];
+          const opacity = 0.55 + seeded(idx * 11 + 4) * 0.25;
+          // Rotation: use override if set, otherwise random with irregularity
+          let rot: number;
+          if (pos.rotOverride !== undefined) {
+            rot = pos.rotOverride;
+          } else {
+            const rotBase = ec.flowAngle + (seeded(idx * 11 + 5) - 0.5) * 120;
+            const flipOutward = seeded(idx * 11 + 13) > 0.65;
+            rot = flipOutward ? rotBase + 180 : rotBase;
+          }
+          leafSvg.appendChild(makeLeaf(size, color, opacity, px, py, rot));
+
+          // Companion leaf — slightly splayed, also irregular
+          const size2 = size * (0.5 + seeded(idx * 11 + 6) * 0.25);
+          const rot2 = rot + 20 + seeded(idx * 11 + 7) * 50; // 20-70° offset, more varied
+          const spreadDist = size * (0.15 + seeded(idx * 11 + 14) * 0.2); // varied spread
+          const spreadAngle = (rot - 30 + seeded(idx * 11 + 15) * 60) * Math.PI / 180;
+          const lx2 = px + Math.cos(spreadAngle) * spreadDist;
+          const ly2 = py + Math.sin(spreadAngle) * spreadDist;
+          const color2 = leafColors[Math.floor(seeded(idx * 11 + 8) * leafColors.length)];
+          leafSvg.appendChild(makeLeaf(size2, color2, opacity * 0.85, lx2, ly2, rot2));
+
+          // Optional third tiny leaf for some clusters
+          if (seeded(idx * 11 + 9) > 0.5) {
+            const size3 = size * 0.4;
+            const rot3 = rot - 25 - seeded(idx * 11 + 10) * 40; // more variation
+            const lx3 = px - Math.cos((rot + 20) * Math.PI / 180) * spreadDist * 0.8;
+            const ly3 = py - Math.sin((rot + 20) * Math.PI / 180) * spreadDist * 0.8;
+            const color3 = leafColors[Math.floor(seeded(idx * 11 + 11) * leafColors.length)];
+            leafSvg.appendChild(makeLeaf(size3, color3, opacity * 0.7, lx3, ly3, rot3));
+          }
+        });
+
+        frameDiv.appendChild(leafSvg);
+      }
+
+      if (!cfg.fullFrame) {
+        frameDiv.appendChild(topImg);
+        frameDiv.appendChild(bottomImg);
+      }
       block.insertBefore(frameDiv, block.firstChild);
     } else {
       svg.innerHTML = svgContent;
       block.insertBefore(svg, block.firstChild);
     }
 
-    // Adjust padding to ensure content doesn't touch frame
-    contentWrapper.style.padding = FRAME_PADDING[frameId] || '32px';
+    // For full-frame designs (konfetti), hide the block/content-wrapper border
+    if (cornerFrameConfig[frameId]?.fullFrame) {
+      contentWrapper.style.border = 'none';
+      block.style.border = 'none';
+    }
 
     saveHistoryState();
     setNotification({ message: `Rahmen angewendet`, type: 'success' });
@@ -4818,8 +4991,10 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
           overflow: visible;
         }
 
-        /* Botanical frame extends above the block — auto-apply top margin */
-        #dossier-root .avoid-break:has(.frame-overlay img[src*="botanical"]) {
+        /* Corner frames that extend above the block — auto-apply top margin */
+        #dossier-root .avoid-break:has(.frame-overlay img[src*="botanical"]),
+        #dossier-root .avoid-break:has(.frame-overlay img[src*="floral"]),
+        #dossier-root .avoid-break:has(.frame-overlay img[src*="welle"]) {
           margin-top: 50px !important;
         }
 
