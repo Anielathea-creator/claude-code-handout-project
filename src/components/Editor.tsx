@@ -263,7 +263,8 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
 
   const FRAME_DESIGNS = [
     { id: 'botanical', name: 'Botanisch', icon: '🌿', description: 'Eukalyptus-Aquarell' },
-    { id: 'floral', name: 'Blumen', icon: '🌸', description: 'Kirschblüten mit Goldrahmen' },
+    { id: 'floral', name: 'Blumen', icon: '🌼', description: 'blaues Blumenarrangement' },
+    { id: 'rose', name: 'Kirschblüten', icon: '🌸', description: 'rosa Kirschblüten' },
     { id: 'konfetti', name: 'Konfetti', icon: '✨', description: 'Goldenes Konfetti' },
     { id: 'welle', name: 'Wellen', icon: '🌊', description: 'Blaue Wellen' },
     { id: 'vintage', name: 'Vintage', icon: '📜', description: 'Viktorianische Verzierungen' },
@@ -278,6 +279,7 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     floral: '32px 38px 52px 38px',
     konfetti: '50px 85px 65px 85px',
     vintage: '50px',
+    rose: '40px',
   };
 
   const COLOR_OPTIONS = [
@@ -3244,6 +3246,14 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
       contentWrapper.style.padding = '40px';
     } else if (frameId === 'floral' && !block.classList.contains('p-6')) {
       contentWrapper.style.padding = '42px 38px 52px 38px';
+    } else if (frameId === 'vintage') {
+      // Merkblatt-style blocks (p-6): tighter top so the heading sits closer to the frame.
+      // Task blocks: symmetric extra side inset so text clears the vertical scrollwork.
+      if (block.classList.contains('p-6')) {
+        contentWrapper.style.padding = '20px 50px 50px 50px';
+      } else {
+        contentWrapper.style.padding = '50px 58px 50px 58px';
+      }
     } else {
       contentWrapper.style.padding = FRAME_PADDING[frameId] || '32px';
     }
@@ -3267,30 +3277,9 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
 
     let svgContent = '';
 
-    if (frameId === 'vintage') {
-      svgContent = `
-        <defs>
-          <g id="corner-flourish">
-            <path d="M0,0 C0,-8 8,-20 25,-20 C42,-20 50,-8 47,3 C44,13 30,20 20,17 C13,15 10,8 13,3 C16,-2 23,-2 25,2" fill="none" stroke="#3d2b1f" stroke-width="2.5" stroke-linecap="round"/>
-            <path d="M0,0 C-8,0 -20,8 -20,25 C-20,42 -8,50 3,47 C13,44 20,30 17,20 C15,13 8,10 3,13 C-2,16 -2,23 2,25" fill="none" stroke="#3d2b1f" stroke-width="2.5" stroke-linecap="round"/>
-            <path d="M25,-20 C36,-30 58,-33 75,-25 C92,-17 92,0 80,8" fill="none" stroke="#5a3e28" stroke-width="1.8" stroke-linecap="round"/>
-            <path d="M-20,25 C-30,36 -33,58 -25,75 C-17,92 0,92 8,80" fill="none" stroke="#5a3e28" stroke-width="1.8" stroke-linecap="round"/>
-            <path d="M58,-30 Q68,-40 82,-30 Q68,-20 58,-30Z" fill="#5a3e28" opacity="0.5"/>
-            <path d="M-30,58 Q-40,68 -30,82 Q-20,68 -30,58Z" fill="#5a3e28" opacity="0.5"/>
-            <path d="M80,8 C84,13 80,20 75,20" fill="none" stroke="#8b6f47" stroke-width="1.2" stroke-linecap="round"/>
-            <path d="M8,80 C13,84 20,80 20,75" fill="none" stroke="#8b6f47" stroke-width="1.2" stroke-linecap="round"/>
-          </g>
-        </defs>
-        <rect x="18" y="18" width="${W-36}" height="${H-36}" fill="none" stroke="#3d2b1f" stroke-width="1.5" opacity="0.5"/>
-        <rect x="25" y="25" width="${W-50}" height="${H-50}" fill="none" stroke="#3d2b1f" stroke-width="0.8" opacity="0.35"/>
-        <g transform="translate(28,28)"><use href="#corner-flourish"/></g>
-        <g transform="translate(${W-28},28) scale(-1,1)"><use href="#corner-flourish"/></g>
-        <g transform="translate(28,${H-28}) scale(1,-1)"><use href="#corner-flourish"/></g>
-        <g transform="translate(${W-28},${H-28}) scale(-1,-1)"><use href="#corner-flourish"/></g>
-      `;
-    // Note: floral & botanical frames use external SVG files (img elements) via cornerFrameConfig.
+    // Note: vintage, floral & botanical frames use external SVG files (img elements) via cornerFrameConfig.
     // They are handled separately in the insertion code below.
-    } else if (frameId === 'waves') {
+    if (frameId === 'waves') {
       const h78 = Math.round(H * 0.78);
       const h85 = Math.round(H * 0.85);
       const h91 = Math.round(H * 0.91);
@@ -3323,7 +3312,7 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     // Note: konfetti frame uses external SVG file via cornerFrameConfig (fullFrame mode).
 
     // Two-piece corner frames: botanical and abstract
-    const cornerFrameConfig: Record<string, { top: string; bottom: string; topTransform: string; bottomTransform: string; width?: string; bottomWidth?: string; fullFrame?: boolean }> = {
+    const cornerFrameConfig: Record<string, { top: string; bottom: string; topTransform: string; bottomTransform: string; width?: string; bottomWidth?: string; fullFrame?: boolean; fourCorners?: boolean; rose?: boolean; blossomsSrc?: string }> = {
       botanical: {
         top: '/frames/botanical-top.svg',
         bottom: '/frames/botanical-bottom.svg',
@@ -3359,6 +3348,23 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
         bottomTransform: 'none',
         fullFrame: true,
       },
+      vintage: {
+        top: '/frames/vintage-corner.svg',
+        bottom: '',
+        topTransform: 'none',
+        bottomTransform: 'none',
+        fourCorners: true,
+      },
+      rose: {
+        top: '/frames/rose-top-left.svg',
+        bottom: '/frames/rose-bottom-right.svg',
+        topTransform: 'translate(-10%, -22%)',
+        bottomTransform: 'translate(12%, 14%)',
+        width: '55%',
+        bottomWidth: '32%',
+        rose: true,
+        blossomsSrc: '/frames/rose-blossoms.svg',
+      },
     };
 
     if (cornerFrameConfig[frameId]) {
@@ -3390,6 +3396,119 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
         frameDiv.appendChild(fullImg);
       }
 
+      if (cfg.fourCorners) {
+        // Four identical corner SVGs mirrored, plus CSS-drawn lines connecting them.
+        // Clean corner SVG viewBox: 347 x 353. The SVG is a curl ornament with built-in
+        // scrollwork "tongues" extending right (top edge) and down (left edge) but with
+        // NO straight line segments — CSS draws all parallel lines (2 solid + 1 dotted).
+        // Lines pass under the corners (z-index layering), visible only mid-edge.
+        const svgW = 347;
+        const svgH = 353;
+        const cornerScale = 0.32; // 1 SVG unit ≈ 0.32 screen px → corner ≈ 111 × 113 px
+        const cornerW = svgW * cornerScale;
+        const cornerH = svgH * cornerScale;
+        const lineColor = '#a79168'; // matches scrollwork gold
+
+        // Line offsets in SVG units, placed within the scrollwork tongue area (y/x ≈ 20-65)
+        // so the CSS lines visually continue the corner ornament's curls.
+        const outerSolid = { pos: 22 * cornerScale, thick: 2.5 };
+        const innerSolid = { pos: 38 * cornerScale, thick: 1.5 };
+        const dotted     = { pos: 54 * cornerScale, thick: 2.5 };
+
+        // Place 4 corner images, each at z-index 2 (above the lines).
+        const corners: Array<{ top?: string; bottom?: string; left?: string; right?: string; transform: string }> = [
+          { top: '0', left: '0', transform: 'none' },                // top-left
+          { top: '0', right: '0', transform: 'scaleX(-1)' },          // top-right
+          { bottom: '0', left: '0', transform: 'scaleY(-1)' },        // bottom-left
+          { bottom: '0', right: '0', transform: 'scale(-1, -1)' },    // bottom-right
+        ];
+        corners.forEach(pos => {
+          const cornerImg = document.createElement('img');
+          cornerImg.src = cfg.top;
+          cornerImg.style.position = 'absolute';
+          if (pos.top !== undefined) cornerImg.style.top = pos.top;
+          if (pos.bottom !== undefined) cornerImg.style.bottom = pos.bottom;
+          if (pos.left !== undefined) cornerImg.style.left = pos.left;
+          if (pos.right !== undefined) cornerImg.style.right = pos.right;
+          cornerImg.style.width = `${cornerW}px`;
+          cornerImg.style.height = `${cornerH}px`;
+          cornerImg.style.transform = pos.transform;
+          cornerImg.style.zIndex = '2';
+          cornerImg.style.pointerEvents = 'none';
+          frameDiv.appendChild(cornerImg);
+        });
+
+        // Gap (px) between where each corner ends and where the connecting line starts.
+        // Lines stop short of the corners so the corners' transparent areas don't show
+        // a stray line underneath the scrollwork.
+        const cornerGap = 5;
+
+        // Horizontal line: starts cornerGap px past the left corner, ends cornerGap px before the right corner.
+        const addHLine = (yOffset: number, thickness: number, fromTop: boolean, isDotted: boolean) => {
+          const line = document.createElement('div');
+          line.style.position = 'absolute';
+          if (fromTop) line.style.top = `${yOffset - thickness / 2}px`;
+          else line.style.bottom = `${yOffset - thickness / 2}px`;
+          line.style.left = `${cornerW + cornerGap}px`;
+          line.style.right = `${cornerW + cornerGap}px`;
+          line.style.height = `${thickness}px`;
+          line.style.zIndex = '1';
+          line.style.pointerEvents = 'none';
+          if (isDotted) {
+            const dotSize = thickness;
+            const spacing = dotSize * 2.2;
+            line.style.backgroundImage = `radial-gradient(circle, ${lineColor} 45%, transparent 46%)`;
+            line.style.backgroundSize = `${spacing}px ${dotSize}px`;
+            line.style.backgroundRepeat = 'repeat-x';
+            line.style.backgroundPosition = 'center';
+          } else {
+            line.style.background = lineColor;
+          }
+          frameDiv.appendChild(line);
+        };
+
+        // Vertical line: starts cornerGap px below the top corner, ends cornerGap px above the bottom corner.
+        const addVLine = (xOffset: number, thickness: number, fromLeft: boolean, isDotted: boolean) => {
+          const line = document.createElement('div');
+          line.style.position = 'absolute';
+          if (fromLeft) line.style.left = `${xOffset - thickness / 2}px`;
+          else line.style.right = `${xOffset - thickness / 2}px`;
+          line.style.top = `${cornerH + cornerGap}px`;
+          line.style.bottom = `${cornerH + cornerGap}px`;
+          line.style.width = `${thickness}px`;
+          line.style.zIndex = '1';
+          line.style.pointerEvents = 'none';
+          if (isDotted) {
+            const dotSize = thickness;
+            const spacing = dotSize * 2.2;
+            line.style.backgroundImage = `radial-gradient(circle, ${lineColor} 45%, transparent 46%)`;
+            line.style.backgroundSize = `${dotSize}px ${spacing}px`;
+            line.style.backgroundRepeat = 'repeat-y';
+            line.style.backgroundPosition = 'center';
+          } else {
+            line.style.background = lineColor;
+          }
+          frameDiv.appendChild(line);
+        };
+
+        // Top edge: 3 lines from top
+        addHLine(outerSolid.pos, outerSolid.thick, true, false);
+        addHLine(innerSolid.pos, innerSolid.thick, true, false);
+        addHLine(dotted.pos,     dotted.thick,     true, true);
+        // Bottom edge: 3 lines from bottom
+        addHLine(outerSolid.pos, outerSolid.thick, false, false);
+        addHLine(innerSolid.pos, innerSolid.thick, false, false);
+        addHLine(dotted.pos,     dotted.thick,     false, true);
+        // Left edge: 3 lines from left
+        addVLine(outerSolid.pos, outerSolid.thick, true, false);
+        addVLine(innerSolid.pos, innerSolid.thick, true, false);
+        addVLine(dotted.pos,     dotted.thick,     true, true);
+        // Right edge: 3 lines from right
+        addVLine(outerSolid.pos, outerSolid.thick, false, false);
+        addVLine(innerSolid.pos, innerSolid.thick, false, false);
+        addVLine(dotted.pos,     dotted.thick,     false, true);
+      }
+
       const topImg = document.createElement('img');
       topImg.src = cfg.top;
       topImg.style.position = 'absolute';
@@ -3399,6 +3518,8 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
       topImg.style.height = 'auto';
       topImg.style.pointerEvents = 'none';
       topImg.style.transform = cfg.topTransform;
+      // Rose: nudge top-left corner 8px left
+      if (cfg.rose) topImg.style.left = '-8px';
 
       const bottomImg = document.createElement('img');
       bottomImg.src = cfg.bottom;
@@ -3409,6 +3530,8 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
       bottomImg.style.height = 'auto';
       bottomImg.style.pointerEvents = 'none';
       bottomImg.style.transform = cfg.bottomTransform;
+      // Rose: nudge bottom-right corner 8px up
+      if (cfg.rose) bottomImg.style.bottom = '8px';
 
       // Add flowing edge lines for welle frame
       if (frameId === 'welle') {
@@ -3609,7 +3732,118 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
         frameDiv.appendChild(leafSvg);
       }
 
-      if (!cfg.fullFrame) {
+      // Rose frame: inner border lines that CONTINUE the stems already drawn inside the corner SVGs.
+      // Stem exit positions provided by the user (visually verified):
+      //   - TL right  edge: y ≈ 22.5% of TL height → top CSS line
+      //   - TL bottom edge: x ≈ 12.5% of TL width  → left CSS line
+      //   - BR top    edge: x ≈ 87% of BR width    → right CSS line
+      //   - BR left   edge: y ≈ 89.5% of BR height → bottom CSS line
+      if (cfg.rose) {
+        const lineColor = '#b59d84'; // tan/brown matching the rose stems
+        const lineThick = 1.5;
+        const blockW = block.clientWidth;
+        const blockH = block.clientHeight;
+
+        // TL image geometry (width 55%, translate(-10%, -22%), left=-8px)
+        const tlImgW = 0.55 * blockW;
+        const tlImgH = tlImgW * (647 / 1093); // SVG aspect ratio
+        const tlLeft = -8 - 0.10 * tlImgW;
+        const tlTop  = 0 - 0.22 * tlImgH;
+
+        // BR image geometry (width 32%, translate(12%, 14%), bottom=8px → shifted 8px up)
+        const brImgW = 0.32 * blockW;
+        const brImgH = brImgW * (1372 / 1062);
+        const brRight  = blockW + 0.12 * brImgW;
+        const brBottom = blockH - 8 + 0.14 * brImgH;
+        const brLeft = brRight  - brImgW;
+        const brTop  = brBottom - brImgH;
+
+        // Stem exit positions (user-marked, visually verified)
+        // Lines extend under each SVG to avoid gaps
+        const tlOverlap = 25; // TL needs more overlap
+        const brOverlap = 10;
+        const tlRightStemY  = tlTop  + 0.225 * tlImgH;
+        const tlRightStemX  = tlLeft + 1.000 * tlImgW - tlOverlap; // extend under TL svg
+        const tlBottomStemX = tlLeft + 0.125 * tlImgW;
+        const tlBottomStemY = tlTop  + 1.000 * tlImgH - tlOverlap; // extend under TL svg
+        const brTopStemX    = brLeft + 0.870 * brImgW;
+        const brTopStemY    = brTop  + 0.000 * brImgH + brOverlap; // extend under BR svg
+        const brLeftStemY   = brTop  + 0.895 * brImgH;
+        const brLeftStemX   = brLeft + 0.000 * brImgW + brOverlap; // extend under BR svg
+
+        // 4 lines forming a quadrilateral whose corners are at the intersections
+        // of the stem lines (TL contributes top-Y and left-X; BR contributes bottom-Y and right-X).
+        const innerLeft   = tlBottomStemX;
+        const innerRight  = brTopStemX;
+        const innerTop    = tlRightStemY;
+        const innerBottom = brLeftStemY;
+
+        const mkLine = (top: number, left: number, w: number, h: number, radius?: string) => {
+          const d = document.createElement('div');
+          d.style.cssText = `position:absolute;top:${top}px;left:${left}px;width:${w}px;height:${h}px;background:${lineColor};pointer-events:none;z-index:1${radius ? `;border-radius:${radius}` : ''}`;
+          frameDiv.appendChild(d);
+        };
+
+        const topLineThick = 3;
+        const sideLineThick = 2;
+        const cornerR = 12;
+
+        // TOP horizontal: from TL svg → to top-right corner (rounded)
+        mkLine(innerTop - topLineThick / 2, tlRightStemX, innerRight - tlRightStemX, topLineThick, `0 ${cornerR}px 0 0`);
+        // LEFT vertical: from TL svg → to bottom-left corner (rounded)
+        mkLine(tlBottomStemY, innerLeft - sideLineThick / 2, sideLineThick, innerBottom - tlBottomStemY, `0 0 0 ${cornerR}px`);
+        // BOTTOM horizontal: from bottom-left corner (rounded) → to BR svg
+        mkLine(innerBottom - lineThick / 2, innerLeft, brLeftStemX - innerLeft, lineThick, `0 0 0 ${cornerR}px`);
+        // RIGHT vertical: from top-right corner (rounded) → to BR svg
+        mkLine(innerTop, innerRight - sideLineThick / 2, sideLineThick, brTopStemY - innerTop, `0 ${cornerR}px 0 0`);
+
+        // Scattered blossoms at user-specified coordinates (x%, y%, rotation)
+        const blossomCoords: Array<{ x: number; y: number; rot: number; size: number }> = [
+          // LEFT edge — tip pointing down
+          { x: 0, y: 25, rot: 180, size: 32 },
+          { x: 1, y: 40, rot: 180, size: 24 },
+          { x: -1, y: 80, rot: 180, size: 24 },
+          // BOTTOM edge — tip pointing left
+          { x: 60, y: 100, rot: -90, size: 26 },
+          { x: 40, y: 99, rot: -90, size: 24 },
+          { x: 30, y: 100, rot: -90, size: 22 },
+          // TOP edge — tip pointing right
+          { x: 55, y: 0, rot: 90, size: 24 },
+          { x: 70, y: 0.5, rot: 90, size: 26 },
+          // RIGHT edge — tip pointing up
+          { x: 100, y: 70, rot: 0, size: 20 },
+          { x: 101, y: 55, rot: 0, size: 24 },
+          { x: 99, y: 30, rot: 0, size: 26 },
+        ];
+
+        // Each blossom SVG has a different natural tip direction; baseRot normalises tip to "up"
+        const singleBlossoms = [
+          { src: '/frames/rose-blossom-1.svg', baseRot: 90 },
+          { src: '/frames/rose-blossom-2.svg', baseRot: 45 },
+          { src: '/frames/rose-blossom-3.svg', baseRot: 0 },
+        ];
+        blossomCoords.forEach((p, idx) => {
+          const b = singleBlossoms[idx % singleBlossoms.length];
+          const img = document.createElement('img');
+          img.src = b.src;
+          img.style.position = 'absolute';
+          img.style.width = `${p.size}px`;
+          img.style.height = 'auto';
+          img.style.pointerEvents = 'none';
+          img.style.zIndex = '4';
+          img.style.left = `${p.x}%`;
+          img.style.top = `${p.y}%`;
+          img.style.transform = `translate(-50%, -50%) rotate(${p.rot + b.baseRot}deg)`;
+          frameDiv.appendChild(img);
+        });
+      }
+
+      if (!cfg.fullFrame && !cfg.fourCorners) {
+        // Rose corners sit above the inner border line
+        if (cfg.rose) {
+          topImg.style.zIndex = '3';
+          bottomImg.style.zIndex = '3';
+        }
         frameDiv.appendChild(topImg);
         frameDiv.appendChild(bottomImg);
       }
@@ -3619,8 +3853,9 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
       block.insertBefore(svg, block.firstChild);
     }
 
-    // For full-frame designs (konfetti), hide the block/content-wrapper border
-    if (cornerFrameConfig[frameId]?.fullFrame) {
+    // For full-frame / four-corner / rose designs, hide the block/content-wrapper border
+    // so only the frame's own lines are visible
+    if (cornerFrameConfig[frameId]?.fullFrame || cornerFrameConfig[frameId]?.fourCorners || cornerFrameConfig[frameId]?.rose) {
       contentWrapper.style.border = 'none';
       block.style.border = 'none';
     }
@@ -4996,6 +5231,13 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
         #dossier-root .avoid-break:has(.frame-overlay img[src*="floral"]),
         #dossier-root .avoid-break:has(.frame-overlay img[src*="welle"]) {
           margin-top: 50px !important;
+        }
+
+        /* Rose frame: extra 25px gap when a title precedes the block */
+        #dossier-root h1 + .avoid-break:has(.frame-overlay img[src*="rose"]),
+        #dossier-root h2 + .avoid-break:has(.frame-overlay img[src*="rose"]),
+        #dossier-root h3 + .avoid-break:has(.frame-overlay img[src*="rose"]) {
+          margin-top: 25px !important;
         }
 
         .content-wrapper {
