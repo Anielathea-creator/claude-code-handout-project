@@ -456,13 +456,17 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
         const element = el as HTMLElement;
         if (element.id === 'dossier-root') return;
 
-        // Check if it's a structural container we should NOT make editable
+        // Check if it's a structural container or answer marker we should NOT make editable
         if (
           element.classList.contains('page-break') ||
           element.classList.contains('avoid-break') ||
           element.classList.contains('cover-page-container') ||
           element.classList.contains('cover-page-wrapper') ||
           element.classList.contains('draggable-image-wrapper') ||
+          element.classList.contains('gap-line') ||
+          element.classList.contains('is-answer') ||
+          element.classList.contains('is-highlight-answer') ||
+          element.classList.contains('is-strikethrough-answer') ||
           element.id === 'toc-list' ||
           element.parentElement?.id === 'dossier-root'
         ) {
@@ -512,6 +516,14 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
         if (next && next.classList.contains('gap-line')) {
           next.appendChild(ans);
         }
+      });
+
+      // Cleanup: Remove stale editable/contenteditable from answer markers
+      root.querySelectorAll('.gap-line, .is-answer, .is-highlight-answer, .is-strikethrough-answer').forEach(el => {
+        el.removeAttribute('contenteditable');
+        el.classList.remove('editable');
+        (el as HTMLElement).style.removeProperty('user-select');
+        (el as HTMLElement).style.removeProperty('-webkit-user-select');
       });
 
       // Run repagination after DOM is rendered and heights are measurable
@@ -711,11 +723,33 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
       return cells;
     };
 
+    // Zahlenstrahl tick drag state
+    const tickDrag = { active: false, tick: null as HTMLElement | null, container: null as HTMLElement | null, startX: 0 };
+
     const onMouseDown = (e: MouseEvent) => {
       let target = e.target as HTMLElement;
       if (!target) return;
       if (target.nodeType === 3) target = target.parentElement as HTMLElement;
       if (!target?.closest) return;
+
+      // Zahlenstrahl: detect tick drag
+      let walkEl: HTMLElement | null = target;
+      while (walkEl && walkEl.parentElement) {
+        const p = walkEl.parentElement;
+        if (p.classList.contains('flex') && p.classList.contains('justify-between')
+            && p.classList.contains('h-1') && p.classList.contains('bg-gray-800')
+            && !walkEl.classList.contains('absolute') && p.closest('#dossier-root')) {
+          e.preventDefault();
+          tickDrag.active = true;
+          tickDrag.tick = walkEl;
+          tickDrag.container = p;
+          tickDrag.startX = e.clientX;
+          document.body.style.cursor = 'grabbing';
+          document.body.style.userSelect = 'none';
+          return;
+        }
+        walkEl = p;
+      }
 
       const cell = target.closest('td, th') as HTMLTableCellElement | null;
       if (!cell) return;
@@ -800,6 +834,28 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     };
 
     const onMouseMove = (e: MouseEvent) => {
+      // Zahlenstrahl tick drag: reorder on move
+      if (tickDrag.active && tickDrag.tick && tickDrag.container) {
+        const ticks = Array.from(tickDrag.container.children).filter(
+          c => !c.classList.contains('absolute')
+        ) as HTMLElement[];
+        const curIdx = ticks.indexOf(tickDrag.tick);
+        for (let j = 0; j < ticks.length; j++) {
+          if (j === curIdx) continue;
+          const sibRect = ticks[j].getBoundingClientRect();
+          const sibCenter = sibRect.left + sibRect.width / 2;
+          if (j < curIdx && e.clientX < sibCenter) {
+            tickDrag.container.insertBefore(tickDrag.tick, ticks[j]);
+            break;
+          }
+          if (j > curIdx && e.clientX > sibCenter) {
+            tickDrag.container.insertBefore(tickDrag.tick, ticks[j].nextSibling);
+            break;
+          }
+        }
+        return;
+      }
+
       const s = tableResizeRef.current;
       if (!s.active) return;
 
@@ -818,6 +874,17 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     };
 
     const onMouseUp = () => {
+      // Zahlenstrahl tick drag: finalize
+      if (tickDrag.active) {
+        tickDrag.active = false;
+        tickDrag.tick = null;
+        tickDrag.container = null;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        saveHistoryState();
+        return;
+      }
+
       if (!tableResizeRef.current.active) return;
 
       document.body.style.cursor = '';
@@ -1149,15 +1216,34 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
   };
 
   const applyExactFontSize = (size: string) => {
+    if (!size) return;
     document.getElementById('dossier-root')?.focus();
     restoreSelection();
     saveHistoryState();
     document.execCommand('fontSize', false, '7'); // Dummy size to find it
-    const fontElements = document.getElementsByTagName('font');
-    for (let i = 0; i < fontElements.length; i++) {
-        if (fontElements[i].size === '7') {
-            fontElements[i].removeAttribute('size');
-            fontElements[i].style.fontSize = size;
+    // Convert live collection to static array to avoid skipping elements
+    const fontElements = Array.from(document.getElementsByTagName('font'));
+    for (const el of fontElements) {
+        if (el.size === '7') {
+            el.removeAttribute('size');
+            el.style.fontSize = size;
+            // Clean up: unwrap parent <font> tags to prevent nested conflicts
+            let parent = el.parentElement;
+            while (parent && parent.tagName === 'FONT') {
+              if (parent.style.fontSize) {
+                parent.style.removeProperty('font-size');
+              }
+              // If parent <font> has no remaining styles/attributes, unwrap it
+              if (!parent.style.cssText.trim() && !parent.getAttribute('color') && !parent.getAttribute('face')) {
+                const grandparent = parent.parentNode;
+                if (grandparent) {
+                  while (parent.firstChild) grandparent.insertBefore(parent.firstChild, parent);
+                  grandparent.removeChild(parent);
+                }
+                break;
+              }
+              parent = parent.parentElement;
+            }
         }
     }
     saveHistoryState();
@@ -1269,6 +1355,9 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = htmlToAdd;
     const htmlElement = tempDiv.firstChild as HTMLElement;
+
+    // Ensure every inserted block gets a unique ID (exercise templates don't include one)
+    if (!htmlElement.id) htmlElement.id = id;
 
     if (activeBlock) {
       // Detect if activeBlock IS a page container (not a block within a page).
@@ -1507,6 +1596,18 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     const root = document.getElementById('dossier-root');
     if (!root) return;
 
+    // 0. Suchsel: delete the word block if cursor is inside .suchsel-woerter
+    if (activeEditable && activeBlock) {
+      const suchselBlock = activeEditable.closest('.suchsel-woerter');
+      if (suchselBlock && activeBlock.contains(suchselBlock)) {
+        saveHistoryState();
+        suchselBlock.remove();
+        setActiveEditable(null);
+        saveHistoryState();
+        return;
+      }
+    }
+
     // 1. Wenn ein spezifisches Textfeld (Editable) fokussiert ist UND es nicht das einzige im Block ist
     if (activeEditable && activeBlock && activeBlock.contains(activeEditable)) {
       const editables = activeBlock.querySelectorAll('.editable');
@@ -1660,6 +1761,12 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
         return current;
       }
 
+      // Allow cloning a single contenteditable element inside a non-boundary wrapper
+      // (e.g. Lückentext: <div class="leading-loose"><p contenteditable>...</p></div>)
+      if (current.getAttribute('contenteditable') === 'true' && parent !== boundary) {
+        return current;
+      }
+
       current = parent;
     }
 
@@ -1743,7 +1850,81 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     saveHistoryState();
   };
 
+  // Helper: find the Zahlenstrahl flex container and the active tick column
+  const findNumberLineTick = (): { container: HTMLElement, tick: HTMLElement } | null => {
+    // Strategy 1: walk up from activeEditable to find a .zahlenstrahl-tick
+    if (activeEditable) {
+      const tickCol = activeEditable.closest('.zahlenstrahl-tick') as HTMLElement;
+      if (tickCol) {
+        const container = tickCol.parentElement as HTMLElement;
+        if (container) return { container, tick: tickCol };
+      }
+      // Legacy: old structure (flex justify-between h-1 bg-gray-800)
+      let el: HTMLElement | null = activeEditable;
+      while (el) {
+        const parent = el.parentElement;
+        if (parent && parent.classList.contains('flex') && parent.classList.contains('justify-between')
+            && parent.classList.contains('h-1') && parent.classList.contains('bg-gray-800')) {
+          if (!el.classList.contains('absolute')) return { container: parent, tick: el };
+        }
+        el = parent;
+      }
+    }
+    // Strategy 2: if activeBlock contains a zahlenstrahl, return the last tick column
+    if (activeBlock) {
+      const zs = activeBlock.querySelector('.zahlenstrahl-container') as HTMLElement;
+      if (zs) {
+        const flexRow = zs.querySelector('.flex.justify-between') as HTMLElement;
+        if (flexRow) {
+          const ticks = flexRow.querySelectorAll('.zahlenstrahl-tick');
+          if (ticks.length > 0) return { container: flexRow, tick: ticks[ticks.length - 1] as HTMLElement };
+        }
+      }
+      // Legacy fallback
+      const nl = activeBlock.querySelector('.flex.justify-between.h-1.bg-gray-800') as HTMLElement;
+      if (nl) {
+        const ticks = Array.from(nl.children).filter(t => !t.classList.contains('absolute')) as HTMLElement[];
+        if (ticks.length > 0) return { container: nl, tick: ticks[ticks.length - 1] };
+      }
+    }
+    return null;
+  };
+
   const handleAddColumn = () => {
+    // Zahlenstrahl: add a tick column when inside a number line
+    const nlTick = findNumberLineTick();
+    if (nlTick) {
+      saveHistoryState();
+      // New structure: .zahlenstrahl-tick flex column
+      if (nlTick.tick.classList.contains('zahlenstrahl-tick')) {
+        const col = document.createElement('div');
+        col.className = 'zahlenstrahl-tick flex flex-col items-center';
+        const mark = document.createElement('div');
+        mark.className = 'h-6 w-0.5 bg-gray-800';
+        const label = document.createElement('div');
+        label.className = 'editable text-center font-bold mt-1';
+        label.contentEditable = 'true';
+        label.style.minWidth = '1.5rem';
+        label.textContent = '\u00A0';
+        col.appendChild(mark);
+        col.appendChild(label);
+        nlTick.container.insertBefore(col, nlTick.tick.nextSibling);
+      } else {
+        // Legacy structure
+        const tick = document.createElement('div');
+        tick.className = 'relative h-6 w-0.5 bg-gray-800 -mt-3';
+        const label = document.createElement('div');
+        label.className = 'absolute top-8 left-1/2 -translate-x-1/2 editable text-center font-bold';
+        label.contentEditable = 'true';
+        label.style.minWidth = '1.5rem';
+        label.textContent = '\u00A0';
+        tick.appendChild(label);
+        nlTick.container.insertBefore(tick, nlTick.tick.nextSibling);
+      }
+      saveHistoryState();
+      return;
+    }
+
     if (!activeTableCell) return;
     saveHistoryState();
     const table = activeTableCell.closest('table');
@@ -1770,7 +1951,7 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     const lists = activeBlock.querySelectorAll('ul, ol');
     const contentWrapper = activeBlock.querySelector('.content-wrapper');
 
-    let type: 'table' | 'list' | 'structure' = 'structure';
+    let type: 'table' | 'list' | 'structure' | 'editable' = 'structure';
     if (tables.length > 0) type = 'table';
     else if (lists.length > 0) type = 'list';
 
@@ -1789,6 +1970,16 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     } else if (contentWrapper && contentWrapper.children.length > 0) {
       container = contentWrapper as HTMLElement;
       unitToClone = contentWrapper.children[contentWrapper.children.length - 1] as HTMLElement;
+    } else {
+      // Fallback for exercise templates without .content-wrapper:
+      // find the last editable element and use its parent as the container
+      const editables = activeBlock.querySelectorAll('.editable[contenteditable="true"]');
+      if (editables.length > 0) {
+        const lastEditable = editables[editables.length - 1] as HTMLElement;
+        container = lastEditable.parentElement as HTMLElement;
+        unitToClone = lastEditable;
+        type = 'editable';
+      }
     }
 
     if (!unitToClone || !container) {
@@ -1835,6 +2026,22 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
 
     setIsGeneratingAi(true);
 
+    // For editable type: find a clone source WITH answer structure (not a previously
+    // generated plain-text item). This separates "what to clone" from "where to insert".
+    let cloneTemplate: HTMLElement = unitToClone;
+    if (type === 'editable') {
+      const _ansSel = '.is-answer, .is-highlight-answer, .is-strikethrough-answer';
+      if (!unitToClone.querySelector(_ansSel)) {
+        const siblings = Array.from(container.children) as HTMLElement[];
+        for (let k = siblings.length - 1; k >= 0; k--) {
+          if (siblings[k].querySelector(_ansSel)) {
+            cloneTemplate = siblings[k];
+            break;
+          }
+        }
+      }
+    }
+
     // We generate one by one to keep the "pulse" feedback and avoid complex multi-unit parsing
     let currentAnchor = unitToClone;
     for (let i = 0; i < aiSubtaskCount; i++) {
@@ -1844,6 +2051,8 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
           container = lastTable.querySelector('tbody') || lastTable;
         } else if (type === 'list') {
           container = lists[lists.length - 1] as HTMLElement;
+        } else if (type === 'editable') {
+          // Keep the container as-is – it was already set to the parent of the editable element
         } else if (contentWrapper && contentWrapper.children.length > 0) {
           container = contentWrapper as HTMLElement;
         }
@@ -1866,24 +2075,56 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
           anchor = currentAnchor.closest('li') || currentAnchor;
         } else if (type === 'structure') {
           anchor = currentAnchor.closest('.avoid-break') || currentAnchor;
+        } else if (type === 'editable') {
+          // Keep anchor at the individual editable element – don't walk up
+          anchor = currentAnchor;
         }
+
+        // Answer marker selector (shared across reset, detect, fill)
+        const ansSel = '.is-answer, .is-highlight-answer, .is-strikethrough-answer';
+
+        // Smart reset: preserve gap-line/answer structure, only clear text content
+        const smartResetEl = (el: HTMLElement) => {
+          const answers = el.querySelectorAll(ansSel);
+          if (answers.length > 0) {
+            const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+            const tNodes: Array<{ node: Text, inAnswer: boolean }> = [];
+            while (tw.nextNode()) {
+              const tn = tw.currentNode as Text;
+              if (!tn.textContent?.trim()) continue;
+              tNodes.push({ node: tn, inAnswer: !!tn.parentElement?.closest(ansSel) });
+            }
+            const seen = new Set<Element>();
+            tNodes.forEach(({ node: n, inAnswer }) => {
+              if (inAnswer) {
+                const a = n.parentElement?.closest(ansSel);
+                if (a && !seen.has(a)) { seen.add(a); a.textContent = '...'; }
+              } else {
+                n.textContent = '... ';
+              }
+            });
+          } else {
+            el.textContent = '...';
+          }
+        };
 
         if (isPlaceholder(anchor) && i === 0) {
           targetUnit = anchor;
         } else {
-          targetUnit = anchor.cloneNode(true) as HTMLElement;
-          
-          // 2. Harter Reset: Verhindere Injektion in bestehende Wörter
-          const editables = targetUnit.querySelectorAll('.editable');
-          if (editables.length > 0) {
-            // Wir leeren den Inhalt, behalten aber die editierbaren Container
-            // Wir setzen innerHTML auf die Platzhalter der editierbaren Felder
-            const editablePlaceholders = Array.from(editables).map(() => 
-              '<span class="editable" contenteditable="true">...</span>'
-            ).join(' ');
-            targetUnit.innerHTML = editablePlaceholders;
+          // Clone from cloneTemplate (with answer structure) for editable type,
+          // or from anchor for table/list/structure types
+          targetUnit = (type === 'editable' ? cloneTemplate : anchor).cloneNode(true) as HTMLElement;
+
+          // 2. Smart Reset: preserve answer markers, reset only text content
+          if (type === 'editable') {
+            smartResetEl(targetUnit);
           } else {
-            targetUnit.innerHTML = '...';
+            const editables = targetUnit.querySelectorAll('.editable');
+            if (editables.length > 0) {
+              editables.forEach(ed => smartResetEl(ed as HTMLElement));
+            } else {
+              targetUnit.innerHTML = '...';
+            }
           }
           
         // 3. Harter Umbruch: insertAdjacentElement('afterend')
@@ -1906,13 +2147,78 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
 
         const blockText = activeBlock?.innerText || '';
         const editableFields = targetUnit.querySelectorAll('.editable');
-        const fieldCount = editableFields.length || 1;
 
-        const prompt = `Du bist ein präziser Content-Generator für Lehrmittel.
+        // Detect fillable text zones in DOM order (text nodes + answer spans)
+        const detectZones = (el: HTMLElement): Array<{ type: 'text' | 'answer', node: Text | Element }> => {
+          const zones: Array<{ type: 'text' | 'answer', node: Text | Element }> = [];
+          const seen = new Set<Element>();
+          const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          while (tw.nextNode()) {
+            const tn = tw.currentNode as Text;
+            if (!tn.textContent?.trim()) continue;
+            const ansEl = tn.parentElement?.closest(ansSel) as Element | null;
+            if (ansEl && !seen.has(ansEl)) {
+              seen.add(ansEl);
+              zones.push({ type: 'answer', node: ansEl });
+            } else if (!ansEl) {
+              zones.push({ type: 'text', node: tn });
+            }
+          }
+          return zones;
+        };
+
+        // For editable type: zones within the element itself
+        // For table/list: each editable cell is one AI field
+        let fillZones: Array<{ type: 'text' | 'answer', node: Text | Element }> = [];
+        let fieldCount: number;
+
+        if (type === 'editable') {
+          fillZones = detectZones(targetUnit);
+          fieldCount = fillZones.length || 1;
+        } else {
+          fieldCount = editableFields.length || 1;
+        }
+
+        // Build the prompt – use a specialized prompt for structured templates (with answer zones)
+        let prompt: string;
+
+        if (fillZones.length > 1) {
+          // Structured template: extract MULTIPLE examples from existing items
+          const siblings = Array.from(container!.children) as HTMLElement[];
+          const examples: string[] = [];
+          for (const sib of siblings) {
+            if (!sib.querySelector(ansSel)) continue; // Only items with answer structure
+            const sibZones = detectZones(sib);
+            if (sibZones.length === fillZones.length) {
+              const parts = sibZones.map(z =>
+                z.type === 'answer'
+                  ? (z.node as Element).textContent?.trim()
+                  : (z.node as Text).textContent?.trim()
+              );
+              examples.push(parts.join(' | '));
+            }
+            if (examples.length >= 3) break;
+          }
+
+          const formatLabels = fillZones.map(z =>
+            z.type === 'answer' ? 'LÖSUNG' : 'AUFGABE'
+          ).join(' | ');
+
+          prompt = `Generiere EINE neue Teilaufgabe für dieses Lehrmittel.
+Kontext: "${blockText.substring(0, 200)}"
+Nicht wiederholen: ${blacklist}
+
+FORMAT: ${formatLabels}
+${examples.length > 0 ? `BEISPIELE:\n${examples.join('\n')}` : ''}
+
+Generiere EINE neue Aufgabe im EXAKT selben Format.
+Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
+        } else {
+          prompt = `Du bist ein präziser Content-Generator für Lehrmittel.
         Generiere EINE neue, inhaltlich passende Teilaufgabe für dieses Dossier.
         Kontext des Blocks: "${blockText.substring(0, 300)}"
         Bereits vorhandene Aufgaben (Blacklist): ${blacklist}
-        
+
         ANFORDERUNGEN:
         - Erstelle EXAKT ${fieldCount} kurze, prägnante Inhalte.
         - Falls es eine Liste ist: Nutze das Präfix "${prefixPattern}" (falls vorhanden).
@@ -1920,6 +2226,7 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
         - Gib NUR die Inhalte zurück, getrennt durch das Zeichen "|".
         - KEINE Formatierung, KEIN HTML, NUR der reine Text.
         - Beispiel für 2 Felder: "Inhalt 1 | Inhalt 2"`;
+        }
 
         const response = await ai.models.generateContent({
           model: 'gemini-3.1-flash-lite-preview',
@@ -1943,11 +2250,13 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
           }
         }
         
-        // 3. Bullet-Points entfernen
-        cleanResponse = cleanResponse.replace(/^[•\-\*\d\.]+\s*/, '').trim();
-        
-        // 4. Kontext-Sperre: Nummerierung automatisch inkrementieren
-        const numberMatch = cleanResponse.match(/^(\d+)\.\s*(.*)/);
+        // 3. Bullet-Points entfernen (skip for structured templates – bullet is part of format)
+        if (fillZones.length <= 1) {
+          cleanResponse = cleanResponse.replace(/^[•\-\*\d\.]+\s*/, '').trim();
+        }
+
+        // 4. Kontext-Sperre: Nummerierung automatisch inkrementieren (skip for structured)
+        const numberMatch = fillZones.length <= 1 ? cleanResponse.match(/^(\d+)\.\s*(.*)/) : null;
         if (numberMatch) {
           const currentNum = parseInt(numberMatch[1]);
           const restText = numberMatch[2];
@@ -1966,9 +2275,28 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
         }
         
         const values = cleanResponse.split('|').map(v => v.trim());
-        if (editableFields.length > 0) {
+
+        if (fillZones.length > 0) {
+          // Smart fill: put AI values into preserved text/answer zones
+          fillZones.forEach((zone, idx) => {
+            const val = values[idx] || '...';
+            if (zone.type === 'answer') {
+              (zone.node as Element).textContent = val;
+            } else {
+              (zone.node as Text).textContent = val + ' ';
+            }
+          });
+        } else if (editableFields.length > 0) {
+          // Table/list fill: fill each editable cell, preserving answer structure
           editableFields.forEach((el, idx) => {
-            el.innerHTML = values[idx] || (values[0] && idx === 0 ? values[0] : '...');
+            const val = values[idx] || (values[0] && idx === 0 ? values[0] : '...');
+            const firstAnswer = el.querySelector(ansSel);
+            if (firstAnswer) {
+              // Cell has answer structure: put value in the answer span
+              firstAnswer.textContent = val;
+            } else {
+              el.innerHTML = val;
+            }
           });
         } else {
           targetUnit.innerHTML = cleanResponse;
@@ -1990,6 +2318,15 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
   };
 
   const handleDeleteColumn = () => {
+    // Zahlenstrahl: delete a tick
+    const nlTick = findNumberLineTick();
+    if (nlTick) {
+      saveHistoryState();
+      nlTick.tick.remove();
+      saveHistoryState();
+      return;
+    }
+
     if (!activeTableCell) return;
     saveHistoryState();
     const table = activeTableCell.closest('table');
@@ -5415,7 +5752,8 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
           <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={() => { restoreSelection(); saveHistoryState(); document.execCommand('italic', false); saveHistoryState(); }} className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded italic transition-colors" title="Kursiv">I</button>
           <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={() => { restoreSelection(); saveHistoryState(); document.execCommand('underline', false); saveHistoryState(); }} className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded underline transition-colors" title="Unterstrichen">U</button>
           
-          <select defaultValue="18px" onMouseDown={() => saveSelection()} onChange={(e) => applyExactFontSize(e.target.value)} className="h-8 bg-white border border-gray-300 rounded text-xs px-1 outline-none focus:border-blue-500" title="Schriftgröße">
+          <select value="" onMouseDown={() => saveSelection()} onChange={(e) => { applyExactFontSize(e.target.value); e.target.value = ''; }} className="h-8 bg-white border border-gray-300 rounded text-xs px-1 outline-none focus:border-blue-500" title="Schriftgröße">
+            <option value="" disabled>Größe</option>
             <option value="8px">8px</option>
             <option value="14px">14px</option>
             <option value="16px">16px</option>

@@ -624,10 +624,10 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
       [Bild hier einfügen]
     </div>
     <div class="grid grid-cols-2 gap-x-12 gap-y-4 w-full px-8">
-       <div class="flex items-end gap-2"><span class="font-bold text-gray-500">1.</span> <span class="gap-line editable" contenteditable="true"><span class="is-answer">Teil 1</span></span></div>
-       <div class="flex items-end gap-2"><span class="font-bold text-gray-500">2.</span> <span class="gap-line editable" contenteditable="true"><span class="is-answer">Teil 2</span></span></div>
-       <div class="flex items-end gap-2"><span class="font-bold text-gray-500">3.</span> <span class="gap-line editable" contenteditable="true"><span class="is-answer">Teil 3</span></span></div>
-       <div class="flex items-end gap-2"><span class="font-bold text-gray-500">4.</span> <span class="gap-line editable" contenteditable="true"><span class="is-answer">Teil 4</span></span></div>
+       <p class="flex items-end gap-2 editable" contenteditable="true"><span class="font-bold text-gray-500">1.</span> <span class="gap-line"><span class="is-answer">Teil 1</span></span></p>
+       <p class="flex items-end gap-2 editable" contenteditable="true"><span class="font-bold text-gray-500">2.</span> <span class="gap-line"><span class="is-answer">Teil 2</span></span></p>
+       <p class="flex items-end gap-2 editable" contenteditable="true"><span class="font-bold text-gray-500">3.</span> <span class="gap-line"><span class="is-answer">Teil 3</span></span></p>
+       <p class="flex items-end gap-2 editable" contenteditable="true"><span class="font-bold text-gray-500">4.</span> <span class="gap-line"><span class="is-answer">Teil 4</span></span></p>
     </div>
   </div>
 </div>`
@@ -851,13 +851,17 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
     html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
   <h3 class="editable font-bold text-[14pt] mb-6 text-THEME-700" contenteditable="true">Aufgabe: Zahlenstrahl</h3>
   <p class="editable text-gray-900 mb-8" contenteditable="true">Trage die fehlenden Zahlen ein.</p>
-  <div class="relative w-full h-1 bg-gray-800 mt-8 mb-12 flex justify-between">
-    <div class="absolute -right-2 -top-1.5 w-0 h-0 border-y-[6px] border-y-transparent border-l-[10px] border-l-gray-800"></div>
-    <div class="relative h-6 w-0.5 bg-gray-800 -mt-3"><div class="absolute top-8 left-1/2 -translate-x-1/2 editable text-center font-bold" contenteditable="true">0</div></div>
-    <div class="relative h-4 w-0.5 bg-gray-800 -mt-2"></div>
-    <div class="relative h-6 w-0.5 bg-gray-800 -mt-3"><div class="absolute top-8 left-1/2 -translate-x-1/2 editable text-center font-bold text-THEME-600" contenteditable="true"><span class="is-answer">10</span></div></div>
-    <div class="relative h-4 w-0.5 bg-gray-800 -mt-2"></div>
-    <div class="relative h-6 w-0.5 bg-gray-800 -mt-3"><div class="absolute top-8 left-1/2 -translate-x-1/2 editable text-center font-bold" contenteditable="true">20</div></div>
+  <div class="zahlenstrahl-container relative mt-8 mb-8">
+    <div class="absolute left-0 right-0 top-[11px] h-1 bg-gray-800">
+      <div class="absolute -right-2 -top-1.5 w-0 h-0 border-y-[6px] border-y-transparent border-l-[10px] border-l-gray-800"></div>
+    </div>
+    <div class="flex justify-between relative">
+      <div class="zahlenstrahl-tick flex flex-col items-center"><div class="h-6 w-0.5 bg-gray-800"></div><div class="editable text-center font-bold mt-1" style="min-width:1.5rem" contenteditable="true">0</div></div>
+      <div class="zahlenstrahl-tick flex flex-col items-center"><div class="h-6 w-0.5 bg-gray-800"></div><div class="editable text-center font-bold mt-1" style="min-width:1.5rem" contenteditable="true">&nbsp;</div></div>
+      <div class="zahlenstrahl-tick flex flex-col items-center"><div class="h-6 w-0.5 bg-gray-800"></div><div class="editable text-center font-bold mt-1 text-THEME-600" style="min-width:1.5rem" contenteditable="true"><span class="is-answer">10</span></div></div>
+      <div class="zahlenstrahl-tick flex flex-col items-center"><div class="h-6 w-0.5 bg-gray-800"></div><div class="editable text-center font-bold mt-1" style="min-width:1.5rem" contenteditable="true">&nbsp;</div></div>
+      <div class="zahlenstrahl-tick flex flex-col items-center"><div class="h-6 w-0.5 bg-gray-800"></div><div class="editable text-center font-bold mt-1" style="min-width:1.5rem" contenteditable="true">20</div></div>
+    </div>
   </div>
 </div>`
   },
@@ -975,13 +979,13 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
     html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
   <h3 class="editable font-bold text-[14pt] mb-6 text-THEME-700" contenteditable="true">Aufgabe: Experten-Interview</h3>
   <div class="flex gap-6 mb-6">
-    <div class="w-1/2 border-b-2 border-gray-400 pb-1 flex items-end">
-      <span class="font-bold text-gray-500 uppercase tracking-wider text-xs mr-3 editable" contenteditable="true">Interview-Partner:</span> 
-      <span class="flex-1 editable font-bold text-lg text-THEME-600" contenteditable="true"><span class="is-answer italic">Herr Müller</span></span>
+    <div class="w-1/2 border-b-2 border-gray-400 pb-1 flex items-baseline gap-2">
+      <span class="font-bold text-gray-500 uppercase tracking-wider text-xs shrink-0 editable" contenteditable="true">Interview-Partner:</span>
+      <span class="flex-1 editable text-THEME-600" contenteditable="true"><span class="is-answer italic">Herr Müller</span></span>
     </div>
-    <div class="w-1/2 border-b-2 border-gray-400 pb-1 flex items-end">
-      <span class="font-bold text-gray-500 uppercase tracking-wider text-xs mr-3 editable" contenteditable="true">Thema:</span> 
-      <span class="flex-1 editable font-bold text-lg text-THEME-600" contenteditable="true"><span class="is-answer italic">Beruf Bäcker</span></span>
+    <div class="w-1/2 border-b-2 border-gray-400 pb-1 flex items-baseline gap-2">
+      <span class="font-bold text-gray-500 uppercase tracking-wider text-xs shrink-0 editable" contenteditable="true">Thema:</span>
+      <span class="flex-1 editable text-THEME-600" contenteditable="true"><span class="is-answer italic">Beruf Bäcker</span></span>
     </div>
   </div>
   <h4 class="font-bold text-gray-900 mb-2 editable" contenteditable="true">Meine Notizen:</h4>
@@ -1015,39 +1019,42 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
     html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
   <h3 class="editable font-bold text-[14pt] mb-2 text-THEME-700" contenteditable="true">Aufgabe: Suchsel</h3>
   <p class="editable text-gray-900 mb-6" contenteditable="true">Finde die versteckten Wörter. Sie können von links nach rechts oder von oben nach unten gelesen werden.</p>
-  <div class="flex gap-10">
-    <table class="border-collapse border-4 border-gray-800 font-mono text-xl font-bold text-center uppercase bg-white">
-      <tbody>
-        <tr>
-          <td class="border border-gray-300 w-10 h-10 editable" contenteditable="true">H</td>
-          <td class="border border-gray-300 w-10 h-10 editable bg-THEME-100" contenteditable="true"><span class="is-answer text-THEME-800">B</span></td>
-          <td class="border border-gray-300 w-10 h-10 editable bg-THEME-100" contenteditable="true"><span class="is-answer text-THEME-800">A</span></td>
-          <td class="border border-gray-300 w-10 h-10 editable bg-THEME-100" contenteditable="true"><span class="is-answer text-THEME-800">U</span></td>
-          <td class="border border-gray-300 w-10 h-10 editable bg-THEME-100" contenteditable="true"><span class="is-answer text-THEME-800">M</span></td>
-        </tr>
-        <tr>
-          <td class="border border-gray-300 w-10 h-10 editable bg-THEME-100" contenteditable="true"><span class="is-answer text-THEME-800">E</span></td>
-          <td class="border border-gray-300 w-10 h-10 editable" contenteditable="true">X</td>
-          <td class="border border-gray-300 w-10 h-10 editable" contenteditable="true">L</td>
-          <td class="border border-gray-300 w-10 h-10 editable" contenteditable="true">P</td>
-          <td class="border border-gray-300 w-10 h-10 editable" contenteditable="true">Q</td>
-        </tr>
-        <tr>
-          <td class="border border-gray-300 w-10 h-10 editable bg-THEME-100" contenteditable="true"><span class="is-answer text-THEME-800">I</span></td>
-          <td class="border border-gray-300 w-10 h-10 editable" contenteditable="true">A</td>
-          <td class="border border-gray-300 w-10 h-10 editable" contenteditable="true">S</td>
-          <td class="border border-gray-300 w-10 h-10 editable" contenteditable="true">D</td>
-          <td class="border border-gray-300 w-10 h-10 editable" contenteditable="true">F</td>
-        </tr>
-      </tbody>
-    </table>
-    <div class="flex-1 bg-gray-50 p-6 rounded-xl border border-gray-200">
-      <h4 class="font-bold text-gray-900 mb-4 editable uppercase tracking-wider" contenteditable="true">Diese Wörter sind versteckt:</h4>
-      <ul class="list-disc pl-5 editable text-gray-900 leading-loose text-lg font-bold" contenteditable="true">
-        <li>BAUM</li>
-        <li>EI</li>
-      </ul>
-    </div>
+  <table class="border-collapse border-4 border-gray-800 font-mono text-base text-center uppercase bg-white mx-auto mb-6">
+    <tbody>
+${(() => {
+  const grid = [
+    'BAUMXKLPQRWD',
+    'GNOSVJZCFHEY',
+    'TWRHAUSBDKIM',
+    'PLEGNJVQXCZF',
+    'STIERWKDHMBA',
+    'VGNPLQJXCFZO',
+    'DHKMWFREIBST',
+    'ACPLXNVGQJZR',
+    'OEGSBDHKMWFN',
+    'LPVQJXCATZGS',
+    'RKDHMWFNBEOP',
+    'STAGNJVQXCLZ'
+  ];
+  const ans = new Set([
+    '0,0','0,1','0,2','0,3',
+    '2,3','2,4','2,5','2,6',
+    '4,1','4,2','4,3','4,4',
+    '6,5','6,6','6,7','6,8',
+    '1,10','2,10'
+  ]);
+  return grid.map((row, r) =>
+    '      <tr>\n' + row.split('').map((ch, c) => {
+      const inner = ans.has(r+','+c) ? '<span class="is-highlight-answer">'+ch+'</span>' : ch;
+      return '        <td class="border border-gray-300 w-8 h-8 editable" contenteditable="true">'+inner+'</td>';
+    }).join('\n') + '\n      </tr>'
+  ).join('\n');
+})()}
+    </tbody>
+  </table>
+  <div class="suchsel-woerter bg-gray-50 p-4 rounded-xl border border-gray-200 mt-4">
+    <h4 class="text-gray-900 mb-2 editable uppercase tracking-wider text-sm" contenteditable="true">Versteckte Wörter:</h4>
+    <p class="editable text-gray-500 text-sm" contenteditable="true">BAUM, EI, HAUS, TIER, FREI</p>
   </div>
 </div>`
   },
@@ -1107,10 +1114,10 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
   <p class="editable text-gray-900 mb-4" contenteditable="true">Setze das Verb in der Klammer in der passenden Personalform ein.</p>
   <div class="leading-loose space-y-1">
     <p class="editable text-gray-900" contenteditable="true">
-      Gestern <span class="gap-line min-w-[100px] inline-block text-center"><span class="is-answer text-THEME-600 italic">fiel</span></span> der Junge auf die Nase. (fallen)
+      Gestern <span class="gap-line min-w-[100px] inline-block text-center"><span class="is-answer text-THEME-600 italic">fiel</span></span> (fallen) der Junge auf die Nase.
     </p>
     <p class="editable text-gray-900" contenteditable="true">
-      Wir <span class="gap-line min-w-[100px] inline-block text-center"><span class="is-answer text-THEME-600 italic">lachten</span></span> über den lustigen Witz. (lachen)
+      Wir <span class="gap-line min-w-[100px] inline-block text-center"><span class="is-answer text-THEME-600 italic">lachten</span></span> (lachen) über den lustigen Witz.
     </p>
   </div>
 </div>`
