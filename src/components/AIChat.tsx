@@ -1,8 +1,17 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { ChatMessage } from '../types';
+import { ChatMessage, ToolCallRecord } from '../types';
 import { GoogleGenAI } from '@google/genai';
 import ReactMarkdown from 'react-markdown';
 import { EXERCISE_TEMPLATES } from '../constants';
+import {
+  TOOL_DECLARATIONS,
+  executeTool,
+  formatBlockOverview,
+  formatTemplatesForPrompt,
+  type ToolContext,
+  type ToolResult,
+} from '../lib/aiTools';
+import { withRetry } from '../lib/retry';
 
 interface AIChatProps {
   chatHistory: ChatMessage[];
@@ -40,6 +49,15 @@ export function AIChat({
   const [showSnapshotFeedback, setShowSnapshotFeedback] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasRequestedDraftRef = useRef(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Textarea-Höhe zurücksetzen, wenn der Input-State von außen geleert wird
+  // (z.B. nach dem Senden). onInput triggert dabei nicht, deshalb hier explizit.
+  useEffect(() => {
+    if (textareaRef.current && input === '') {
+      textareaRef.current.style.height = 'auto';
+    }
+  }, [input]);
 
   // Helper to prune history for API calls to avoid token limits
   const pruneHistoryForApi = (history: ChatMessage[], maxMessages = 15) => {
@@ -99,7 +117,14 @@ export function AIChat({
           
           const messageContent = chatHistory[0].parts ? chatHistory[0].parts : chatHistory[0].content;
           setStreamingText('');
-          const stream = await chat.sendMessageStream({ message: messageContent as any });
+          const stream = await withRetry(
+            () => chat.sendMessageStream({ message: messageContent as any }),
+            {
+              onRetry: (attempt) => {
+                setStreamingText(`⏳ Server \u00fcberlastet – Versuch ${attempt + 1}/4 …`);
+              },
+            },
+          );
           let fullText = '';
           for await (const chunk of stream) {
             fullText += (chunk.text || '');
@@ -163,7 +188,19 @@ export function AIChat({
               maxOutputTokens: 32768,
               systemInstruction: `Du bist ein Frontend-Entwickler und Lehrmittelautor. Der Nutzer hat ein Dokument mit Aufgaben hochgeladen und Anweisungen gegeben.
 Generiere nun den vollständigen HTML-Code für das Dossier basierend auf dem Dokument und den Anweisungen.
-Verwende Tailwind CSS für das Styling. Das Farbschema ist: ${theme || 'blue'}.
+Verwende Tailwind CSS für das Styling.
+
+FARBSCHEMA (OBERSTE STYLE-REGEL – MUSS SICHTBAR SEIN):
+Das Farbschema ist "${theme || 'blue'}". Das komplette Dossier MUSS in dieser Farbe gestaltet sein.
+Verwende IMMER ${theme || 'blue'}-Varianten der Tailwind-Farbskala – NIEMALS schwarz, grau oder default.
+Konkrete Pflicht-Klassen:
+- Haupttitel <h1>: class="editable text-[36pt] font-black text-${theme || 'blue'}-700 text-center"
+- Kapitel <h2>: class="editable text-[20pt] font-bold text-${theme || 'blue'}-700 border-b-2 border-${theme || 'blue'}-300 pb-1"
+- Aufgaben-Titel <h3>: class="editable font-bold text-[14pt] mb-1 text-${theme || 'blue'}-700"
+- Merkblatt-Container: class="bg-${theme || 'blue'}-50 border-l-4 border-${theme || 'blue'}-500 p-4 rounded-r-lg"
+- Tabellen-Header <th>: class="editable bg-${theme || 'blue'}-100 border border-${theme || 'blue'}-300 p-2 font-bold"
+- Akzent-Borders: border-${theme || 'blue'}-200 / border-${theme || 'blue'}-300
+Prüfe am Ende der Generierung: Jede Überschrift und jeder Akzent muss ${theme || 'blue'}-Klassen enthalten. Wenn nicht → korrigiere.
 
 VOLLSTÄNDIGKEIT (PFLICHT – OBERSTE PRIORITÄT):
 Du MUSST JEDE EINZELNE Aufgabe aus dem hochgeladenen Dokument übernehmen – ohne Ausnahme.
@@ -243,7 +280,14 @@ Strukturiere das HTML wie folgt:
 
           const messageContent = chatHistory[0].parts ? chatHistory[0].parts : chatHistory[0].content;
           setStreamingText('');
-          const stream = await chat.sendMessageStream({ message: messageContent as any });
+          const stream = await withRetry(
+            () => chat.sendMessageStream({ message: messageContent as any }),
+            {
+              onRetry: (attempt) => {
+                setStreamingText(`⏳ Server \u00fcberlastet – Versuch ${attempt + 1}/4 …`);
+              },
+            },
+          );
           let html = '';
           for await (const chunk of stream) {
             html += (chunk.text || '');
@@ -290,110 +334,334 @@ Strukturiere das HTML wie folgt:
     setInput('');
     setIsGenerating(true);
 
-    // Strip base64 images to save tokens and prevent "Token count exceeded" errors
-    const cleanHtml = currentHtml.replace(/src="data:image\/[^;]+;base64,[^"]+"/g, 'src="[BILD_ENTFERNT_UM_TOKENS_ZU_SPAREN]"');
-
-    const truncatedHtml = cleanHtml.length > 200000 
-      ? cleanHtml.substring(0, 200000) + "\n... [HTML gekürzt wegen Überlänge]" 
-      : cleanHtml;
-
-    try {
-      const selectedTemplates = EXERCISE_TEMPLATES.filter(t => selectedTemplateIds?.includes(t.id));
-      const templatesHtml = selectedTemplates.map(t => `Template ID: ${t.id}\nName: ${t.name}\nHTML: ${t.html}`).join('\n\n---\n\n');
-
-      const chat = aiClient.chats.create({
-        model: 'gemini-3-flash-preview',
-        history: pruneHistoryForApi(chatHistory),
-        config: {
-          systemInstruction: isDrafting 
-            ? `Du bist ein erfahrener Lehrmittelautor. Passe den Entwurf basierend auf dem Feedback des Nutzers an. Antworte in Markdown. Generiere noch keinen HTML-Code.
-            
-            WICHTIG FÜR AUFGABEN (STRIKTER MODUS):
-            Du darfst für Aufgaben AUSSCHLIESSLICH die mitgelieferten HTML-Templates verwenden. Erfinde kein eigenes HTML für Aufgaben.
-            Beachte zudem folgende spezifische Anweisungen des Lehrers: ${taskInstructions || 'Keine'}
-
-            VERFÜGBARE TEMPLATES:
-            ${templatesHtml || 'Keine spezifischen Templates gewählt. Nutze Standard-Strukturen.'}
-
-            STRUKTUR & NUMMERIERUNG (WICHTIG):
-            - Kapitel (h1): "Kapitel 1: [Titel]", "Kapitel 2: [Titel]" etc. (Wenn es nur 1 Kapitel gibt, lass die Nummer weg).
-            - Unterthemen (h2): "A: [Titel]", "B: [Titel]" etc.
-            - Aufgaben (h3): "Aufgabe [Themenbuchstabe].[Nummer]: [Titel]" (z.B. "Aufgabe A.1: ...", "Aufgabe B.2: ...").`
-            : `Du bist ein hilfreicher Assistent für Lehrpersonen.
-Hier ist der aktuelle HTML-Code des Dossiers, an dem der Nutzer arbeitet:
-\`\`\`html
-${truncatedHtml}
-\`\`\`
-Aktuelles Farbschema: ${theme || 'blue'}
+    // --------------- Drafting-Mode: Feedback zum Entwurf (unverändert, kein Tool-Calling) ---------------
+    if (isDrafting) {
+      try {
+        const templatesPrompt = formatTemplatesForPrompt(selectedTemplateIds);
+        const chat = aiClient.chats.create({
+          model: 'gemini-3-flash-preview',
+          history: pruneHistoryForApi(chatHistory),
+          config: {
+            systemInstruction: `Du bist ein erfahrener Lehrmittelautor. Passe den Entwurf basierend auf dem Feedback des Nutzers an. Antworte in Markdown. Generiere noch keinen HTML-Code.
 
 WICHTIG FÜR AUFGABEN (STRIKTER MODUS):
 Du darfst für Aufgaben AUSSCHLIESSLICH die mitgelieferten HTML-Templates verwenden. Erfinde kein eigenes HTML für Aufgaben.
 Beachte zudem folgende spezifische Anweisungen des Lehrers: ${taskInstructions || 'Keine'}
 
 VERFÜGBARE TEMPLATES:
-${templatesHtml || 'Keine spezifischen Templates gewählt. Nutze Standard-Strukturen.'}
+${templatesPrompt}
 
-STRUKTUR & NUMMERIERUNG (WICHTIG):
-- Kapitel (h1): "Kapitel 1: [Titel]", "Kapitel 2: [Titel]" etc. (Wenn es nur 1 Kapitel gibt, lass die Nummer weg).
-- Unterthemen (h2): "A: [Titel]", "B: [Titel]" etc.
-- Aufgaben (h3): "Aufgabe [Themenbuchstabe].[Nummer]: [Titel]" (z.B. "Aufgabe A.1: ...", "Aufgabe B.2: ...").
-- Wenn du eine NEUE Aufgabe generierst, erstelle KEINE Kapitel (h1) oder Unterthemen (h2). Nutze nur h3 für den Aufgabentitel.
-- Für längere Freitext-Antworten (z.B. Professor Zipp Schreibaufgaben oder "Was fällt dir auf?" Fragen) nutze IMMER: <div class="schreib-linie editable" contenteditable="true"><span class="is-answer">Musterlösung</span></div>
-- Für Lückentexte nutze: <span class="gap-line is-answer" contenteditable="true">Lösung</span>
-- Nutze für Titel (h1, h2, h3) immer die Klasse "editable".
+STRUKTUR & NUMMERIERUNG:
+- Kapitel (h1): "Kapitel 1: …", "Kapitel 2: …" (bei nur 1 Kapitel Nummer weglassen)
+- Unterthemen (h2): "A: …", "B: …"
+- Aufgaben (h3): "Aufgabe [Themenbuchstabe].[Nummer]: [Titel]"`,
+          },
+        });
 
-Du kannst das Dossier direkt bearbeiten, indem du spezielle <action>-Tags in deiner Antwort verwendest:
-- Um das Dossier zu ändern: <action type="update_html">VOLLSTÄNDIGER geänderter HTML-Code hier...</action>
-- Um das Farbschema zu ändern: <action type="update_theme">blue|emerald|violet|indigo|amber|rose</action>
+        setStreamingText('');
+        const stream = await withRetry(
+          () => chat.sendMessageStream({ message: userMessage.content }),
+          {
+            onRetry: (attempt) => {
+              setStreamingText(`⏳ Server \u00fcberlastet – Versuch ${attempt + 1}/4 …`);
+            },
+          },
+        );
+        let responseText = '';
+        for await (const chunk of stream) {
+          responseText += (chunk.text || '');
+          setStreamingText(responseText);
+        }
+        setStreamingText('');
 
-KRITISCH – MINIMALE ÄNDERUNG (HÖCHSTE PRIORITÄT):
-Wenn du <action type="update_html"> verwendest, MUSST du den EXAKT GLEICHEN HTML-Code des bestehenden Dossiers zurückgeben – mit NUR den minimal notwendigen Änderungen für die konkrete Anfrage.
-⛔ VERBOTEN: Den HTML von Grund auf neu generieren oder umstrukturieren
-⛔ VERBOTEN: Aufgaben, Texte, Tabellen, Lückentexte oder Übungen ändern, die NICHT explizit in der Anfrage genannt wurden
-⛔ VERBOTEN: Seitenstruktur, page-breaks, Container-Reihenfolge oder Layout verändern
-⛔ VERBOTEN: Neue Aufgaben erfinden oder bestehende ersetzen
-✅ ERLAUBT: Nur den exakt angefragten Teil ändern (z.B. einen Satz in einem Merkblatt ergänzen)
+        onUpdateHistory([
+          ...newHistory,
+          { role: 'model', content: responseText || 'Keine Antwort erhalten.' },
+        ]);
+      } catch (error: any) {
+        console.error('Chat error (drafting):', error);
+        let errorMessage = `Fehler: ${error.message}`;
+        if (error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED')) {
+          errorMessage = '⚠️ Dein KI-Quota für heute ist aufgebraucht. Bitte versuche es später erneut.';
+        }
+        onUpdateHistory([...newHistory, { role: 'model', content: errorMessage }]);
+      } finally {
+        setIsGenerating(false);
+      }
+      return;
+    }
 
-Strategie: Kopiere den bestehenden HTML-Code vollständig. Suche gezielt die angefragte Stelle. Ändere nur diese. Gib das Ergebnis zurück.
+    // --------------- Editor-Mode: Function-Calling mit Block-Tools ---------------
 
-Beantworte Fragen und gib Erklärungen ansonsten normal in Markdown (ohne <action>-Tag).
-Wenn du <action type="update_html"> nutzt, antworte NUR mit diesem Tag und dem vollständigen Code darin.`,
+    // Snapshot einmal pro Turn (bevor irgendein Tool ausgeführt wird)
+    let snapshotTakenThisTurn = false;
+    const takeSnapshotOnce = (label: string) => {
+      if (snapshotTakenThisTurn || !onAddSnapshot) return;
+      onAddSnapshot(label);
+      snapshotTakenThisTurn = true;
+      setShowSnapshotFeedback(true);
+      setTimeout(() => setShowSnapshotFeedback(false), 2000);
+    };
+
+    // Mutable "live"-State für den Tool-Context. Tools greifen auf den aktuellsten
+    // Stand innerhalb dieses Turns zu; Updates werden per onUpdateHtml/onUpdateTheme
+    // zusätzlich an die App propagiert.
+    let liveHtml = currentHtml;
+    let liveTheme = theme || 'blue';
+
+    const ctx: ToolContext = {
+      getHtml: () => liveHtml,
+      getTheme: () => liveTheme,
+      setHtml: (h: string) => {
+        liveHtml = h;
+        onUpdateHtml?.(h);
+      },
+      setTheme: (t: string) => {
+        liveTheme = t;
+        onUpdateTheme?.(t);
+      },
+      aiClient,
+      onProgress: (msg) => setStreamingText((prev) => (prev ? prev + '\n_' + msg + '_' : '_' + msg + '_')),
+    };
+
+    try {
+      const templatesPrompt = formatTemplatesForPrompt(selectedTemplateIds);
+      const blockOverview = formatBlockOverview(currentHtml);
+
+      const systemInstruction = `Du bist ein hilfreicher Assistent für Lehrpersonen beim Bearbeiten eines Dossiers.
+
+AKTUELLES FARBSCHEMA: ${liveTheme}
+
+AKTUELLE BLÖCKE IM DOSSIER (Aufgaben & Merkblätter):
+${blockOverview}
+
+TOOLS ZUM BEARBEITEN DES DOSSIERS:
+- get_block(block_title) – liefert den HTML-Code eines Blocks, wenn du ihn für eine Änderung sehen musst.
+- update_block(block_title, new_html) – ersetzt einen einzelnen Block.
+- insert_template(template_id, title, after_block_title?) – **BEVORZUGT zum Einfügen einer neuen Aufgabe**, wenn der Typ einem Template entspricht. Fügt das EXAKTE Template-HTML mit allen Platzhaltern (insbesondere image-placeholder-trigger für Bilder) ein.
+- insert_block(new_html, after_block_title?) – nur als FALLBACK: freier HTML-Block, wenn kein Template passt.
+- delete_block(block_title) – entfernt einen Block.
+- update_theme(theme) – wechselt das Farbschema (blue|emerald|violet|indigo|amber|rose).
+- generate_image(prompt, target_block_title, aspect_ratio?) – generiert ein Bild und fügt es in den Ziel-Block ein (ersetzt den image-placeholder-trigger des Templates).
+
+EIN BLOCK = EINE AUFGABE (striktes Gebot):
+- Eine einzelne Aufgabe MUSS genau EINEN avoid-break-Block bilden. Titel (h3), Aufgabenstellung, Eingabefelder, Bild-Platzhalter etc. gehören ALLE in den gleichen <div class="avoid-break …">.
+- Rufe NIEMALS mehrere insert_block / insert_template-Calls hintereinander auf, um eine einzige Aufgabe aufzuspalten.
+- Erfinde NIEMALS eigene Bild-Platzhalter mit Texten wie "Bild wird generiert", "Platzhalter für Bild" o.Ä. – nutze IMMER die Template-Struktur mit Klasse "image-placeholder-trigger", die bereits in den Templates vorhanden ist.
+
+WORKFLOW FÜR "Neue Aufgabe mit Bild" (z.B. Steckbrief zu einem Thema):
+1. insert_template(template_id="steckbrief", title="Aufgabe X.N: Steckbrief zu <Thema>")
+   → Antwort enthält in "details.inserted_block_html" das gerade eingefügte HTML mit Standard-Platzhaltern (z.B. Name/Lebensraum/Nahrung bei Steckbrief).
+2. WENN der Nutzer ein konkretes Thema nannte (z.B. "CSS", "die Eiche", "Venedig"):
+   SOFORT update_block(block_title="Aufgabe X.N: …", new_html=<angepasster Block>) aufrufen.
+   - Ersetze die Default-Labels durch thematisch passende (biologischer Steckbrief: Name/Lebensraum/Nahrung; technischer Steckbrief: Name der Technologie/Zweck/Wichtige Konzepte; Stadt-Steckbrief: Name/Einwohner/Sehenswürdigkeiten; …).
+   - Fülle die rechten Spalten mit sinnvollen Beispiel-Antworten zum Thema (als <span class="is-answer">…</span>).
+   - Behalte die HTML-STRUKTUR (alle Klassen, das border-Layout, den image-placeholder-trigger bzw. ai-image-slot) EXAKT bei, ändere NUR die Label- und Antwort-Texte.
+3. generate_image(prompt="zum Thema passendes Motiv", target_block_title="Aufgabe X.N: …") – ersetzt den Platzhalter mit dem Bild.
+
+NIEMALS insert_block-Calls zwischen diesen Schritten einstreuen! Der Block, den insert_template liefert, bleibt durchgängig die Arbeits-Einheit.
+
+Es gibt KEIN Tool, um das gesamte Dossier auf einmal zu ersetzen. Für jede Änderung musst du die obigen Block-Tools kombinieren. Wenn eine gewünschte Änderung so umfangreich ist, dass sie nur als kompletter Neuaufbau Sinn ergibt: Sage dem Nutzer, dass er stattdessen über den Wizard ein neues Dossier starten soll.
+
+ARBEITSWEISE:
+1. Identifiziere anhand der Block-Übersicht, welche Blöcke du ändern musst.
+2. Wenn du den Inhalt eines Blocks nicht kennst (aber ändern willst), rufe zuerst get_block auf.
+3. Ändere nur die angefragten Blöcke. Verändere niemals andere Blöcke oder das Layout (page-breaks, Container) ohne expliziten Auftrag.
+4. Beantworte Fragen und Erklärungen in Markdown, OHNE Tools aufzurufen.
+
+MEHRDEUTIGKEIT (SEHR WICHTIG – STRIKTE REGEL):
+Wenn der Nutzer "das Lückentext-Template", "die Aufgabe" o.ä. ohne Index oder präzisen Titel nennt UND es in der Block-Übersicht mehrere passende Blöcke gibt:
+- Rufe NIEMALS einfach mehrere update_block hintereinander auf, um "alle" zu bearbeiten.
+- Rufe NIEMALS update_block für ALLE Matches auf.
+- STATTDESSEN: Antworte mit einer Markdown-Rückfrage und liste die Kandidaten mit ihren #N-Indizes auf, z.B.:
+  "Ich habe mehrere passende Blöcke gefunden – welchen meinst du?
+   - #2 Aufgabe 1: Lückentext
+   - #3 Aufgabe 2: Lückentext
+   Bitte gib die Nummer an (z.B. #2)."
+  Rufe dann in dieser Runde KEIN Tool auf.
+- Erst wenn der Nutzer die Auswahl präzisiert hat, machst du update_block mit "#N" als block_title.
+
+INSERT-VERHALTEN (NEUE AUFGABE EINFÜGEN):
+Wenn der Nutzer "füge eine neue Aufgabe/Tabelle/Lückentext ein" sagt:
+- Prüfe die direkt davor liegende Aufgabe. Falls der User nicht explizit sagt, ob es eigenständig oder eine Teilaufgabe sein soll, FRAGE zurück, BEVOR du insert_block aufrufst:
+  "Soll das eine eigenständige neue Aufgabe werden (z.B. 'Aufgabe A.3'), oder eine Teilaufgabe der vorherigen (z.B. 'Aufgabe A.2b')?"
+- Bei eigenständiger Aufgabe: Nummeriere fortlaufend im vorhandenen Schema (A.1, A.2, A.3 …).
+- Bei Teilaufgabe: Verwende denselben Haupt-Index mit Buchstaben-Suffix (A.2a, A.2b, A.2c …).
+- Erst NACH der Rückfrage rufst du insert_block auf.
+
+LÜCKENTEXT-QUALITÄT (PFLICHT – STRIKTE REGELN, sonst ist die Aufgabe kaputt):
+
+Jede Lücke MUSS so in den Satz eingebettet sein, dass sie GENAU DIE STELLE markiert, an der das Lösungswort stehen soll. Die Lösung steht IN der Lücke (als inneres <span class="is-answer">).
+
+Das EXAKTE Format (genau so, keine Varianten):
+  <span class="gap-line"><span class="is-answer">LÖSUNG</span></span>
+
+KORREKTES VOLLSTÄNDIGES LÜCKENTEXT-BEISPIEL (so und nicht anders generieren!):
+<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-${liveTheme}-700" contenteditable="true">Aufgabe A.1: Wortfamilien ergänzen</h3>
+  <p class="editable text-gray-600 mb-3 italic" contenteditable="true">Setze die passenden Wörter ein: Eiche, Wurzel, Blätter, Herbst</p>
+  <div class="leading-loose">
+    <p class="editable" contenteditable="true">Im <span class="gap-line"><span class="is-answer">Herbst</span></span> verfärben sich die <span class="gap-line"><span class="is-answer">Blätter</span></span> der <span class="gap-line"><span class="is-answer">Eiche</span></span> bunt. Ihre lange <span class="gap-line"><span class="is-answer">Wurzel</span></span> reicht tief in den Boden.</p>
+  </div>
+</div>
+
+VERBOTEN (macht die Aufgabe kaputt):
+  <p>Im ___ verfärben sich die ___ der ___ bunt...</p>
+  <p>Lösungen: Herbst, Blätter, Eiche</p>
+
+Das obige ist FALSCH, weil:
+1. "___" ist keine echte Lücke, sondern nur Unterstriche.
+2. Die Lösungen werden am Ende gesammelt statt in den Lücken selbst.
+3. Es gibt keine <span class="gap-line"><span class="is-answer">…</span></span>-Struktur.
+
+Produziere NIEMALS gesammelte Lösungen am Ende. Produziere NIEMALS Unterstriche "___" als Lücke. Nutze IMMER die verschachtelte gap-line/is-answer-Span-Struktur wie im Beispiel.
+
+AUFGABEN-KONVENTIONEN (bei update_block / insert_block):
+- Jeder Aufgaben-Block MUSS ein <div class="avoid-break mb-8 mt-4 text-[12pt]"> mit <h3 class="editable font-bold text-[14pt] mb-1 text-${liveTheme}-700" contenteditable="true">TITEL</h3> sein.
+- Lückentexte: <span class="gap-line"><span class="is-answer">Lösung</span></span> (siehe Beispiel oben!)
+- Reine Lücke (ohne vorgegebene Lösung): <span class="gap-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+- Längere Freitext-Antworten: <div class="schreib-linie editable" contenteditable="true"><span class="is-answer">Musterlösung</span></div>
+- Anstreichen: <span class="is-highlight-answer">Wort</span>
+- Durchstreichen: <span class="is-strikethrough-answer">Wort</span>
+- Editierbarer Text: Klasse "editable" + contenteditable="true".
+
+LEHRER-ANWEISUNGEN: ${taskInstructions || 'Keine'}
+
+VERFÜGBARE TEMPLATES ALS STRUKTURREFERENZ:
+${templatesPrompt}`;
+
+      const chat = aiClient.chats.create({
+        model: 'gemini-3-flash-preview',
+        history: pruneHistoryForApi(chatHistory),
+        config: {
+          systemInstruction,
+          tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
         },
       });
 
-      setStreamingText('');
-      const stream = await chat.sendMessageStream({ message: userMessage.content });
-      let responseText = '';
-      for await (const chunk of stream) {
-        responseText += (chunk.text || '');
-        setStreamingText(responseText);
+      const toolCallRecords: ToolCallRecord[] = [];
+      let finalText = '';
+      // Erste Nachricht: User-Input
+      let nextMessage: any = userMessage.content;
+
+      // Multi-Turn-Loop: solange die KI Tools aufruft, weiter senden
+      const MAX_TOOL_ROUNDS = 6;
+      for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+        setStreamingText('');
+        const stream = await withRetry(
+          () => chat.sendMessageStream({ message: nextMessage }),
+          {
+            onRetry: (attempt) => {
+              setStreamingText(`⏳ Server \u00fcberlastet – Versuch ${attempt + 1}/4 …`);
+            },
+          },
+        );
+
+        let roundText = '';
+        const roundCalls: Array<{ name: string; args: Record<string, any>; id?: string }> = [];
+
+        for await (const chunk of stream) {
+          if (chunk.text) {
+            roundText += chunk.text;
+            setStreamingText(roundText);
+          }
+          const fc = (chunk as any).functionCalls;
+          if (Array.isArray(fc) && fc.length > 0) {
+            for (const call of fc) {
+              roundCalls.push({
+                name: call.name,
+                args: call.args ?? {},
+                id: call.id,
+              });
+            }
+          }
+        }
+
+        finalText += (finalText && roundText ? '\n\n' : '') + roundText;
+
+        // Legacy-Fallback: alte <action>-Tags aus Text parsen
+        if (roundCalls.length === 0 && roundText.includes('<action')) {
+          takeSnapshotOnce('Vor KI-Aktion (legacy)');
+          const htmlMatch = roundText.match(/<action type="update_html">([\s\S]*?)<\/action>/);
+          if (htmlMatch) {
+            liveHtml = htmlMatch[1].trim();
+            onUpdateHtml?.(liveHtml);
+            toolCallRecords.push({
+              name: 'update_full_html (legacy)',
+              args: {},
+              success: true,
+              message: 'HTML über Legacy-Action-Tag aktualisiert.',
+            });
+          }
+          const themeMatch = roundText.match(/<action type="update_theme">(.*?)<\/action>/);
+          if (themeMatch) {
+            liveTheme = themeMatch[1].trim();
+            onUpdateTheme?.(liveTheme);
+            toolCallRecords.push({
+              name: 'update_theme (legacy)',
+              args: { theme: liveTheme },
+              success: true,
+              message: `Theme auf ${liveTheme} gewechselt.`,
+            });
+          }
+        }
+
+        if (roundCalls.length === 0) break; // Keine weiteren Tools → Ende
+
+        // Snapshot EINMAL pro Turn (bevor mutierende Tools laufen)
+        const mutates = roundCalls.some(
+          (c) =>
+            c.name === 'update_block' ||
+            c.name === 'insert_block' ||
+            c.name === 'delete_block' ||
+            c.name === 'update_full_html' ||
+            c.name === 'generate_image' ||
+            c.name === 'update_theme',
+        );
+        if (mutates) {
+          takeSnapshotOnce(`Vor KI-Aktion (${roundCalls.map((c) => c.name).join(', ')})`);
+        }
+
+        // Tools ausführen
+        const functionResponses: any[] = [];
+        for (const call of roundCalls) {
+          let result: ToolResult;
+          try {
+            result = await executeTool(call.name, call.args, ctx);
+          } catch (err: any) {
+            result = { success: false, message: `Tool-Fehler: ${err?.message || String(err)}` };
+          }
+          toolCallRecords.push({
+            name: call.name,
+            args: call.args,
+            success: result.success,
+            message: result.message,
+          });
+          functionResponses.push({
+            functionResponse: {
+              name: call.name,
+              response: {
+                success: result.success,
+                message: result.message,
+                ...(result.details ? { details: result.details } : {}),
+              },
+            },
+          });
+        }
+
+        // Function-Responses an die KI zurückspielen
+        nextMessage = functionResponses;
       }
+
       setStreamingText('');
 
-      // Check for actions in the response
-      if (responseText.includes('<action')) {
-        // Take a snapshot before applying any action
-        if (onAddSnapshot) {
-          onAddSnapshot('Vor KI-Aktion');
-          setShowSnapshotFeedback(true);
-          setTimeout(() => setShowSnapshotFeedback(false), 2000);
-        }
-
-        // Parse actions
-        const htmlMatch = responseText.match(/<action type="update_html">([\s\S]*?)<\/action>/);
-        if (htmlMatch && onUpdateHtml) {
-          onUpdateHtml(htmlMatch[1].trim());
-        }
-
-        const themeMatch = responseText.match(/<action type="update_theme">(.*?)<\/action>/);
-        if (themeMatch && onUpdateTheme) {
-          onUpdateTheme(themeMatch[1].trim());
-        }
-      }
-      
       onUpdateHistory([
         ...newHistory,
-        { role: 'model', content: responseText || 'Keine Antwort erhalten.' },
+        {
+          role: 'model',
+          content: finalText || (toolCallRecords.length > 0 ? '(Aktionen ausgeführt)' : 'Keine Antwort erhalten.'),
+          toolCalls: toolCallRecords.length > 0 ? toolCallRecords : undefined,
+        },
       ]);
     } catch (error: any) {
       console.error('Chat error:', error);
@@ -401,10 +669,7 @@ Wenn du <action type="update_html"> nutzt, antworte NUR mit diesem Tag und dem v
       if (error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED')) {
         errorMessage = '⚠️ Dein KI-Quota für heute ist aufgebraucht. Bitte versuche es später erneut.';
       }
-      onUpdateHistory([
-        ...newHistory,
-        { role: 'model', content: errorMessage },
-      ]);
+      onUpdateHistory([...newHistory, { role: 'model', content: errorMessage }]);
     } finally {
       setIsGenerating(false);
     }
@@ -438,7 +703,19 @@ Wenn du <action type="update_html"> nutzt, antworte NUR mit diesem Tag und dem v
           maxOutputTokens: 32768,
           systemInstruction: `Du bist ein Frontend-Entwickler und Lehrmittelautor. Der Nutzer hat den Entwurf bestätigt.
 Generiere nun den vollständigen HTML-Code für das Dossier basierend auf dem Entwurf und dem Briefing.
-Verwende Tailwind CSS für das Styling. Das Farbschema ist: ${theme || 'blue'}.
+Verwende Tailwind CSS für das Styling.
+
+FARBSCHEMA (OBERSTE STYLE-REGEL – MUSS SICHTBAR SEIN):
+Das Farbschema ist "${theme || 'blue'}". Das komplette Dossier MUSS in dieser Farbe gestaltet sein.
+Verwende IMMER ${theme || 'blue'}-Varianten der Tailwind-Farbskala – NIEMALS schwarz, grau oder default.
+Konkrete Pflicht-Klassen:
+- Haupttitel <h1>: class="editable text-[36pt] font-black text-${theme || 'blue'}-700 text-center"
+- Kapitel <h2>: class="editable text-[20pt] font-bold text-${theme || 'blue'}-700 border-b-2 border-${theme || 'blue'}-300 pb-1"
+- Aufgaben-Titel <h3>: class="editable font-bold text-[14pt] mb-1 text-${theme || 'blue'}-700"
+- Merkblatt-Container: class="bg-${theme || 'blue'}-50 border-l-4 border-${theme || 'blue'}-500 p-4 rounded-r-lg"
+- Tabellen-Header <th>: class="editable bg-${theme || 'blue'}-100 border border-${theme || 'blue'}-300 p-2 font-bold"
+- Akzent-Borders: border-${theme || 'blue'}-200 / border-${theme || 'blue'}-300
+Prüfe am Ende der Generierung: Jede Überschrift und jeder Akzent muss ${theme || 'blue'}-Klassen enthalten. Wenn nicht → korrigiere.
 
 WICHTIG FÜR AUFGABEN:
 Nutze die mitgelieferten HTML-Templates als STRUKTURELLE VORLAGE (HTML-Klassen, Layout). Die Templates enthalten absichtlich minimalen Platzhalter-Inhalt für manuelle Bearbeitung – beim GENERIEREN musst du den Inhalt massiv ausbauen!
@@ -503,7 +780,14 @@ Strukturiere das HTML wie folgt:
       });
 
       setStreamingText('');
-      const stream = await chat.sendMessageStream({ message: "Entwurf bestätigt. Generiere jetzt das HTML." });
+      const stream = await withRetry(
+        () => chat.sendMessageStream({ message: "Entwurf bestätigt. Generiere jetzt das HTML." }),
+        {
+          onRetry: (attempt) => {
+            setStreamingText(`⏳ Server \u00fcberlastet – Versuch ${attempt + 1}/4 …`);
+          },
+        },
+      );
       let html = '';
       for await (const chunk of stream) {
         html += (chunk.text || '');
@@ -534,7 +818,7 @@ Strukturiere das HTML wie folgt:
     <div className="flex flex-col h-full bg-gray-50 border-r border-gray-200 w-80 lg:w-96">
       <div className="p-4 bg-white border-b border-gray-200 shadow-sm z-10 relative">
         <h2 className="font-bold text-lg text-indigo-900 flex items-center gap-2">
-          <span>🤖</span>
+          <span>✨</span>
           KI-Assistent
         </h2>
         <p className="text-xs text-gray-500 mt-1">
@@ -564,7 +848,7 @@ Strukturiere das HTML wie folgt:
                 msg.role === 'user' ? 'bg-indigo-100 text-indigo-600' : 'bg-purple-100 text-purple-600'
               }`}
             >
-              {msg.role === 'user' ? '👤' : '🤖'}
+              {msg.role === 'user' ? '👤' : '✨'}
             </div>
             <div className="relative max-w-[80%]">
               <div
@@ -575,11 +859,30 @@ Strukturiere das HTML wie folgt:
                 }`}
               >
                 {msg.role === 'model' ? (
-                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  <>
+                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    {msg.toolCalls && msg.toolCalls.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-gray-100 flex flex-wrap gap-1">
+                        {msg.toolCalls.map((tc, i) => (
+                          <span
+                            key={i}
+                            title={tc.message || ''}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                              tc.success === false
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-emerald-100 text-emerald-700'
+                            }`}
+                          >
+                            {tc.success === false ? '⚠️' : '🔧'} {tc.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="whitespace-pre-wrap">
-                    {msg.content || (msg.parts && msg.parts.map((p: any, i: number) => 
-                      p.text ? <div key={i}>{p.text}</div> : 
+                    {msg.content || (msg.parts && msg.parts.map((p: any, i: number) =>
+                      p.text ? <div key={i}>{p.text}</div> :
                       p.inlineData ? <div key={i} className="mt-2 p-2 bg-indigo-700/30 rounded text-xs flex items-center gap-2">📎 {p.inlineData.mimeType} angehängt</div> : null
                     ))}
                   </div>
@@ -598,7 +901,7 @@ Strukturiere das HTML wie folgt:
         {(isGenerating || isGeneratingHtml) && (
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
-              🤖
+              ✨
             </div>
             <div className="p-3 bg-white border border-gray-200 rounded-2xl rounded-tl-none shadow-sm max-w-[85%]">
               {streamingText ? (
@@ -631,22 +934,37 @@ Strukturiere das HTML wie folgt:
       )}
 
       <div className="p-4 bg-white border-t border-gray-200">
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
+        <div className="flex items-end gap-2">
+          <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder={isDrafting ? "Änderungswünsche zum Entwurf..." : "Frag mich etwas..."}
-            className="flex-1 border border-gray-300 rounded-full px-4 py-2 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            onInput={(e) => {
+              // Auto-resize: Textarea wächst mit dem Inhalt nach oben, bis max 200px,
+              // danach scrollt der interne Inhalt.
+              const ta = e.currentTarget;
+              ta.style.height = 'auto';
+              ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
+            }}
+            onKeyDown={(e) => {
+              // Enter sendet; Shift+Enter erzeugt einen Zeilenumbruch.
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            rows={1}
+            placeholder={isDrafting ? "Änderungswünsche zum Entwurf..." : "Shift+Enter = neue Zeile"}
+            className="chat-textarea flex-1 border border-gray-300 rounded-2xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-none overflow-y-auto leading-relaxed"
             disabled={isGenerating || isGeneratingHtml}
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || isGenerating || isGeneratingHtml}
             className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+            title="Senden (Enter)"
           >
-            <span>🚀</span>
+            <span className="text-lg leading-none">➤</span>
           </button>
         </div>
       </div>

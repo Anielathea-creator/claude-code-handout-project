@@ -154,6 +154,43 @@
     cursor: grabbing;
   }
 
+  /* --- KI-BILD-SLOT: Float-Abstände garantieren --- */
+  /* Beim Float-Layout (z.B. Steckbrief) muss zwischen Bild und wrappenden
+     Schreiblinien IMMER ein sichtbarer Abstand bleiben, auch wenn der User
+     den Slot per Resize breiter zieht. Inline-margin aus Reposition +
+     diese Regel als Fallback greifen gemeinsam. */
+  .ai-image-slot.float-left {
+    margin-right: 1.5rem !important;
+    margin-bottom: 1rem;
+  }
+  .ai-image-slot.float-right {
+    margin-left: 1.5rem !important;
+    margin-bottom: 1rem;
+  }
+
+  /* Oben/Unten-Positionierung: Slot muss zentriert sein – mit !important, weil
+     der Slot sonst als flex-Container bleibt und Tailwind-Utilities wie mx-auto
+     bei flex-Elementen nicht zuverlässig horizontal zentrieren. Durch display:
+     block wird der Slot ein einfacher Block, auto-margins greifen. */
+  .ai-image-slot.ai-slot-centered {
+    display: block !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    max-width: 24rem; /* entspricht max-w-sm */
+  }
+
+  /* Chat-Input-Textarea: Native Scrollbar-Pfeile ausblenden. Das Textfeld
+     wächst per JS auto mit dem Inhalt, ab 200px wird gescrollt – aber die
+     Windows-Scrollbar-Arrows sehen neben dem Senden-Button hässlich aus. */
+  .chat-textarea::-webkit-scrollbar {
+    width: 0;
+    display: none;
+  }
+  .chat-textarea {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
   /* --- RECHENMAUER --- */
   .rechenmauer-table tr {
     display: flex;

@@ -33,7 +33,7 @@ export default function App() {
 
     setProjects(prev => prev.map(p => {
       if (p.id === activeProjectId) {
-        const snapshots = [newSnapshot, ...(p.snapshots || [])].slice(0, 3);
+        const snapshots = [newSnapshot, ...(p.snapshots || [])].slice(0, 10);
         return { ...p, snapshots };
       }
       return p;

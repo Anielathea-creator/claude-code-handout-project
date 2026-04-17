@@ -1,7 +1,18 @@
+export interface ToolCallRecord {
+  name: string;
+  args: Record<string, any>;
+  /** true = Tool wurde erfolgreich ausgeführt, false = Fehler / Abbruch. */
+  success?: boolean;
+  /** Kurzer Text, der im Chat neben dem Tool-Call angezeigt wird. */
+  message?: string;
+}
+
 export interface ChatMessage {
   role: 'user' | 'model';
   content: string;
   parts?: any[];
+  /** Tool-Aufrufe, die in dieser Nachricht getätigt wurden (nur bei role='model'). */
+  toolCalls?: ToolCallRecord[];
 }
 
 export interface Snapshot {
