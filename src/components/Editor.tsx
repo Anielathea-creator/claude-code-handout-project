@@ -355,6 +355,16 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
   const [showRegenConfirm, setShowRegenConfirm] = useState(false);
   const [regenTarget, setRegenTarget] = useState<{img: HTMLImageElement, prompt: string} | null>(null);
   const coverUploadInputRef = useRef<HTMLInputElement>(null);
+
+  // KI-Bild-Bearbeitung: Doppelklick auf .ai-image-slot öffnet dieses Modal.
+  // Der Slot ist ein Wrapper-DIV, dessen Inhalt variiert: <img> (nach Generate
+  // oder eigenem Upload) oder leerer Rahmen (Zeichnungs-Platzhalter).
+  const [showAiImageModal, setShowAiImageModal] = useState(false);
+  const [aiImageSlot, setAiImageSlot] = useState<HTMLElement | null>(null);
+  const [aiImagePromptDraft, setAiImagePromptDraft] = useState('');
+  const [isRegeneratingAiImage, setIsRegeneratingAiImage] = useState(false);
+  const [aiImageError, setAiImageError] = useState('');
+  const aiImageUploadRef = useRef<HTMLInputElement>(null);
   const [zoom, setZoom] = useState(1);
   const [notification, setNotification] = useState<{message: string, type: 'error' | 'success'} | null>(null);
   const [aiSubtaskCount, setAiSubtaskCount] = useState(1);
@@ -401,8 +411,22 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     const root = document.getElementById('dossier-root');
     if (root && root.innerHTML !== html) {
       root.innerHTML = html;
-      historyRef.current = [html];
-      historyIndexRef.current = 0;
+      // Externes HTML-Update (z.B. KI-Edit oder Snapshot-Restore): NICHT die History
+      // resetten, sondern den neuen Zustand an die aktuelle Position pushen, damit
+      // Ctrl+Z auch KI-Änderungen rückgängig machen kann.
+      const currentHistory = historyRef.current;
+      const currentIndex = historyIndexRef.current;
+      if (currentIndex >= 0 && currentHistory.length > 0) {
+        if (currentHistory[currentIndex] !== html) {
+          const trimmed = currentHistory.slice(0, currentIndex + 1);
+          const newHistory = [...trimmed, html].slice(-50);
+          historyRef.current = newHistory;
+          historyIndexRef.current = newHistory.length - 1;
+        }
+      } else {
+        historyRef.current = [html];
+        historyIndexRef.current = 0;
+      }
     }
     // Restore contenteditable attributes and wrap legacy covers
     if (root) {
@@ -1095,6 +1119,35 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     }
   };
 
+  // Refs auf die neuesten Handler-Funktionen, damit der globale keydown-Listener
+  // nicht bei jedem Render neu registriert werden muss.
+  const handleUndoRef = useRef(handleUndo);
+  const handleRedoRef = useRef(handleRedo);
+  handleUndoRef.current = handleUndo;
+  handleRedoRef.current = handleRedo;
+
+  // Globaler Ctrl+Z / Ctrl+Shift+Z Handler für Dossier-Undo, auch wenn der Fokus
+  // außerhalb von #dossier-root liegt (z.B. nach einem KI-Edit im Chat). Bei
+  // aktivem Text-Input (input/textarea/contenteditable) überlassen wir Ctrl+Z
+  // dem Browser, damit native Text-Undo erhalten bleibt.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.key !== 'z' && e.key !== 'Z') return;
+      const active = document.activeElement as HTMLElement | null;
+      if (active) {
+        const tag = active.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+        if (active.isContentEditable) return;
+      }
+      e.preventDefault();
+      if (e.shiftKey) handleRedoRef.current();
+      else handleUndoRef.current();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   // Find the closest ancestor span with a given class from a selection range
   const findMarkedSpan = (range: Range, className: string): HTMLElement | null => {
     const getEl = (node: Node): Element | null =>
@@ -1319,6 +1372,30 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     const template = EXERCISE_TEMPLATES.find(t => t.id === type);
     if (template) {
       htmlToAdd = template.html.replace(/THEME/g, themeColor);
+
+      // Auto-Nummerierung: Zähle bestehende Aufgaben-Blöcke und mache den Titel eindeutig.
+      // Ersetzt "Aufgabe: <X>" durch "Aufgabe N: <Template-Name>", wobei N die nächste freie Nummer ist.
+      try {
+        const existingH3s = root.querySelectorAll('div.avoid-break > h3');
+        let maxNumber = 0;
+        existingH3s.forEach((h) => {
+          const m = (h.textContent || '').match(/^Aufgabe\s+(\d+)\s*[:\-]/i);
+          if (m) {
+            const n = parseInt(m[1], 10);
+            if (!Number.isNaN(n) && n > maxNumber) maxNumber = n;
+          }
+        });
+        const nextNumber = maxNumber + 1;
+        const newTitle = `Aufgabe ${nextNumber}: ${template.name}`;
+        // Ersetze den ersten "Aufgabe: ..."-Titel durch den nummerierten.
+        htmlToAdd = htmlToAdd.replace(
+          /(<h3[^>]*>)\s*Aufgabe:\s*[^<]*(<\/h3>)/,
+          `$1${newTitle}$2`,
+        );
+      } catch (e) {
+        // Falls die DOM-Zählung scheitert, bleibt der Default-Titel.
+        console.warn('Auto-Nummerierung fehlgeschlagen:', e);
+      }
     } else if (type === 'text') {
       // No inner content-wrapper padding — the page container's p-[2.5cm] provides the margin.
       htmlToAdd = `<div id="${id}" class="avoid-break relative group text-[12pt]"><p class="editable" contenteditable="true">Neuer Textabschnitt...</p></div>`;
@@ -1691,11 +1768,20 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
       if (target.nodeType === 3) target = target.parentElement as HTMLElement;
       if (!target || !target.closest) return;
 
-      const placeholder = target.closest('.image-placeholder-trigger');
+      const placeholder = target.closest('.image-placeholder-trigger') as HTMLElement | null;
       if (placeholder) {
+        // Steckbrief-Templates markieren ihren Placeholder zusätzlich als
+        // .ai-image-slot → hier soll NUR Doppelklick das 3+1-Options-Modal
+        // öffnen (über handleRootDoubleClick). Single-Click lassen wir durch,
+        // damit der Text-Cursor normal gesetzt werden kann.
+        if (placeholder.classList.contains('ai-image-slot')) {
+          return;
+        }
+        // Alte Templates ohne ai-image-slot: Single-Click öffnet direkt den
+        // File-Upload-Dialog (bestehendes Verhalten, unverändert).
         e.preventDefault();
         e.stopPropagation();
-        setPendingImageTarget(placeholder as HTMLElement);
+        setPendingImageTarget(placeholder);
         imageUploadRef.current?.click();
       }
     };
@@ -4580,6 +4666,251 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
     }
   };
 
+  // --- KI-Bild-Bearbeitung (Steckbrief etc.): 3 Aktionen ---
+
+  const closeAiImageModal = () => {
+    setShowAiImageModal(false);
+    setAiImageSlot(null);
+    setAiImagePromptDraft('');
+    setIsRegeneratingAiImage(false);
+    setAiImageError('');
+  };
+
+  // Ersetzt den Inhalt des Slots durch ein neues Element und behält dabei die
+  // .ai-image-slot-Klasse + das data-ai-prompt-Attribut, damit Doppelklick
+  // weiter funktioniert, auch nach Wechsel zwischen Bild / Zeichnung.
+  const replaceSlotContent = (slot: HTMLElement, newChild: HTMLElement, prompt: string) => {
+    while (slot.firstChild) slot.removeChild(slot.firstChild);
+    slot.appendChild(newChild);
+    slot.setAttribute('data-ai-prompt', prompt);
+    slot.setAttribute('title', 'Doppelklick zum Bearbeiten');
+    slot.classList.add('ai-image-slot');
+  };
+
+  const handleAiImageRegenerate = async () => {
+    if (!aiImageSlot) return;
+    const newPrompt = aiImagePromptDraft.trim();
+    if (!newPrompt) {
+      setAiImageError('Bitte gib einen Prompt an.');
+      return;
+    }
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+      setAiImageError('Gemini-API-Key fehlt in der Umgebung.');
+      return;
+    }
+
+    setIsRegeneratingAiImage(true);
+    setAiImageError('');
+    onAddSnapshot('Vor Bild-Regenerierung');
+    const slot = aiImageSlot;
+    slot.style.opacity = '0.4';
+    slot.classList.add('animate-pulse');
+
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const fullPrompt = `${newPrompt}. Style: clean educational illustration suitable for a school handout, clear shapes, neutral background, friendly and age-appropriate, no text or labels in the image.`;
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: fullPrompt,
+      });
+
+      let newImageUrl = '';
+      const parts = (response as any)?.candidates?.[0]?.content?.parts ?? [];
+      for (const part of parts) {
+        if (part?.inlineData?.data) {
+          newImageUrl = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
+          break;
+        }
+      }
+
+      if (!newImageUrl) {
+        throw new Error('Keine Bilddaten in der Antwort (evtl. Safety-Filter).');
+      }
+
+      const doc = slot.ownerDocument || document;
+      const img = doc.createElement('img');
+      img.setAttribute('src', newImageUrl);
+      img.setAttribute('alt', newPrompt);
+      // Bild füllt den Slot komplett; Slot ist resize-bar, Bild skaliert mit.
+      img.className = 'block w-full h-full object-contain';
+      replaceSlotContent(slot, img, newPrompt);
+
+      slot.style.opacity = '1';
+      slot.classList.remove('animate-pulse');
+      saveHistoryState();
+      closeAiImageModal();
+      setNotification({ message: 'Bild neu generiert.', type: 'success' });
+    } catch (err: any) {
+      slot.style.opacity = '1';
+      slot.classList.remove('animate-pulse');
+      const msg = err?.message || String(err);
+      const friendly = msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')
+        ? 'API-Kontingent erschöpft. Bitte später erneut versuchen.'
+        : `Fehler: ${msg}`;
+      setAiImageError(friendly);
+      setIsRegeneratingAiImage(false);
+    }
+  };
+
+  const handleAiImageUpload = (file: File) => {
+    if (!aiImageSlot || !file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      if (!dataUrl) return;
+      onAddSnapshot('Vor eigenes Bild einfügen');
+      const doc = aiImageSlot.ownerDocument || document;
+      const img = doc.createElement('img');
+      img.setAttribute('src', dataUrl);
+      img.setAttribute('alt', file.name);
+      img.className = 'block w-full h-full object-contain';
+      // Prompt beibehalten (falls vorhanden), damit "Neu generieren" weiterhin
+      // einen sinnvollen Startwert hat.
+      const existingPrompt = aiImageSlot.getAttribute('data-ai-prompt') || '';
+      replaceSlotContent(aiImageSlot, img, existingPrompt);
+      saveHistoryState();
+      closeAiImageModal();
+      setNotification({ message: 'Eigenes Bild eingefügt.', type: 'success' });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  /**
+   * Verschiebt den Bild-Slot relativ zu seinen Geschwister-Elementen. Nutzt
+   * Float-Layout (statt Flex), damit Schreiblinien-Felder unterhalb des Bildes
+   * die volle Breite nutzen, sobald das Bild sie nicht mehr "besetzt":
+   *   - left/right: Slot float-left/right, Felder fließen daneben und wrappen
+   *     darunter auf volle Breite.
+   *   - top/bottom: Slot block, mittig begrenzt; Felder darüber/darunter full.
+   *
+   * Der Container muss overflow-hidden (oder display: flow-root) haben, damit
+   * er die Float-Höhe einbezieht. Alte Flex-Klassen werden entfernt.
+   */
+  const handleAiImageReposition = (position: 'top' | 'bottom' | 'left' | 'right') => {
+    if (!aiImageSlot) return;
+    const container = aiImageSlot.parentElement;
+    if (!container) return;
+
+    onAddSnapshot(`Vor Bild-Reposition (${position})`);
+
+    // Container: Flex-Layout-Reste entfernen, Float-BFC sicherstellen.
+    const containerClassesToRemove = [
+      'flex',
+      'flex-col', 'flex-col-reverse', 'flex-row', 'flex-row-reverse',
+      'items-center', 'items-start', 'items-end', 'items-stretch',
+      'justify-center', 'justify-start', 'justify-end', 'justify-between',
+      'gap-1', 'gap-2', 'gap-3', 'gap-4', 'gap-5', 'gap-6', 'gap-8',
+    ];
+    containerClassesToRemove.forEach((c) => container.classList.remove(c));
+    container.classList.add('overflow-hidden');
+
+    // Slot: alle Positions-/Breiten-/Float-Klassen resetten.
+    const slotClassesToRemove = [
+      'float-left', 'float-right',
+      'w-1/4', 'w-1/3', 'w-1/2', 'w-2/3', 'w-3/4', 'w-full',
+      'max-w-sm', 'max-w-xs', 'max-w-md',
+      'mx-auto', 'mr-6', 'ml-6', 'mt-4', 'mb-4',
+      'self-center', 'self-start', 'self-end',
+      'block',
+      'ai-slot-centered',
+    ];
+    slotClassesToRemove.forEach((c) => aiImageSlot.classList.remove(c));
+
+    // Geschwister-Elemente von Flex-Layout-Resten befreien (falls alter Steckbrief
+    // mit inner-wrapper – dort lag die w-2/3-Spalte). Sie fließen jetzt frei.
+    const siblings = Array.from(container.children).filter(
+      (c) => c !== aiImageSlot,
+    ) as HTMLElement[];
+    const siblingClassesToRemove = [
+      'w-1/3', 'w-1/2', 'w-2/3', 'w-full',
+      'flex', 'flex-col', 'flex-row',
+      'justify-center', 'justify-start', 'justify-end',
+    ];
+    siblings.forEach((s) =>
+      siblingClassesToRemove.forEach((c) => s.classList.remove(c)),
+    );
+
+    // Inline-margin zurücksetzen (falls von vorigem Reposition übrig).
+    aiImageSlot.style.marginLeft = '';
+    aiImageSlot.style.marginRight = '';
+
+    switch (position) {
+      case 'top':
+        // Slot ans DOM-Anfang → erscheint oben, Felder darunter.
+        // ai-slot-centered (CSS mit !important) erzwingt display:block +
+        // margin:auto, weil Tailwind-Utilities das bei flex-Containern sonst
+        // nicht zuverlässig hinkriegen.
+        if (container.firstChild !== aiImageSlot) {
+          container.insertBefore(aiImageSlot, container.firstChild);
+        }
+        aiImageSlot.classList.add('ai-slot-centered', 'mb-4');
+        break;
+      case 'bottom':
+        // Slot ans DOM-Ende → erscheint unten, Felder darüber.
+        container.appendChild(aiImageSlot);
+        aiImageSlot.classList.add('ai-slot-centered', 'mt-4');
+        break;
+      case 'left':
+        // Slot als erstes Kind mit float-left → Felder fließen rechts daneben
+        // und wrappen unter dem Bild auf volle Breite.
+        if (container.firstChild !== aiImageSlot) {
+          container.insertBefore(aiImageSlot, container.firstChild);
+        }
+        aiImageSlot.classList.add('float-left', 'w-1/3', 'mb-4');
+        // Inline-margin garantiert ≥ 1.5rem Abstand zum Text, auch wenn
+        // Tailwind-Utilities oder Resize-Width das überschreiben könnten.
+        aiImageSlot.style.marginRight = '1.5rem';
+        break;
+      case 'right':
+        if (container.firstChild !== aiImageSlot) {
+          container.insertBefore(aiImageSlot, container.firstChild);
+        }
+        aiImageSlot.classList.add('float-right', 'w-1/3', 'mb-4');
+        aiImageSlot.style.marginLeft = '1.5rem';
+        break;
+    }
+
+    saveHistoryState();
+    closeAiImageModal();
+    const labelMap: Record<typeof position, string> = {
+      top: 'nach oben verschoben',
+      bottom: 'nach unten verschoben',
+      left: 'nach links verschoben',
+      right: 'nach rechts verschoben',
+    };
+    setNotification({ message: `Bild ${labelMap[position]}.`, type: 'success' });
+  };
+
+  const handleAiImagePlaceholder = () => {
+    if (!aiImageSlot) return;
+    onAddSnapshot('Vor Zeichnungs-Platzhalter');
+
+    const doc = aiImageSlot.ownerDocument || document;
+
+    // Falls der Slot noch keine explizite Höhe hat (nur min-height aus Template):
+    // aktuelle Darstellungs-Höhe als inline-style setzen, damit der Rahmen sofort
+    // genauso groß ist wie das vorherige Bild UND per resize-Handle veränderbar.
+    const rect = aiImageSlot.getBoundingClientRect();
+    if (!aiImageSlot.style.height && rect.height > 0) {
+      aiImageSlot.style.height = `${Math.round(rect.height)}px`;
+    }
+
+    // Innerer Rahmen ohne Text, füllt den Slot komplett (resize am Slot greift).
+    const frame = doc.createElement('div');
+    frame.className = 'w-full h-full rounded-lg border-2 border-dashed border-gray-400 bg-white';
+    frame.setAttribute('data-drawing-placeholder', 'true');
+
+    // Prompt des Slots beibehalten, damit User später wieder auf "Neu generieren"
+    // wechseln kann und der alte Prompt noch da ist.
+    const existingPrompt = aiImageSlot.getAttribute('data-ai-prompt') || '';
+    replaceSlotContent(aiImageSlot, frame, existingPrompt);
+
+    saveHistoryState();
+    closeAiImageModal();
+    setNotification({ message: 'Platzhalter für Zeichnung eingefügt.', type: 'success' });
+  };
+
   const handleRootClick = (e: any) => {
     let target = e.target as HTMLElement;
     if (!target) return;
@@ -4711,6 +5042,19 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
       const prompt = target.getAttribute('data-prompt') || '';
       setRegenTarget({ img: target as HTMLImageElement, prompt });
       setShowRegenConfirm(true);
+      return;
+    }
+
+    // Doppelklick auf KI-Bild-Slot (z.B. im Steckbrief) → 3-Options-Modal.
+    // Slot enthält entweder ein <img> oder einen Zeichnungs-Rahmen; egal was.
+    const slot = target.closest('.ai-image-slot') as HTMLElement | null;
+    if (slot) {
+      e.preventDefault();
+      const prompt = slot.getAttribute('data-ai-prompt') || '';
+      setAiImageSlot(slot);
+      setAiImagePromptDraft(prompt);
+      setAiImageError('');
+      setShowAiImageModal(true);
       return;
     }
 
@@ -5187,6 +5531,144 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
         </div>
       )}
 
+      {/* KI-BILD-BEARBEITUNG: 3-Options-Modal (z.B. Doppelklick auf Steckbrief-Bild) */}
+      {showAiImageModal && aiImageSlot && (
+        <div
+          className="absolute inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm"
+          onClick={(e) => {
+            // Klick auf Backdrop schließt (aber nicht während Regenerierung)
+            if (e.target === e.currentTarget && !isRegeneratingAiImage) closeAiImageModal();
+          }}
+        >
+          <div className="bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] p-8 w-full max-w-lg border border-indigo-100 animate-in fade-in zoom-in duration-200">
+            <h3 className="text-2xl font-black text-indigo-900 mb-2 flex items-center gap-3">
+              <span className="text-3xl">🖼️</span>
+              Bild bearbeiten
+            </h3>
+            <p className="text-gray-600 mb-6 text-sm leading-relaxed">
+              Wähle eine Aktion für dieses Bild:
+            </p>
+
+            {/* 1. Bild neu generieren */}
+            <div className="border border-gray-200 rounded-2xl p-4 mb-3 bg-gray-50">
+              <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">
+                🔄 Bild neu generieren
+              </label>
+              <p className="text-xs text-gray-500 mb-2">
+                Passe den Prompt an und lass ein neues Bild erzeugen.
+              </p>
+              <textarea
+                value={aiImagePromptDraft}
+                onChange={(e) => setAiImagePromptDraft(e.target.value)}
+                disabled={isRegeneratingAiImage}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none resize-y min-h-[60px] disabled:bg-gray-100"
+                placeholder="z.B. Eine Eiche im Herbst mit bunten Blättern"
+              />
+              <button
+                onClick={handleAiImageRegenerate}
+                disabled={isRegeneratingAiImage || !aiImagePromptDraft.trim()}
+                className="mt-2 w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow transition-all transform active:scale-95 disabled:bg-gray-300 disabled:cursor-not-allowed disabled:shadow-none text-sm"
+              >
+                {isRegeneratingAiImage ? '⏳ Generiere Bild …' : '🔄 Neu generieren'}
+              </button>
+            </div>
+
+            {/* 2. Eigenes Bild einfügen */}
+            <button
+              onClick={() => aiImageUploadRef.current?.click()}
+              disabled={isRegeneratingAiImage}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow transition-all transform active:scale-95 mb-3 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              📁 Eigenes Bild einfügen
+            </button>
+            <input
+              ref={aiImageUploadRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleAiImageUpload(file);
+                e.target.value = '';
+              }}
+            />
+
+            {/* 3. Platzhalter für Zeichnung */}
+            <button
+              onClick={handleAiImagePlaceholder}
+              disabled={isRegeneratingAiImage}
+              className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl shadow transition-all transform active:scale-95 mb-3 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              ✏️ Platzhalter für Zeichnung
+            </button>
+
+            {/* 4. Reposition – nur wenn der Slot in einem Container mit Geschwister-Feldern sitzt */}
+            {aiImageSlot.parentElement && aiImageSlot.parentElement.children.length > 1 && (
+              <div className="border border-gray-200 rounded-2xl p-4 mb-3 bg-gray-50">
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">
+                  ↕️ Position des Bildes
+                </label>
+                <p className="text-xs text-gray-500 mb-3">
+                  Bild/Rahmen relativ zu den Schreiblinien verschieben. Die Linien passen sich automatisch an.
+                </p>
+                <div className="grid grid-cols-4 gap-2">
+                  <button
+                    onClick={() => handleAiImageReposition('top')}
+                    disabled={isRegeneratingAiImage}
+                    className="flex flex-col items-center gap-1 py-2 bg-white hover:bg-indigo-50 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Bild über den Schreiblinien"
+                  >
+                    <ArrowUp size={18} />
+                    Oben
+                  </button>
+                  <button
+                    onClick={() => handleAiImageReposition('bottom')}
+                    disabled={isRegeneratingAiImage}
+                    className="flex flex-col items-center gap-1 py-2 bg-white hover:bg-indigo-50 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Bild unter den Schreiblinien"
+                  >
+                    <ArrowDown size={18} />
+                    Unten
+                  </button>
+                  <button
+                    onClick={() => handleAiImageReposition('left')}
+                    disabled={isRegeneratingAiImage}
+                    className="flex flex-col items-center gap-1 py-2 bg-white hover:bg-indigo-50 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Bild links, Schreiblinien rechts"
+                  >
+                    <ChevronLeft size={18} />
+                    Links
+                  </button>
+                  <button
+                    onClick={() => handleAiImageReposition('right')}
+                    disabled={isRegeneratingAiImage}
+                    className="flex flex-col items-center gap-1 py-2 bg-white hover:bg-indigo-50 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Bild rechts, Schreiblinien links"
+                  >
+                    <ChevronRight size={18} />
+                    Rechts
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {aiImageError && (
+              <div className="mb-3 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs">
+                {aiImageError}
+              </div>
+            )}
+
+            <button
+              onClick={closeAiImageModal}
+              disabled={isRegeneratingAiImage}
+              className="w-full py-2 text-gray-500 hover:text-gray-700 font-bold transition-colors text-sm disabled:opacity-40"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* HAUPT-NAVIGATION OBEN (Angepasst für das Dashboard) */}
       <div className="no-print bg-white shadow-md z-40 p-3 flex justify-between items-center border-b-2 border-gray-200 gap-4 transition-all w-full">
         <div className="flex items-center gap-3">
@@ -5202,8 +5684,8 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
           {/* Reihe 1: TOC, Laden, Speichern */}
           <div className="flex items-center gap-3">
             <div className="relative" ref={historyDropdownRef}>
-              <button 
-                onClick={() => setShowHistory(!showHistory)} 
+              <button
+                onClick={() => setShowHistory(!showHistory)}
                 className={`flex items-center gap-1 px-3 py-2 rounded-lg font-medium transition-colors text-sm ${showHistory ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 hover:bg-gray-100 text-gray-700'}`}
                 title="Versionsverlauf anzeigen"
               >
@@ -5244,7 +5726,7 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
                     )}
                   </div>
                   <div className="p-2 bg-gray-50 border-t border-gray-100 text-[10px] text-center text-gray-400">
-                    Die letzten 15 Snapshots werden lokal gespeichert.
+                    Die letzten 10 Snapshots werden lokal gespeichert.
                   </div>
                 </div>
               )}

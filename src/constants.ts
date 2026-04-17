@@ -535,23 +535,21 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
     name: "Steckbrief",
     html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
   <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Steckbrief</h3>
-  <div class="border-2 border-gray-300 rounded-xl p-6 bg-white shadow-sm flex gap-6">
-    <div class="w-1/3 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50 min-h-[150px] text-gray-400 editable cursor-pointer hover:bg-gray-100 transition-colors image-placeholder-trigger" contenteditable="true">
+  <div class="border-2 border-gray-300 rounded-xl p-6 bg-white shadow-sm overflow-hidden">
+    <div class="ai-image-slot resize overflow-hidden w-1/3 float-left mr-6 mb-4 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50 min-h-[150px] text-gray-400 editable cursor-pointer hover:bg-gray-100 transition-colors image-placeholder-trigger" contenteditable="true" title="Doppelklick für Bild-Optionen – Ecke unten rechts zum Vergrößern">
       [Bild hier einfügen]
     </div>
-    <div class="w-2/3 flex flex-col gap-4 justify-center">
-      <div class="flex items-end border-b border-gray-400 pb-1">
-        <span class="font-bold w-32 editable" contenteditable="true">Name:</span>
-        <span class="flex-1 editable" contenteditable="true"><span class="is-answer text-blue-600">Rotfuchs</span></span>
-      </div>
-      <div class="flex items-end border-b border-gray-400 pb-1">
-        <span class="font-bold w-32 editable" contenteditable="true">Lebensraum:</span>
-        <span class="flex-1 editable" contenteditable="true"><span class="is-answer text-blue-600">Wälder, Wiesen, Städte</span></span>
-      </div>
-      <div class="flex items-end border-b border-gray-400 pb-1">
-        <span class="font-bold w-32 editable" contenteditable="true">Nahrung:</span>
-        <span class="flex-1 editable" contenteditable="true"><span class="is-answer text-blue-600">Mäuse, Beeren, Insekten</span></span>
-      </div>
+    <div class="mb-4">
+      <span class="font-bold editable" contenteditable="true">Name:</span>
+      <div class="schreib-linie editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">Rotfuchs</span></div>
+    </div>
+    <div class="mb-4">
+      <span class="font-bold editable" contenteditable="true">Lebensraum:</span>
+      <div class="schreib-linie editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">Wälder, Wiesen, Städte</span></div>
+    </div>
+    <div>
+      <span class="font-bold editable" contenteditable="true">Nahrung:</span>
+      <div class="schreib-linie editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">Mäuse, Beeren, Insekten</span></div>
     </div>
   </div>
 </div>`
@@ -942,27 +940,23 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
     name: "Steckbrief (Ausführlich)",
     html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
   <h3 class="editable font-bold text-[14pt] mb-6 text-THEME-700" contenteditable="true">Aufgabe: Ausführlicher Steckbrief</h3>
-  <div class="flex gap-8">
-    <div class="w-1/3 border-2 border-dashed border-gray-400 rounded-xl min-h-[180px] flex items-center justify-center text-gray-400 bg-gray-50 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors" contenteditable="true">
+  <div class="overflow-hidden">
+    <div class="ai-image-slot resize overflow-hidden w-1/3 float-left mr-6 mb-4 border-2 border-dashed border-gray-400 rounded-xl min-h-[180px] flex items-center justify-center text-gray-400 bg-gray-50 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors" contenteditable="true" title="Doppelklick für Bild-Optionen – Ecke unten rechts zum Vergrößern">
       [Bild]
     </div>
-    <div class="w-2/3 flex flex-col gap-4">
-      <div>
-        <span class="font-bold text-gray-900 editable uppercase tracking-wider text-sm" contenteditable="true">Name des Tieres:</span>
-        <div class="schreib-linie editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">Stockente</span></div>
-      </div>
-      <div>
-        <span class="font-bold text-gray-900 editable uppercase tracking-wider text-sm" contenteditable="true">Aussehen & Größe:</span>
-        <div class="schreib-linie editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">Männchen haben einen grünen Kopf...</span></div>
-      </div>
+    <div class="mb-4">
+      <span class="font-bold text-gray-900 editable uppercase tracking-wider text-sm" contenteditable="true">Name des Tieres:</span>
+      <div class="schreib-linie editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">Stockente</span></div>
     </div>
-  </div>
-  <div class="mt-6 flex flex-col gap-6">
-    <div>
+    <div class="mb-4">
+      <span class="font-bold text-gray-900 editable uppercase tracking-wider text-sm" contenteditable="true">Aussehen & Größe:</span>
+      <div class="schreib-linie editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">Männchen haben einen grünen Kopf...</span></div>
+    </div>
+    <div class="mb-4">
       <span class="font-bold text-gray-900 editable uppercase tracking-wider text-sm" contenteditable="true">Lebensraum:</span>
       <div class="schreib-linie editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">Seen, Flüsse, Teiche...</span></div>
     </div>
-    <div>
+    <div class="mb-4">
       <span class="font-bold text-gray-900 editable uppercase tracking-wider text-sm" contenteditable="true">Nahrung:</span>
       <div class="schreib-linie editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">Wasserpflanzen, kleine Fische...</span></div>
     </div>
