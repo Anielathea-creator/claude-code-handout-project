@@ -20,6 +20,14 @@ export interface WizardData {
   theme: string;
 }
 
+const SUBJECT_TEMPLATE_IDS: Record<string, string[]> = {
+  Mathematik: ['geld_rechnen', 'rechengitter', 'punktraster', 'rechenmauer', 'sachaufgabe', 'stellenwerttafel', 'uhrzeit', 'zahlenhaus', 'zahlenreihe', 'zahlenstrahl'],
+  NMG: ['matching', 'bildbeschriftung', 'experiment', 'film_fragen', 'interview', 'klassifizierung', 'lebenszyklus', 'lueckentext', 'bild_beschriftung_multi', 'mindmap', 'offene_frage', 'recherche', 'steckbrief', 'steckbrief_gross', 't_chart', 'anstreichen', 'ursache_wirkung', 'venn_diagramm', 'vergleichstabelle', 'was_faellt_auf', 'zeitstrahl'],
+  Sprachen: ['abc_liste', 'bildgeschichte', 'dialog_luecken', 'klassifizierung', 'konjugations_faecher', 'korrektur_zeile', 'klammer_luecken', 'lueckentext', 'professor_zipp', 'reimpaare', 'satz_transformator', 'suchsel', 'anstreichen', 'liste_zweispaltig', 'w_fragen', 'was_faellt_auf', 'eindringling'],
+  Allgemein: ['checkbox-table', 'klassifizierung', 'kwl_chart', 'offene_frage', 'reflexion', 'table', 'suchsel', 't_chart', 'anstreichen', 'venn_diagramm', 'zeichnungsauftrag', 'ziel_checkliste'],
+};
+const SUBJECT_TABS = ['Alle', 'Mathematik', 'NMG', 'Sprachen', 'Allgemein'] as const;
+
 const THEMES = [
   { id: 'blue', name: 'Blau (Klassisch)', color: 'bg-blue-500' },
   { id: 'emerald', name: 'Smaragd (Natur)', color: 'bg-emerald-500' },
@@ -31,6 +39,8 @@ const THEMES = [
 export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [templateTab, setTemplateTab] = useState<typeof SUBJECT_TABS[number]>('Alle');
+  const [templateSearch, setTemplateSearch] = useState('');
   const [data, setData] = useState<WizardData>({
     mode: 'generate',
     topic: '',
@@ -156,24 +166,89 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
               <h3 className="text-xl font-bold text-gray-800">2. Aufgaben-Konfiguration</h3>
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Welche Aufgabenarten sind gewünscht?</label>
-                <div className="grid grid-cols-2 gap-2 mt-2 max-h-[200px] overflow-y-auto p-2 border-2 border-gray-100 rounded-xl">
-                  {EXERCISE_TEMPLATES.map(template => (
-                    <label key={template.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={data.selectedTemplateIds.includes(template.id)}
-                        onChange={(e) => {
-                          const ids = e.target.checked
-                            ? [...data.selectedTemplateIds, template.id]
-                            : data.selectedTemplateIds.filter(id => id !== template.id);
-                          setData({ ...data, selectedTemplateIds: ids });
-                        }}
-                        className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span className="text-[11px] text-gray-700 font-medium truncate" title={template.name}>{template.name}</span>
-                    </label>
-                  ))}
-                </div>
+                {(() => {
+                  const search = templateSearch.trim().toLowerCase();
+                  const tabIds = templateTab === 'Alle'
+                    ? EXERCISE_TEMPLATES.map(t => t.id)
+                    : SUBJECT_TEMPLATE_IDS[templateTab] || [];
+                  const uniqueIds = Array.from(new Set(tabIds));
+                  const visibleTemplates = uniqueIds
+                    .map(id => EXERCISE_TEMPLATES.find(t => t.id === id))
+                    .filter((t): t is typeof EXERCISE_TEMPLATES[number] => !!t)
+                    .filter(t => !search || t.name.toLowerCase().includes(search))
+                    .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+                  const visibleIds = visibleTemplates.map(t => t.id);
+                  const allSelected = visibleIds.length > 0 && visibleIds.every(id => data.selectedTemplateIds.includes(id));
+                  const countInTab = (tab: typeof SUBJECT_TABS[number]) => {
+                    const ids = tab === 'Alle' ? EXERCISE_TEMPLATES.map(t => t.id) : (SUBJECT_TEMPLATE_IDS[tab] || []);
+                    return Array.from(new Set(ids)).filter(id => data.selectedTemplateIds.includes(id)).length;
+                  };
+                  return (
+                    <div className="mt-2 border-2 border-gray-100 rounded-xl overflow-hidden">
+                      <div className="flex items-center gap-1 bg-gray-50 border-b border-gray-100 p-1">
+                        {SUBJECT_TABS.map(tab => {
+                          const count = countInTab(tab);
+                          const active = templateTab === tab;
+                          return (
+                            <button
+                              key={tab}
+                              type="button"
+                              onClick={() => setTemplateTab(tab)}
+                              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${active ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-200'}`}
+                            >
+                              {tab}
+                              {count > 0 && (
+                                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] ${active ? 'bg-white text-indigo-700' : 'bg-indigo-100 text-indigo-700'}`}>{count}</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center gap-2 p-2 border-b border-gray-100">
+                        <input
+                          type="text"
+                          value={templateSearch}
+                          onChange={(e) => setTemplateSearch(e.target.value)}
+                          placeholder="Suchen…"
+                          className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-indigo-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const current = new Set(data.selectedTemplateIds);
+                            if (allSelected) visibleIds.forEach(id => current.delete(id));
+                            else visibleIds.forEach(id => current.add(id));
+                            setData({ ...data, selectedTemplateIds: Array.from(current) });
+                          }}
+                          className="text-xs font-bold text-indigo-600 hover:text-indigo-800 whitespace-nowrap"
+                        >
+                          {allSelected ? 'Keine' : 'Alle'}
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 p-2 max-h-[220px] overflow-y-auto">
+                        {visibleTemplates.length === 0 && (
+                          <div className="col-span-2 text-center text-xs text-gray-400 py-4">Keine Treffer</div>
+                        )}
+                        {visibleTemplates.map(template => (
+                          <label key={template.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={data.selectedTemplateIds.includes(template.id)}
+                              onChange={(e) => {
+                                const ids = e.target.checked
+                                  ? [...data.selectedTemplateIds, template.id]
+                                  : data.selectedTemplateIds.filter(id => id !== template.id);
+                                setData({ ...data, selectedTemplateIds: ids });
+                              }}
+                              className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <span className="text-[11px] text-gray-700 font-medium truncate" title={template.name}>{template.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
               <div className="flex gap-4">
                 <div className="flex-1">

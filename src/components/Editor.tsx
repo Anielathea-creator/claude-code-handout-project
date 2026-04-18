@@ -228,6 +228,21 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
   // --- AI STATE ---
   const [showAiModal, setShowAiModal] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showStructureMenu, setShowStructureMenu] = useState(false);
+  const [openSubject, setOpenSubject] = useState<string | null>(null);
+  const structureMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showStructureMenu) return;
+    const handleClick = (e: MouseEvent) => {
+      if (structureMenuRef.current && !structureMenuRef.current.contains(e.target as Node)) {
+        setShowStructureMenu(false);
+        setOpenSubject(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showStructureMenu]);
   const [aiPrompt, setAiPrompt] = useState('');
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [aiError, setAiError] = useState('');
@@ -1090,8 +1105,59 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     return () => document.removeEventListener('selectionchange', handleSelectionChange);
   }, []);
 
-  const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.1, 2));
-  const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.1, 0.5));
+  const handleZoomBy = (delta: number) => {
+    const wrapper = document.getElementById('dossier-wrapper');
+    const newZoom = Math.max(0.5, Math.min(2, zoom + delta));
+    if (newZoom === zoom) return;
+    if (!wrapper) { setZoom(newZoom); return; }
+
+    // Find the actual scrolling ancestor (walks up until overflow-y allows scroll)
+    let scroller: HTMLElement = wrapper.parentElement as HTMLElement;
+    while (scroller && scroller !== document.documentElement) {
+      const o = getComputedStyle(scroller).overflowY;
+      if ((o === 'auto' || o === 'scroll') && scroller.scrollHeight > scroller.clientHeight) break;
+      scroller = scroller.parentElement as HTMLElement;
+    }
+    if (!scroller) scroller = document.documentElement;
+    const usesWindowScroll = scroller === document.documentElement;
+
+    // Mathematical approach: pick the layout Y inside the wrapper that's currently at the
+    // viewport's vertical center; after zoom, set scrollTop so that same layout Y stays there.
+    //
+    //   visualTop_of_wrapper_top = wrapperRect.top (accounts for scrollTop already)
+    //   contentY_in_unzoomed = (viewportCenterY - wrapperRect.top) / zoom
+    //   afterZoom, new visualTop_of_wrapper_top unchanged (transformOrigin:top center keeps top).
+    //   We want: viewportCenterY - (new wrapperRect.top after scroll adjust) = contentY * newZoom
+    //   Scrolling changes wrapperRect.top by -scrollDelta. So:
+    //     newWrapperTop = wrapperRect.top - scrollDelta
+    //     viewportCenterY - (wrapperRect.top - scrollDelta) = contentY * newZoom
+    //     scrollDelta = contentY * newZoom - (viewportCenterY - wrapperRect.top)
+    //              = contentY * newZoom - contentY * zoom
+    //              = contentY * (newZoom - zoom)
+    // Anchor: content currently at the viewport's TOP should stay there after zoom.
+    // Formula: Y_anchor = (viewportTopY - wrapperRect.top) / zoom; scrollDelta = Y_anchor * (newZoom - zoom).
+    const wRect = wrapper.getBoundingClientRect();
+    const viewportTopY = usesWindowScroll ? 0 : scroller.getBoundingClientRect().top;
+    const contentY = (viewportTopY - wRect.top) / zoom;
+    const scrollDelta = contentY * (newZoom - zoom);
+
+    // Apply the new transform synchronously
+    wrapper.style.transform = `scale(${newZoom})`;
+    wrapper.style.transformOrigin = 'top center';
+    const heightAdjustment = (newZoom - 1) * 100;
+    wrapper.style.marginBottom = newZoom > 1 ? `${heightAdjustment}%` : '0';
+
+    // Apply the scroll compensation
+    if (scrollDelta !== 0) {
+      if (usesWindowScroll) window.scrollBy(0, scrollDelta);
+      else scroller.scrollTop += scrollDelta;
+    }
+
+    setZoom(newZoom);
+  };
+
+  const handleZoomIn = () => handleZoomBy(0.1);
+  const handleZoomOut = () => handleZoomBy(-0.1);
 
   const handleUndo = () => {
     if (historyIndexRef.current > 0) {
@@ -1704,6 +1770,17 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
 
     saveHistoryState();
     activeBlock.remove();
+
+    // Cleanup: remove duplicate / orphaned page-breaks so no oversized gray gap remains
+    // between the neighbouring pages after deleting the block in between.
+    const pageBreaks = Array.from(root.querySelectorAll('.page-break'));
+    for (const pb of pageBreaks) {
+      const next = pb.nextElementSibling;
+      if (next && next.classList.contains('page-break')) next.remove();
+    }
+    while (root.firstElementChild?.classList.contains('page-break')) root.firstElementChild.remove();
+    while (root.lastElementChild?.classList.contains('page-break')) root.lastElementChild.remove();
+
     setActiveBlock(null);
     document.querySelectorAll('.active-block-highlight').forEach(el => el.classList.remove('active-block-highlight'));
     saveHistoryState();
@@ -3422,70 +3499,103 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
     const root = document.getElementById('dossier-root');
     if (!root) return;
 
-    let currentTaskIndex = 0;
-    let themeLetter = '';
+    // Scheme-Regex. Reihenfolge: spezifischer vor generischer.
+    // - lettered-dotted:  "Aufgabe A.1", "A.1"
+    // - hierarchical:     "1.1", "Aufgabe 2.3"
+    // - lettered-compact: "A1", "Aufgabe B2"  (Sub-Form "A1.1" wird separat geprüft und übersprungen)
+    // - simple:           "Aufgabe 1", "1."
+    type Scheme = 'simple' | 'lettered-dotted' | 'lettered-compact' | 'hierarchical';
+    const LETTERED_DOTTED  = /^(Aufgabe\s+)?([A-Z])\.(\d+)([:\s]*)(.*)$/i;
+    const HIERARCHICAL     = /^(Aufgabe\s+)?(\d+)\.(\d+)([:\s]*)(.*)$/i;
+    const LETTERED_COMPACT_SUB = /^(?:Aufgabe\s+)?[A-Z]\d+\.\d+/i;
+    const LETTERED_COMPACT = /^(Aufgabe\s+)?([A-Z])(\d+)([:\s]*)(.*)$/i;
+    const SIMPLE           = /^(Aufgabe\s+)?(\d+)\.?([:\s]*)(.*)$/i;
+    const GENERIC_TASK     = /^(Aufgabe|[A-Z]\d+|[A-Z]\.\d+|\d+\.)/i;
 
-    // Wir suchen NUR Aufgabentitel (h3), wie vom Nutzer gewünscht
-    // Alle anderen Überschriften (h1, h2) werden ignoriert und bleiben unverändert
-    const tasks = Array.from(root.querySelectorAll('h3'));
-    
-    tasks.forEach((header) => {
-      const el = header as HTMLElement;
+    const headers = Array.from(root.querySelectorAll('h3')) as HTMLElement[];
+    const taskHeaders = headers.filter(el => {
+      const t = el.innerText?.trim() || '';
+      return GENERIC_TASK.test(t) || t.toLowerCase().startsWith('aufgabe');
+    });
+    if (taskHeaders.length === 0) {
+      setNotification({ message: "Nummerierung wurde aktualisiert.", type: 'success' });
+      return;
+    }
 
-      if (el.tagName === 'H3') {
-        // WICHTIG: Wir synchronisieren NUR, wenn es bereits wie eine Aufgabe aussieht
-        // um zu verhindern, dass normale Überschriften (h3) überschrieben werden.
-        const originalText = el.innerText?.trim() || '';
-        const isTaskPattern = /^(Aufgabe|([A-Z]\.\d+)|(\d+\.))/i.test(originalText);
-        
-        if (!isTaskPattern && !originalText.toLowerCase().startsWith('aufgabe')) {
-          // Keine Aufgabe erkannt -> Überspringen
-          return;
-        }
+    // Schema-Erkennung anhand der ersten erkannten Aufgabe.
+    let scheme: Scheme = 'simple';
+    for (const el of taskHeaders) {
+      const t = el.innerText?.trim() || '';
+      if (LETTERED_COMPACT_SUB.test(t)) continue; // Sub-Aufgaben zählen nicht für Erkennung
+      if (LETTERED_DOTTED.test(t))  { scheme = 'lettered-dotted';  break; }
+      if (HIERARCHICAL.test(t))     { scheme = 'hierarchical';     break; }
+      if (LETTERED_COMPACT.test(t)) { scheme = 'lettered-compact'; break; }
+      if (SIMPLE.test(t))           { scheme = 'simple';           break; }
+    }
 
-        // 1. Extrahiere Buchstabe und Zahl falls vorhanden
-        const matchFull = originalText.match(/^(Aufgabe\s+)?([A-Z])\.(\d+)([:\s]*)(.*)/i);
-        const matchNum = originalText.match(/^(Aufgabe\s+)?(\d+)([:\s]*)(.*)/i);
-        
+    // State je nach Schema
+    let currentLetter = '';        // lettered-dotted, lettered-compact
+    let currentSection = 0;        // hierarchical
+    let currentSub = 0;            // hierarchical
+    let counter = 0;               // simple, lettered-dotted, lettered-compact
+
+    taskHeaders.forEach((el) => {
+      const originalText = el.innerText?.trim() || '';
+
+      if (scheme === 'lettered-compact' && LETTERED_COMPACT_SUB.test(originalText)) {
+        // Unter-Aufgaben (A1.1) bleiben unverändert
+        return;
+      }
+
+      if (scheme === 'lettered-dotted') {
+        const m = originalText.match(LETTERED_DOTTED);
+        if (!m) return;
+        const prefix = m[1] || '';
+        const letter = m[2].toUpperCase();
+        const num = parseInt(m[3], 10);
+        const sep = m[4] || (m[5] ? ': ' : '');
+        const text = m[5] || '';
+        if (letter !== currentLetter) { currentLetter = letter; counter = num; }
+        else { counter++; }
+        el.innerText = `${prefix}${currentLetter}.${counter}${sep}${text}`;
+      } else if (scheme === 'hierarchical') {
+        const m = originalText.match(HIERARCHICAL);
+        if (!m) return;
+        const prefix = m[1] || '';
+        const section = parseInt(m[2], 10);
+        const sub = parseInt(m[3], 10);
+        const sep = m[4] || (m[5] ? ': ' : '');
+        const text = m[5] || '';
+        if (section !== currentSection) { currentSection = section; currentSub = sub; }
+        else { currentSub++; }
+        el.innerText = `${prefix}${currentSection}.${currentSub}${sep}${text}`;
+      } else if (scheme === 'lettered-compact') {
+        const m = originalText.match(LETTERED_COMPACT);
+        if (!m) return;
+        const prefix = m[1] || '';
+        const letter = m[2].toUpperCase();
+        const num = parseInt(m[3], 10);
+        const sep = m[4] || (m[5] ? ': ' : '');
+        const text = m[5] || '';
+        if (letter !== currentLetter) { currentLetter = letter; counter = num; }
+        else { counter++; }
+        el.innerText = `${prefix}${currentLetter}${counter}${sep}${text}`;
+      } else {
+        // simple
+        const m = originalText.match(SIMPLE);
         let prefix = 'Aufgabe ';
-        let separator = ': ';
+        let sep = ': ';
         let text = '';
-        let extractedLetter = '';
-        let extractedNumber = 0;
-        
-        if (matchFull) {
-          prefix = matchFull[1] || '';
-          extractedLetter = matchFull[2].toUpperCase();
-          extractedNumber = parseInt(matchFull[3], 10);
-          separator = matchFull[4] || (matchFull[5] ? ': ' : '');
-          text = matchFull[5] || '';
-        } else if (matchNum) {
-          prefix = matchNum[1] || '';
-          extractedNumber = parseInt(matchNum[2], 10);
-          separator = matchNum[3] || (matchNum[4] ? ': ' : '');
-          text = matchNum[4] || '';
+        if (m) {
+          prefix = m[1] || '';
+          sep = m[3] || (m[4] ? ': ' : '');
+          text = m[4] || '';
         } else {
-          // Fallback für "Aufgabe: Titel"
           text = originalText.replace(/^Aufgabe[:\s]*/i, '').trim();
-          prefix = 'Aufgabe ';
-          separator = text ? ': ' : '';
+          sep = text ? ': ' : '';
         }
-
-        // 2. Logik: Falls ein neuer Buchstabe auftaucht, übernehmen wir ihn
-        if (extractedLetter && extractedLetter !== themeLetter) {
-          themeLetter = extractedLetter;
-          currentTaskIndex = extractedNumber;
-        } else {
-          // Ansonsten einfach weiterzählen
-          currentTaskIndex++;
-        }
-        
-        // 3. Text setzen - Wir behalten das Präfix (Aufgabe oder leer) bei
-        if (themeLetter) {
-          el.innerText = `${prefix}${themeLetter}.${currentTaskIndex}${separator}${text}`;
-        } else {
-          el.innerText = `${prefix}${currentTaskIndex}${separator}${text}`;
-        }
+        counter++;
+        el.innerText = `${prefix}${counter}${sep}${text}`;
       }
     });
 
@@ -3681,7 +3791,9 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
       contentWrapper.style.padding = FRAME_PADDING[frameId] || '32px';
     }
 
-    // Create new SVG with dynamic viewBox matching actual block dimensions
+    // Force synchronous layout so the new padding is applied before we measure.
+    // Without this, the first frame application reads stale (pre-padding) dimensions.
+    void block.offsetHeight;
     const blockRect = block.getBoundingClientRect();
     const W = Math.round(blockRect.width);
     const H = Math.round(blockRect.height);
@@ -4936,6 +5048,24 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
       return;
     }
 
+    // Handle "+ Zeile" button in numbered label list (Bildbeschriftung template)
+    const addLabelBtn = target.closest('.add-label-line') as HTMLElement | null;
+    if (addLabelBtn) {
+      e.preventDefault();
+      const list = addLabelBtn.closest('.numbered-label-list') as HTMLElement | null;
+      if (list) {
+        const rows = list.querySelectorAll('.numbered-label-row');
+        const nextNum = rows.length + 1;
+        const row = document.createElement('p');
+        row.className = 'numbered-label-row flex items-end gap-2 editable';
+        row.setAttribute('contenteditable', 'true');
+        row.innerHTML = `<span class="numbered-label-index font-bold text-gray-500">${nextNum}.</span> <span class="schreib-linie inline-block min-w-[9rem]"><span class="is-answer"></span></span>`;
+        list.insertBefore(row, addLabelBtn);
+        saveHistoryState();
+      }
+      return;
+    }
+
     // Handle image alignment buttons
     if (target.closest('.align-img-left')) {
       const wrapper = target.closest('.draggable-image-wrapper') as HTMLElement;
@@ -5603,7 +5733,7 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
             </button>
 
             {/* 4. Reposition – nur wenn der Slot in einem Container mit Geschwister-Feldern sitzt */}
-            {aiImageSlot.parentElement && aiImageSlot.parentElement.children.length > 1 && (
+            {aiImageSlot.parentElement && aiImageSlot.parentElement.children.length > 1 && aiImageSlot.getAttribute('data-no-reposition') !== 'true' && (
               <div className="border border-gray-200 rounded-2xl p-4 mb-3 bg-gray-50">
                 <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">
                   ↕️ Position des Bildes
@@ -5909,7 +6039,7 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-8 pb-40 bg-slate-300">
+      <div className="flex-1 overflow-y-auto py-8 pb-40 bg-slate-300" style={{ overflowAnchor: 'none' }}>
         <style dangerouslySetInnerHTML={{__html: `
         .editable { transition: all 0.2s ease; border-radius: 4px; padding: 2px 4px; margin: -2px -4px; outline: none; }
         .editable:hover { background-color: #e2e8f0; cursor: text; }
@@ -5945,6 +6075,14 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
           z-index: 1;
           padding: 2cm;
           box-sizing: border-box;
+        }
+        /* Inner relative container must fill the cover page so absolutely-positioned children
+           (Name, Titel, Subtitle, Bild etc.) resolve their top/left percentages against the full
+           page height. h-full (height: 100%) fails in this flex-column layout because browsers
+           treat the main-size as indefinite for percentage resolution. */
+        .cover-page-container > .relative {
+          flex: 1 1 auto;
+          min-height: 0;
         }
 
         .resizable-cover-image-wrapper {
@@ -6200,11 +6338,11 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
       `}} />
       
       {/* HAUPTBEREICH DOKUMENT */}
-      <div className="flex-1 overflow-y-auto py-10 pb-40 bg-slate-400">
+      <div className="flex-1 overflow-y-auto py-10 pb-40 bg-slate-400" style={{ overflowAnchor: 'none' }}>
         <div
           id="dossier-wrapper"
-          style={{ fontFamily: globalFont }}
-          className="transition-all"
+          style={{ fontFamily: globalFont, transitionProperty: 'none' }}
+          className=""
         >
           {dossierContent}
         </div>
@@ -6404,18 +6542,72 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
       {/* REIHE 3: Struktur & Block-Steuerung */}
       <div className="flex flex-wrap items-center justify-center gap-3 w-full">
         <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-lg">
-          <select onChange={(e) => handleAddTemplate(e.target.value)} className="h-8 bg-white border border-indigo-300 rounded text-xs px-2 outline-none focus:border-indigo-500 font-bold text-indigo-800" value="">
-            <option value="" disabled>➕ Struktur einfügen...</option>
-            <option value="text">Textabschnitt</option>
-            <option value="merkblatt">Merkblatt (Box)</option>
-            <option value="merkblatt2">Merkblatt II (Regeln)</option>
-            <option value="toc">Inhaltsverzeichnis</option>
-            <optgroup label="Aufgaben-Vorlagen">
-              {EXERCISE_TEMPLATES.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </optgroup>
-          </select>
+          <div className="relative" ref={structureMenuRef}>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { setShowStructureMenu(v => !v); setOpenSubject(null); }}
+              className="h-8 bg-white border border-indigo-300 rounded text-xs px-2 outline-none focus:border-indigo-500 font-bold text-indigo-800 hover:bg-indigo-50"
+            >
+              ➕ Struktur einfügen...
+            </button>
+            {showStructureMenu && (() => {
+              const pick = (id: string) => { handleAddTemplate(id); setShowStructureMenu(false); setOpenSubject(null); };
+              const byId = (id: string) => EXERCISE_TEMPLATES.find(t => t.id === id);
+              const subjects: { label: string; ids: string[] }[] = [
+                { label: 'Mathematik', ids: ['geld_rechnen', 'rechengitter', 'punktraster', 'rechenmauer', 'sachaufgabe', 'stellenwerttafel', 'uhrzeit', 'zahlenhaus', 'zahlenreihe', 'zahlenstrahl'] },
+                { label: 'NMG', ids: ['matching', 'bildbeschriftung', 'experiment', 'film_fragen', 'interview', 'klassifizierung', 'lebenszyklus', 'lueckentext', 'bild_beschriftung_multi', 'mindmap', 'offene_frage', 'recherche', 'steckbrief', 'steckbrief_gross', 't_chart', 'anstreichen', 'ursache_wirkung', 'venn_diagramm', 'vergleichstabelle', 'was_faellt_auf', 'zeitstrahl'] },
+                { label: 'Sprachen', ids: ['abc_liste', 'bildgeschichte', 'dialog_luecken', 'klassifizierung', 'konjugations_faecher', 'korrektur_zeile', 'klammer_luecken', 'lueckentext', 'professor_zipp', 'reimpaare', 'satz_transformator', 'suchsel', 'anstreichen', 'liste_zweispaltig', 'w_fragen', 'was_faellt_auf', 'eindringling'] },
+                { label: 'Allgemein', ids: ['checkbox-table', 'klassifizierung', 'kwl_chart', 'offene_frage', 'reflexion', 'table', 'suchsel', 't_chart', 'anstreichen', 'venn_diagramm', 'zeichnungsauftrag', 'ziel_checkliste'] },
+              ];
+              const itemCls = "w-full text-left px-3 py-1.5 text-xs hover:bg-indigo-100 text-indigo-900 whitespace-nowrap";
+              return (
+                <div className="absolute bottom-9 left-0 z-50 bg-white border border-indigo-300 rounded shadow-lg min-w-[220px] py-1">
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick('text')} className={itemCls}>Textabschnitt</button>
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick('merkblatt')} className={itemCls}>Merkblatt (Box)</button>
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick('merkblatt2')} className={itemCls}>Merkblatt II (Regeln)</button>
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick('toc')} className={itemCls}>Inhaltsverzeichnis</button>
+                  <div className="border-t border-indigo-100 my-1" />
+                  {subjects.map(s => (
+                    <div
+                      key={s.label}
+                      className="relative"
+                      onMouseEnter={() => setOpenSubject(s.label)}
+                    >
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => setOpenSubject(openSubject === s.label ? null : s.label)}
+                        className={`${itemCls} flex items-center justify-between font-bold`}
+                      >
+                        <span>{s.label}</span>
+                        <ChevronRight size={14} />
+                      </button>
+                      {openSubject === s.label && (
+                        <div className="absolute bottom-0 left-full ml-0 bg-white border border-indigo-300 rounded shadow-lg min-w-[240px] py-1 max-h-[70vh] overflow-y-auto">
+                          {s.ids.map(id => {
+                            const t = byId(id);
+                            if (!t) return null;
+                            return (
+                              <button
+                                key={id}
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => pick(id)}
+                                className={itemCls}
+                              >
+                                {t.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
 
           <button onMouseDown={(e) => e.preventDefault()} onClick={() => setShowAiModal(true)} className="px-3 h-8 flex items-center gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white text-xs font-bold rounded shadow-sm transition-all" title="KI generiert neue Aufgabe">
             <Sparkles size={14} />
