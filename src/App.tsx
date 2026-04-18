@@ -173,7 +173,38 @@ export default function App() {
 
   const handleWizardSubmit = (data: WizardData) => {
     setShowWizard(false);
-    
+
+    if (data.mode === 'empty') {
+      const newTheme = data.theme || 'blue';
+      const title = (data.topic.trim() || 'Neues Dossier')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const emptyHtml = `
+<div class="p-[2cm] min-h-[29.7cm] flex flex-col justify-center items-center relative border-b border-gray-100">
+  <div class="text-center space-y-8 mt-20">
+    <h1 contenteditable="true" suppresscontenteditablewarning="true" class="editable text-[36pt] font-black text-gray-900 leading-none">${title}</h1>
+    <div class="w-24 h-1 bg-${newTheme}-600 rounded-full my-8 mx-auto"></div>
+  </div>
+</div>
+<div class="page-break"></div>
+<div class="p-[2cm] min-h-[29.7cm]"></div>
+`;
+      const newProject: Project = {
+        id: crypto.randomUUID(),
+        name: data.topic.trim() || 'Neues Dossier',
+        html: emptyHtml,
+        chatHistory: [],
+        theme: newTheme,
+      };
+      setProjects(prev => {
+        if (prev.some(p => p.id === newProject.id)) return prev;
+        return [...prev, newProject];
+      });
+      setActiveProjectId(newProject.id);
+      return;
+    }
+
     let briefingMessage = '';
     let initialChatHistory: any[] = [];
 

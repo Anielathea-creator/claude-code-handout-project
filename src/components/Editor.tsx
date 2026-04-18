@@ -1510,16 +1510,19 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
       // We must append INSIDE the page container, not after it.
       const isPageContainer =
         (activeBlock.parentElement === root && !activeBlock.classList.contains('page-break')) ||
-        activeBlock.className.includes('p-[2.5cm]');
+        activeBlock.className.includes('p-[2.5cm]') ||
+        activeBlock.className.includes('p-[2cm]');
       if (isPageContainer) {
         activeBlock.appendChild(htmlElement);
       } else {
         activeBlock.parentNode?.insertBefore(htmlElement, activeBlock.nextSibling);
       }
     } else {
-      // No active block: append to the last page container found in the document.
-      const pageContainers = root.querySelectorAll('[class*="p-[2.5cm]"]');
-      const lastContainer = pageContainers[pageContainers.length - 1] as HTMLElement | undefined;
+      // No active block: append to the last page container (any direct non-page-break child of root).
+      const pageContainers = Array.from(root.children).filter(
+        el => !el.classList.contains('page-break')
+      ) as HTMLElement[];
+      const lastContainer = pageContainers[pageContainers.length - 1];
       (lastContainer || root).appendChild(htmlElement);
     }
 
@@ -3355,30 +3358,24 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
         const page = child as HTMLElement;
         if (isSkipped(page)) continue;
 
-        // Measure available content area using actual computed padding
+        // Measure actual content overflow using getBoundingClientRect to avoid
+        // overcounting collapsed sibling margins and the trailing margin-bottom
+        // of the last block (which is just empty padding-area space).
         const style = window.getComputedStyle(page);
-        const paddingTop = parseFloat(style.paddingTop) || 0;
         const paddingBottom = parseFloat(style.paddingBottom) || 0;
-        // offsetHeight includes padding+border (box-sizing:border-box from Tailwind preflight)
-        const CONTENT_H = page.offsetHeight - paddingTop - paddingBottom;
-
-        // Sum children heights including margins, skipping page-break divs.
-        // offsetHeight does NOT include margins, so we add them explicitly.
-        let childrenH = 0;
-        for (const c of Array.from(page.children)) {
-          const child = c as HTMLElement;
-          if (child.classList?.contains('page-break')) continue;
-          const cs = window.getComputedStyle(child);
-          const mt = parseFloat(cs.marginTop) || 0;
-          const mb = parseFloat(cs.marginBottom) || 0;
-          childrenH += child.offsetHeight + mt + mb;
-        }
-        if (childrenH <= CONTENT_H) continue;
 
         // Filter out page-break children for the move/split logic
         const contentChildren = Array.from(page.children).filter(
           c => !(c as HTMLElement).classList?.contains('page-break')
         ) as HTMLElement[];
+        if (contentChildren.length === 0) continue;
+
+        const lastChild = contentChildren[contentChildren.length - 1];
+        const pageRect = page.getBoundingClientRect();
+        const lastRect = lastChild.getBoundingClientRect();
+        const contentBottom = lastRect.bottom - pageRect.top;
+        const availableBottom = page.offsetHeight - paddingBottom;
+        if (contentBottom <= availableBottom) continue;
 
         if (contentChildren.length > 1) {
           // Move last content block to a brand-new page immediately after this one.
@@ -3412,8 +3409,32 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
     }
   };
 
-  const handleRootInput = () => {
+  const handleRootInput = (e?: React.FormEvent<HTMLElement>) => {
     resetPageScrollTops();
+
+    // If the user edited a digital clock-time inside an .analog-clock, rotate the hands to match.
+    const inputTarget = e?.target as HTMLElement | undefined;
+    if (inputTarget && typeof inputTarget.closest === 'function') {
+      const clock = inputTarget.closest('.analog-clock') as HTMLElement | null;
+      if (clock) {
+        const timeEl = clock.querySelector('.clock-time') as HTMLElement | null;
+        const text = (timeEl?.textContent || '').trim();
+        const m = text.match(/(\d{1,2})\s*[:.]\s*(\d{1,2})/);
+        if (m) {
+          const hours = parseInt(m[1], 10);
+          const minutes = parseInt(m[2], 10);
+          if (!isNaN(hours) && !isNaN(minutes) && minutes >= 0 && minutes < 60) {
+            const hAngle = ((hours % 12) + minutes / 60) * 30;
+            const mAngle = minutes * 6;
+            const hourHand = clock.querySelector('.clock-hand-hour');
+            const minuteHand = clock.querySelector('.clock-hand-minute');
+            hourHand?.setAttribute('transform', `rotate(${hAngle} 50 50)`);
+            minuteHand?.setAttribute('transform', `rotate(${mAngle} 50 50)`);
+          }
+        }
+      }
+    }
+
     // Ensure any newly created elements (e.g. new <li> from Enter key) are editable
     const root = document.getElementById('dossier-root');
     if (root) {
@@ -3633,7 +3654,7 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
       - Inhalt der Aufgabe (div/p): text-[12pt]
       
       Das HTML MUSS genau dieses Format nutzen:
-      <div class="avoid-break relative mb-8 mt-4 transition-all text-[12pt]">
+      <div class="avoid-break relative mb-8 transition-all text-[12pt]">
         <div class="content-wrapper p-8 border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 leading-loose">
           <h3 class="editable font-bold text-[14pt] mb-2 text-${themeColor}-700" contenteditable="true" suppresscontenteditablewarning="true">Aufgabe: [Titel]</h3>
           <p class="editable mb-4 text-gray-600 italic" contenteditable="true" suppresscontenteditablewarning="true">[Arbeitsanweisung für Schüler]</p>
@@ -3670,7 +3691,7 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
       let htmlElement = newBlock.firstElementChild as HTMLElement;
       if (!htmlElement) {
          htmlElement = document.createElement('div');
-         htmlElement.className = 'avoid-break mb-8 mt-4 transition-all';
+         htmlElement.className = 'avoid-break mb-8 transition-all';
          htmlElement.innerHTML = generatedHtml;
       }
       
@@ -6052,6 +6073,14 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
 
         .page-break { height: 2rem; background: transparent !important; border: none; margin: 0; padding: 0; display: block; pointer-events: none; outline: none !important; }
         .page-break::after { display: none; }
+
+        /* Analog clock: hide hands when the digital time is NOT marked as an answer
+           (plain text = student has to draw the hands themselves). */
+        .analog-clock:not(:has(.clock-time .is-answer)) .clock-hand-hour,
+        .analog-clock:not(:has(.clock-time .is-answer)) .clock-hand-minute {
+          visibility: hidden;
+        }
+
         #dossier-root > *:not(.page-break) {
           background-color: white !important;
           outline: none !important;
@@ -6063,7 +6092,7 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
           box-sizing: border-box !important;
           box-shadow: 0 4px 20px rgba(0,0,0,0.18);
           overflow: clip !important;
-          padding-bottom: 1.5cm !important;
+          padding-bottom: 2cm !important;
         }
         
         .cover-page-container {
@@ -6555,7 +6584,7 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
               const pick = (id: string) => { handleAddTemplate(id); setShowStructureMenu(false); setOpenSubject(null); };
               const byId = (id: string) => EXERCISE_TEMPLATES.find(t => t.id === id);
               const subjects: { label: string; ids: string[] }[] = [
-                { label: 'Mathematik', ids: ['geld_rechnen', 'rechengitter', 'punktraster', 'rechenmauer', 'sachaufgabe', 'stellenwerttafel', 'uhrzeit', 'zahlenhaus', 'zahlenreihe', 'zahlenstrahl'] },
+                { label: 'Mathematik', ids: ['geld_rechnen', 'rechengitter', 'punktraster', 'rechenmauer', 'sachaufgabe', 'stellenwerttafel', 'uhrzeit', 'zeitspanne_tabelle', 'zahlenhaus', 'zahlenreihe', 'zahlenstrahl'] },
                 { label: 'NMG', ids: ['matching', 'bildbeschriftung', 'experiment', 'film_fragen', 'interview', 'klassifizierung', 'lebenszyklus', 'lueckentext', 'bild_beschriftung_multi', 'mindmap', 'offene_frage', 'recherche', 'steckbrief', 'steckbrief_gross', 't_chart', 'anstreichen', 'ursache_wirkung', 'venn_diagramm', 'vergleichstabelle', 'was_faellt_auf', 'zeitstrahl'] },
                 { label: 'Sprachen', ids: ['abc_liste', 'bildgeschichte', 'dialog_luecken', 'klassifizierung', 'konjugations_faecher', 'korrektur_zeile', 'klammer_luecken', 'lueckentext', 'professor_zipp', 'reimpaare', 'satz_transformator', 'suchsel', 'anstreichen', 'liste_zweispaltig', 'w_fragen', 'was_faellt_auf', 'eindringling'] },
                 { label: 'Allgemein', ids: ['checkbox-table', 'klassifizierung', 'kwl_chart', 'offene_frage', 'reflexion', 'table', 'suchsel', 't_chart', 'anstreichen', 'venn_diagramm', 'zeichnungsauftrag', 'ziel_checkliste'] },

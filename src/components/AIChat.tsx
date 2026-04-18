@@ -497,7 +497,7 @@ Das EXAKTE Format (genau so, keine Varianten):
   <span class="gap-line"><span class="is-answer">LÖSUNG</span></span>
 
 KORREKTES VOLLSTÄNDIGES LÜCKENTEXT-BEISPIEL (so und nicht anders generieren!):
-<div class="avoid-break mb-8 mt-4 text-[12pt]">
+<div class="avoid-break mb-8 text-[12pt]">
   <h3 class="editable font-bold text-[14pt] mb-1 text-${liveTheme}-700" contenteditable="true">Aufgabe A.1: Wortfamilien ergänzen</h3>
   <p class="editable text-gray-600 mb-3 italic" contenteditable="true">Setze die passenden Wörter ein: Eiche, Wurzel, Blätter, Herbst</p>
   <div class="leading-loose">
@@ -517,7 +517,7 @@ Das obige ist FALSCH, weil:
 Produziere NIEMALS gesammelte Lösungen am Ende. Produziere NIEMALS Unterstriche "___" als Lücke. Nutze IMMER die verschachtelte gap-line/is-answer-Span-Struktur wie im Beispiel.
 
 AUFGABEN-KONVENTIONEN (bei update_block / insert_block):
-- Jeder Aufgaben-Block MUSS ein <div class="avoid-break mb-8 mt-4 text-[12pt]"> mit <h3 class="editable font-bold text-[14pt] mb-1 text-${liveTheme}-700" contenteditable="true">TITEL</h3> sein.
+- Jeder Aufgaben-Block MUSS ein <div class="avoid-break mb-8 text-[12pt]"> mit <h3 class="editable font-bold text-[14pt] mb-1 text-${liveTheme}-700" contenteditable="true">TITEL</h3> sein.
 - Lückentexte: <span class="gap-line"><span class="is-answer">Lösung</span></span> (siehe Beispiel oben!)
 - Reine Lücke (ohne vorgegebene Lösung): <span class="gap-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
 - Längere Freitext-Antworten: <div class="schreib-linie editable" contenteditable="true"><span class="is-answer">Musterlösung</span></div>
