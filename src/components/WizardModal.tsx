@@ -7,7 +7,7 @@ interface WizardModalProps {
 }
 
 export interface WizardData {
-  mode: 'generate' | 'import';
+  mode: 'generate' | 'import' | 'empty';
   topic: string;
   targetAudience: string;
   selectedTemplateIds: string[];
@@ -21,7 +21,7 @@ export interface WizardData {
 }
 
 const SUBJECT_TEMPLATE_IDS: Record<string, string[]> = {
-  Mathematik: ['geld_rechnen', 'rechengitter', 'punktraster', 'rechenmauer', 'sachaufgabe', 'stellenwerttafel', 'uhrzeit', 'zahlenhaus', 'zahlenreihe', 'zahlenstrahl'],
+  Mathematik: ['geld_rechnen', 'rechengitter', 'punktraster', 'rechenmauer', 'sachaufgabe', 'stellenwerttafel', 'uhrzeit', 'zeitspanne_tabelle', 'zahlenhaus', 'zahlenreihe', 'zahlenstrahl'],
   NMG: ['matching', 'bildbeschriftung', 'experiment', 'film_fragen', 'interview', 'klassifizierung', 'lebenszyklus', 'lueckentext', 'bild_beschriftung_multi', 'mindmap', 'offene_frage', 'recherche', 'steckbrief', 'steckbrief_gross', 't_chart', 'anstreichen', 'ursache_wirkung', 'venn_diagramm', 'vergleichstabelle', 'was_faellt_auf', 'zeitstrahl'],
   Sprachen: ['abc_liste', 'bildgeschichte', 'dialog_luecken', 'klassifizierung', 'konjugations_faecher', 'korrektur_zeile', 'klammer_luecken', 'lueckentext', 'professor_zipp', 'reimpaare', 'satz_transformator', 'suchsel', 'anstreichen', 'liste_zweispaltig', 'w_fragen', 'was_faellt_auf', 'eindringling'],
   Allgemein: ['checkbox-table', 'klassifizierung', 'kwl_chart', 'offene_frage', 'reflexion', 'table', 'suchsel', 't_chart', 'anstreichen', 'venn_diagramm', 'zeichnungsauftrag', 'ziel_checkliste'],
@@ -57,8 +57,14 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleNext = () => setStep((s) => Math.min(s + 1, 4));
-  const handleBack = () => setStep((s) => Math.max(s - 1, 1));
+  const handleNext = () => setStep((s) => {
+    if (data.mode === 'empty' && s === 1) return 4;
+    return Math.min(s + 1, 4);
+  });
+  const handleBack = () => setStep((s) => {
+    if (data.mode === 'empty' && s === 4) return 1;
+    return Math.max(s - 1, 1);
+  });
 
   const handleSubmit = () => {
     if (isSubmitting) return;
@@ -104,7 +110,7 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
         </div>
 
         <div className="mb-6 flex gap-2">
-          {[1, 2, 3, 4].map((i) => (
+          {(data.mode === 'empty' ? [1, 4] : [1, 2, 3, 4]).map((i) => (
             <div key={i} className={`h-2 flex-1 rounded-full ${step >= i ? 'bg-indigo-600' : 'bg-gray-100'}`} />
           ))}
         </div>
@@ -114,20 +120,27 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
             <div className="space-y-6 animate-in slide-in-from-right-4">
               <div>
                 <h3 className="text-xl font-bold text-gray-800 mb-3">1. Wie möchtest du starten?</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <button
                     onClick={() => setData({ ...data, mode: 'generate' })}
                     className={`p-4 rounded-xl border-2 flex flex-col items-center gap-3 transition-all ${data.mode === 'generate' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-indigo-300 text-gray-600'}`}
                   >
                     <span className={`text-3xl ${data.mode === 'generate' ? 'opacity-100' : 'opacity-50 grayscale'}`}>✨</span>
-                    <span className="font-bold text-center">Aufgaben durch KI generieren</span>
+                    <span className="font-bold text-center text-sm">Aufgaben durch KI generieren</span>
                   </button>
                   <button
                     onClick={() => setData({ ...data, mode: 'import' })}
                     className={`p-4 rounded-xl border-2 flex flex-col items-center gap-3 transition-all ${data.mode === 'import' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-indigo-300 text-gray-600'}`}
                   >
                     <span className={`text-3xl ${data.mode === 'import' ? 'opacity-100' : 'opacity-50 grayscale'}`}>📤</span>
-                    <span className="font-bold text-center">Eigene Aufgaben importieren</span>
+                    <span className="font-bold text-center text-sm">Eigene Aufgaben importieren</span>
+                  </button>
+                  <button
+                    onClick={() => setData({ ...data, mode: 'empty' })}
+                    className={`p-4 rounded-xl border-2 flex flex-col items-center gap-3 transition-all ${data.mode === 'empty' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-indigo-300 text-gray-600'}`}
+                  >
+                    <span className={`text-3xl ${data.mode === 'empty' ? 'opacity-100' : 'opacity-50 grayscale'}`}>📄</span>
+                    <span className="font-bold text-center text-sm">Leeres Dossier erstellen</span>
                   </button>
                 </div>
               </div>
@@ -403,7 +416,7 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
               disabled={isSubmitting || !data.topic.trim() || (data.mode === 'import' && !data.importedFile)}
               className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold rounded-xl shadow-md disabled:opacity-50 transition-all"
             >
-              {isSubmitting ? 'Wird erstellt...' : '🚀 Dossier entwerfen'}
+              {isSubmitting ? 'Wird erstellt...' : (data.mode === 'empty' ? '📄 Leeres Dossier erstellen' : '🚀 Dossier entwerfen')}
             </button>
           )}
         </div>
