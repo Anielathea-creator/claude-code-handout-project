@@ -67,10 +67,12 @@
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     user-select: none;
     pointer-events: auto;
+    /* Marker auf Klickposition zentrieren statt linke obere Ecke anzuhaften */
+    transform: translate(-50%, -50%);
   }
-  
+
   .image-marker:hover {
-    transform: scale(1.1);
+    transform: translate(-50%, -50%) scale(1.1);
     background-color: #1d4ed8;
   }
 

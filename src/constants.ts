@@ -536,7 +536,7 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
     html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
   <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Steckbrief</h3>
   <div class="border-2 border-gray-300 rounded-xl p-6 bg-white shadow-sm overflow-hidden">
-    <div class="ai-image-slot resize overflow-hidden w-1/3 float-left mr-6 mb-4 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50 min-h-[150px] text-gray-400 editable cursor-pointer hover:bg-gray-100 transition-colors image-placeholder-trigger" contenteditable="true" title="Doppelklick für Bild-Optionen – Ecke unten rechts zum Vergrößern">
+    <div class="ai-image-slot resize overflow-hidden w-1/3 float-left mr-6 mb-4 rounded-lg flex items-center justify-center bg-gray-50 text-gray-400 editable cursor-pointer hover:bg-gray-100 transition-colors image-placeholder-trigger" contenteditable="true" title="Doppelklick für Bild-Optionen – Ecke unten rechts zum Vergrößern">
       [Bild hier einfügen]
     </div>
     <div class="mb-4">
@@ -618,14 +618,17 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
   <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Bild beschriften</h3>
   <p class="editable text-gray-600 mb-4" contenteditable="true">Schreibe die passenden Begriffe auf die Linien.</p>
   <div class="flex flex-col items-center border-2 border-gray-100 rounded-xl p-6 bg-white shadow-sm">
-    <div class="w-full max-w-md h-48 border-2 border-dashed border-gray-300 bg-gray-50 mb-6 flex items-center justify-center text-gray-400 editable cursor-pointer hover:bg-gray-100 transition-colors image-placeholder-trigger" contenteditable="true">
+    <div class="ai-image-slot resize overflow-hidden w-full max-w-md min-h-[12rem] border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-gray-400 editable cursor-pointer hover:bg-gray-100 transition-colors image-placeholder-trigger" contenteditable="true" data-no-reposition="true" title="Ecke unten rechts zum Vergrößern ziehen">
       [Bild hier einfügen]
     </div>
-    <div class="grid grid-cols-2 gap-x-12 gap-y-4 w-full px-8">
-       <p class="flex items-end gap-2 editable" contenteditable="true"><span class="font-bold text-gray-500">1.</span> <span class="gap-line"><span class="is-answer">Teil 1</span></span></p>
-       <p class="flex items-end gap-2 editable" contenteditable="true"><span class="font-bold text-gray-500">2.</span> <span class="gap-line"><span class="is-answer">Teil 2</span></span></p>
-       <p class="flex items-end gap-2 editable" contenteditable="true"><span class="font-bold text-gray-500">3.</span> <span class="gap-line"><span class="is-answer">Teil 3</span></span></p>
-       <p class="flex items-end gap-2 editable" contenteditable="true"><span class="font-bold text-gray-500">4.</span> <span class="gap-line"><span class="is-answer">Teil 4</span></span></p>
+    <div class="numbered-label-list numbered-label-list-3col grid grid-cols-[auto_auto_auto] gap-x-6 gap-y-1 justify-between w-full mt-6">
+       <p class="numbered-label-row flex items-end gap-2 editable" contenteditable="true"><span class="numbered-label-index font-bold text-gray-500">1.</span> <span class="schreib-linie inline-block min-w-[9rem]"><span class="is-answer">Beschriftung 1</span></span></p>
+       <p class="numbered-label-row flex items-end gap-2 editable" contenteditable="true"><span class="numbered-label-index font-bold text-gray-500">2.</span> <span class="schreib-linie inline-block min-w-[9rem]"><span class="is-answer">Beschriftung 2</span></span></p>
+       <p class="numbered-label-row flex items-end gap-2 editable" contenteditable="true"><span class="numbered-label-index font-bold text-gray-500">3.</span> <span class="schreib-linie inline-block min-w-[9rem]"><span class="is-answer">Beschriftung 3</span></span></p>
+       <p class="numbered-label-row flex items-end gap-2 editable" contenteditable="true"><span class="numbered-label-index font-bold text-gray-500">4.</span> <span class="schreib-linie inline-block min-w-[9rem]"><span class="is-answer">Beschriftung 4</span></span></p>
+       <p class="numbered-label-row flex items-end gap-2 editable" contenteditable="true"><span class="numbered-label-index font-bold text-gray-500">5.</span> <span class="schreib-linie inline-block min-w-[9rem]"><span class="is-answer">Beschriftung 5</span></span></p>
+       <p class="numbered-label-row flex items-end gap-2 editable" contenteditable="true"><span class="numbered-label-index font-bold text-gray-500">6.</span> <span class="schreib-linie inline-block min-w-[9rem]"><span class="is-answer">Beschriftung 6</span></span></p>
+       <button type="button" class="add-label-line col-span-3 justify-self-start text-xs mt-1 px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-gray-600 cursor-pointer" contenteditable="false" title="Neue Zeile hinzufügen">+ Zeile</button>
     </div>
   </div>
 </div>`
@@ -1060,16 +1063,16 @@ ${(() => {
   <p class="editable text-gray-900 mb-6" contenteditable="true">Schreibe den passenden Begriff unter jedes Bild.</p>
   <div class="grid grid-cols-3 gap-8">
     <div class="flex flex-col items-center">
-      <div class="w-full h-40 border-2 border-gray-300 rounded-xl mb-3 flex items-center justify-center text-gray-400 bg-white shadow-sm editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors" contenteditable="true">[Bild 1]</div>
-      <div class="schreib-linie editable text-THEME-600 italic w-full text-center font-bold" contenteditable="true"><span class="is-answer">rennen</span></div>
+      <div class="w-full min-h-[10rem] ai-image-slot resize overflow-hidden border-2 border-gray-300 rounded-xl mb-3 flex items-center justify-center text-gray-400 bg-white shadow-sm editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors" contenteditable="true" data-no-reposition="true">[Bild 1]</div>
+      <div class="editable w-full text-center mt-2" contenteditable="true"><span class="gap-line"><span class="is-answer">rennen</span></span></div>
     </div>
     <div class="flex flex-col items-center">
-      <div class="w-full h-40 border-2 border-gray-300 rounded-xl mb-3 flex items-center justify-center text-gray-400 bg-white shadow-sm editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors" contenteditable="true">[Bild 2]</div>
-      <div class="schreib-linie editable text-THEME-600 italic w-full text-center font-bold" contenteditable="true"><span class="is-answer">essen</span></div>
+      <div class="w-full min-h-[10rem] ai-image-slot resize overflow-hidden border-2 border-gray-300 rounded-xl mb-3 flex items-center justify-center text-gray-400 bg-white shadow-sm editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors" contenteditable="true" data-no-reposition="true">[Bild 2]</div>
+      <div class="editable w-full text-center mt-2" contenteditable="true"><span class="gap-line"><span class="is-answer">essen</span></span></div>
     </div>
     <div class="flex flex-col items-center">
-      <div class="w-full h-40 border-2 border-gray-300 rounded-xl mb-3 flex items-center justify-center text-gray-400 bg-white shadow-sm editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors" contenteditable="true">[Bild 3]</div>
-      <div class="schreib-linie editable text-THEME-600 italic w-full text-center font-bold" contenteditable="true"><span class="is-answer">springen</span></div>
+      <div class="w-full min-h-[10rem] ai-image-slot resize overflow-hidden border-2 border-gray-300 rounded-xl mb-3 flex items-center justify-center text-gray-400 bg-white shadow-sm editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors" contenteditable="true" data-no-reposition="true">[Bild 3]</div>
+      <div class="editable w-full text-center mt-2" contenteditable="true"><span class="gap-line"><span class="is-answer">springen</span></span></div>
     </div>
   </div>
 </div>`
@@ -1142,6 +1145,508 @@ ${(() => {
     <p class="editable text-gray-900" contenteditable="true">Der Hund <span class="is-strikethrough-answer text-red-600">beisste</span> in den Knochen. → <span class="gap-line"><span class="is-answer text-THEME-600 italic">biss</span></span></p>
     <p class="editable text-gray-900" contenteditable="true">Gestern <span class="is-strikethrough-answer text-red-600">fallte</span> ich vom Stuhl. → <span class="gap-line"><span class="is-answer text-THEME-600 italic">fiel</span></span></p>
   </div>
+</div>`
+  },
+  {
+    id: "zahlenreihe",
+    name: "Zahlenreihe fortsetzen",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Zahlenmuster fortsetzen</h3>
+  <p class="editable text-gray-600 mb-4" contenteditable="true">Erkenne die Regel und setze die Zahlenreihe fort.</p>
+  <div class="space-y-3 leading-loose">
+    <p class="editable font-mono text-lg" contenteditable="true">a) 2, 4, 6, <span class="gap-line"><span class="is-answer">8</span></span>, <span class="gap-line"><span class="is-answer">10</span></span>, <span class="gap-line"><span class="is-answer">12</span></span></p>
+    <p class="editable font-mono text-lg" contenteditable="true">b) 5, 10, 15, <span class="gap-line"><span class="is-answer">20</span></span>, <span class="gap-line"><span class="is-answer">25</span></span>, <span class="gap-line"><span class="is-answer">30</span></span></p>
+    <p class="editable font-mono text-lg" contenteditable="true">c) 100, 90, 80, <span class="gap-line"><span class="is-answer">70</span></span>, <span class="gap-line"><span class="is-answer">60</span></span>, <span class="gap-line"><span class="is-answer">50</span></span></p>
+  </div>
+</div>`
+  },
+  {
+    id: "uhrzeit",
+    name: "Uhrzeit / Zeitspanne",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Uhrzeit und Zeitspanne</h3>
+  <p class="editable text-gray-600 mb-4" contenteditable="true">Lies die Uhrzeiten ab und berechne, wie viel Zeit vergangen ist.</p>
+  <div class="flex items-center justify-around my-6">
+    <div class="flex flex-col items-center gap-2">
+      <span class="font-bold editable" contenteditable="true">Start</span>
+      <svg viewBox="0 0 100 100" class="w-28 h-28">
+        <circle cx="50" cy="50" r="48" fill="white" stroke="#374151" stroke-width="2"/>
+        <line x1="50" y1="4" x2="50" y2="12" stroke="#374151" stroke-width="2"/>
+        <line x1="96" y1="50" x2="88" y2="50" stroke="#374151" stroke-width="2"/>
+        <line x1="50" y1="96" x2="50" y2="88" stroke="#374151" stroke-width="2"/>
+        <line x1="4" y1="50" x2="12" y2="50" stroke="#374151" stroke-width="2"/>
+        <text x="50" y="20" text-anchor="middle" font-size="10" font-weight="bold" fill="#374151">12</text>
+        <text x="82" y="54" text-anchor="middle" font-size="10" font-weight="bold" fill="#374151">3</text>
+        <text x="50" y="88" text-anchor="middle" font-size="10" font-weight="bold" fill="#374151">6</text>
+        <text x="18" y="54" text-anchor="middle" font-size="10" font-weight="bold" fill="#374151">9</text>
+        <line x1="50" y1="50" x2="28" y2="50" stroke="#111827" stroke-width="3" stroke-linecap="round"/>
+        <line x1="50" y1="50" x2="50" y2="14" stroke="#111827" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="50" cy="50" r="3" fill="#111827"/>
+      </svg>
+      <div class="gap-line w-24 text-center text-THEME-600 italic editable" contenteditable="true"><span class="is-answer">9:00 Uhr</span></div>
+    </div>
+    <div class="text-4xl font-bold text-gray-400">→</div>
+    <div class="flex flex-col items-center gap-2">
+      <span class="font-bold editable" contenteditable="true">Ende</span>
+      <svg viewBox="0 0 100 100" class="w-28 h-28">
+        <circle cx="50" cy="50" r="48" fill="white" stroke="#374151" stroke-width="2"/>
+        <line x1="50" y1="4" x2="50" y2="12" stroke="#374151" stroke-width="2"/>
+        <line x1="96" y1="50" x2="88" y2="50" stroke="#374151" stroke-width="2"/>
+        <line x1="50" y1="96" x2="50" y2="88" stroke="#374151" stroke-width="2"/>
+        <line x1="4" y1="50" x2="12" y2="50" stroke="#374151" stroke-width="2"/>
+        <text x="50" y="20" text-anchor="middle" font-size="10" font-weight="bold" fill="#374151">12</text>
+        <text x="82" y="54" text-anchor="middle" font-size="10" font-weight="bold" fill="#374151">3</text>
+        <text x="50" y="88" text-anchor="middle" font-size="10" font-weight="bold" fill="#374151">6</text>
+        <text x="18" y="54" text-anchor="middle" font-size="10" font-weight="bold" fill="#374151">9</text>
+        <line x1="50" y1="50" x2="36" y2="28" stroke="#111827" stroke-width="3" stroke-linecap="round"/>
+        <line x1="50" y1="50" x2="50" y2="82" stroke="#111827" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="50" cy="50" r="3" fill="#111827"/>
+      </svg>
+      <div class="gap-line w-24 text-center text-THEME-600 italic editable" contenteditable="true"><span class="is-answer">11:30 Uhr</span></div>
+    </div>
+  </div>
+  <p class="editable mb-2" contenteditable="true">Wie lange hat es gedauert? <span class="gap-line"><span class="is-answer">2 Stunden 30 Minuten</span></span></p>
+</div>`
+  },
+  {
+    id: "geld_rechnen",
+    name: "Geld-Rechnen (CHF)",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Wechselgeld berechnen</h3>
+  <p class="editable text-gray-600 mb-4" contenteditable="true">Rechne aus, wie viel Rückgeld du bekommst.</p>
+  <table class="w-full border-collapse border-2 border-gray-300">
+    <thead>
+      <tr class="bg-gray-100">
+        <th class="border-2 border-gray-300 p-3 editable font-bold" contenteditable="true">Preis</th>
+        <th class="border-2 border-gray-300 p-3 editable font-bold" contenteditable="true">Bezahlt</th>
+        <th class="border-2 border-gray-300 p-3 editable font-bold" contenteditable="true">Rückgeld</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="border-2 border-gray-300 p-3 editable text-center" contenteditable="true">CHF 3.50</td>
+        <td class="border-2 border-gray-300 p-3 editable text-center" contenteditable="true">CHF 5.00</td>
+        <td class="border-2 border-gray-300 p-3 editable text-center text-THEME-600 font-bold" contenteditable="true"><span class="is-answer">CHF 1.50</span></td>
+      </tr>
+      <tr>
+        <td class="border-2 border-gray-300 p-3 editable text-center" contenteditable="true">CHF 7.20</td>
+        <td class="border-2 border-gray-300 p-3 editable text-center" contenteditable="true">CHF 10.00</td>
+        <td class="border-2 border-gray-300 p-3 editable text-center text-THEME-600 font-bold" contenteditable="true"><span class="is-answer">CHF 2.80</span></td>
+      </tr>
+      <tr>
+        <td class="border-2 border-gray-300 p-3 editable text-center" contenteditable="true">CHF 12.40</td>
+        <td class="border-2 border-gray-300 p-3 editable text-center" contenteditable="true">CHF 20.00</td>
+        <td class="border-2 border-gray-300 p-3 editable text-center text-THEME-600 font-bold" contenteditable="true"><span class="is-answer">CHF 7.60</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>`
+  },
+  {
+    id: "zahlenhaus",
+    name: "Zahlenhaus (Zerlegung)",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-2 text-THEME-700" contenteditable="true">Aufgabe: Zahlenhaus</h3>
+  <p class="editable text-gray-900 mb-4" contenteditable="true">Zerlege die Zahl im Dach in alle möglichen Summen.</p>
+  <div class="mx-auto" style="max-width: 300px;">
+    <div class="w-full h-14 border-2 border-gray-700 border-b-0 flex items-center justify-center font-bold text-2xl bg-THEME-50 editable text-THEME-700" contenteditable="true">10</div>
+    <table class="w-full border-collapse border-2 border-gray-700 text-xl font-bold">
+      <tbody>
+        <tr>
+          <td class="border border-gray-700 w-1/2 h-12 text-center editable" contenteditable="true">0</td>
+          <td class="border border-gray-700 w-1/2 h-12 text-center editable text-THEME-600" contenteditable="true"><span class="is-answer">10</span></td>
+        </tr>
+        <tr>
+          <td class="border border-gray-700 h-12 text-center editable" contenteditable="true">1</td>
+          <td class="border border-gray-700 h-12 text-center editable text-THEME-600" contenteditable="true"><span class="is-answer">9</span></td>
+        </tr>
+        <tr>
+          <td class="border border-gray-700 h-12 text-center editable" contenteditable="true">2</td>
+          <td class="border border-gray-700 h-12 text-center editable text-THEME-600" contenteditable="true"><span class="is-answer">8</span></td>
+        </tr>
+        <tr>
+          <td class="border border-gray-700 h-12 text-center editable" contenteditable="true">3</td>
+          <td class="border border-gray-700 h-12 text-center editable text-THEME-600" contenteditable="true"><span class="is-answer">7</span></td>
+        </tr>
+        <tr>
+          <td class="border border-gray-700 h-12 text-center editable" contenteditable="true">4</td>
+          <td class="border border-gray-700 h-12 text-center editable text-THEME-600" contenteditable="true"><span class="is-answer">6</span></td>
+        </tr>
+        <tr>
+          <td class="border border-gray-700 h-12 text-center editable" contenteditable="true">5</td>
+          <td class="border border-gray-700 h-12 text-center editable text-THEME-600" contenteditable="true"><span class="is-answer">5</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>`
+  },
+  {
+    id: "punktraster",
+    name: "Punktraster / Geobrett",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-2 text-THEME-700" contenteditable="true">Aufgabe: Im Punktraster zeichnen</h3>
+  <p class="editable text-gray-900 mb-4" contenteditable="true">Zeichne die geometrische Figur genau ins Raster.</p>
+  <div class="w-full h-80 border-2 border-gray-300 rounded-xl bg-white" style="background-image: radial-gradient(circle, #6b7280 1.5px, transparent 1.5px); background-size: 24px 24px; background-position: 12px 12px; print-color-adjust: exact; -webkit-print-color-adjust: exact;"></div>
+</div>`
+  },
+  {
+    id: "zeitstrahl",
+    name: "Zeitstrahl (Geschichte)",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-2 text-THEME-700" contenteditable="true">Aufgabe: Zeitstrahl</h3>
+  <p class="editable text-gray-900 mb-6" contenteditable="true">Schreibe zu jedem Jahr das passende historische Ereignis auf die Linie.</p>
+  <div class="relative mt-8 mb-4">
+    <div class="absolute left-0 right-0 top-[11px] h-1 bg-gray-800">
+      <div class="absolute -right-2 -top-1.5 w-0 h-0 border-y-[6px] border-y-transparent border-l-[10px] border-l-gray-800"></div>
+    </div>
+    <div class="flex justify-between relative gap-2">
+      <div class="flex flex-col items-center flex-1">
+        <div class="h-6 w-0.5 bg-gray-800"></div>
+        <div class="editable text-center font-bold mt-1 text-THEME-700" contenteditable="true">1291</div>
+        <div class="mt-2 editable italic text-THEME-600 border-b border-gray-400 w-full text-center text-sm min-h-[1.5rem] px-1" contenteditable="true"><span class="is-answer">Bundesbrief</span></div>
+      </div>
+      <div class="flex flex-col items-center flex-1">
+        <div class="h-6 w-0.5 bg-gray-800"></div>
+        <div class="editable text-center font-bold mt-1 text-THEME-700" contenteditable="true">1499</div>
+        <div class="mt-2 editable italic text-THEME-600 border-b border-gray-400 w-full text-center text-sm min-h-[1.5rem] px-1" contenteditable="true"><span class="is-answer">Schwabenkrieg</span></div>
+      </div>
+      <div class="flex flex-col items-center flex-1">
+        <div class="h-6 w-0.5 bg-gray-800"></div>
+        <div class="editable text-center font-bold mt-1 text-THEME-700" contenteditable="true">1798</div>
+        <div class="mt-2 editable italic text-THEME-600 border-b border-gray-400 w-full text-center text-sm min-h-[1.5rem] px-1" contenteditable="true"><span class="is-answer">Helvetische Republik</span></div>
+      </div>
+      <div class="flex flex-col items-center flex-1">
+        <div class="h-6 w-0.5 bg-gray-800"></div>
+        <div class="editable text-center font-bold mt-1 text-THEME-700" contenteditable="true">1848</div>
+        <div class="mt-2 editable italic text-THEME-600 border-b border-gray-400 w-full text-center text-sm min-h-[1.5rem] px-1" contenteditable="true"><span class="is-answer">Bundesverfassung</span></div>
+      </div>
+      <div class="flex flex-col items-center flex-1">
+        <div class="h-6 w-0.5 bg-gray-800"></div>
+        <div class="editable text-center font-bold mt-1 text-THEME-700" contenteditable="true">1971</div>
+        <div class="mt-2 editable italic text-THEME-600 border-b border-gray-400 w-full text-center text-sm min-h-[1.5rem] px-1" contenteditable="true"><span class="is-answer">Frauenstimmrecht</span></div>
+      </div>
+    </div>
+  </div>
+</div>`
+  },
+  {
+    id: "vergleichstabelle",
+    name: "Vergleichstabelle",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Vergleichen</h3>
+  <p class="editable text-gray-600 mb-4" contenteditable="true">Vergleiche die beiden Objekte anhand der Merkmale.</p>
+  <table class="w-full border-collapse border-2 border-gray-300">
+    <thead>
+      <tr class="bg-gray-100">
+        <th class="border-2 border-gray-300 p-3 editable font-bold text-left w-1/3" contenteditable="true">Merkmal</th>
+        <th class="border-2 border-gray-300 p-3 editable font-bold w-1/3" contenteditable="true">Objekt A</th>
+        <th class="border-2 border-gray-300 p-3 editable font-bold w-1/3" contenteditable="true">Objekt B</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="border-2 border-gray-300 p-3 editable font-bold" contenteditable="true">Aussehen</td>
+        <td class="border-2 border-gray-300 p-3 editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">...</span></td>
+        <td class="border-2 border-gray-300 p-3 editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">...</span></td>
+      </tr>
+      <tr>
+        <td class="border-2 border-gray-300 p-3 editable font-bold" contenteditable="true">Lebensraum</td>
+        <td class="border-2 border-gray-300 p-3 editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">...</span></td>
+        <td class="border-2 border-gray-300 p-3 editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">...</span></td>
+      </tr>
+      <tr>
+        <td class="border-2 border-gray-300 p-3 editable font-bold" contenteditable="true">Nahrung</td>
+        <td class="border-2 border-gray-300 p-3 editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">...</span></td>
+        <td class="border-2 border-gray-300 p-3 editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">...</span></td>
+      </tr>
+      <tr>
+        <td class="border-2 border-gray-300 p-3 editable font-bold" contenteditable="true">Besonderheit</td>
+        <td class="border-2 border-gray-300 p-3 editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">...</span></td>
+        <td class="border-2 border-gray-300 p-3 editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">...</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>`
+  },
+  {
+    id: "ursache_wirkung",
+    name: "Ursache → Wirkung",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Ursache und Wirkung</h3>
+  <p class="editable text-gray-600 mb-4" contenteditable="true">Schreibe zu jeder Ursache die passende Wirkung auf die Linie.</p>
+  <div class="grid grid-cols-2 gap-x-16 gap-y-2 w-full leading-loose">
+    <p class="editable text-gray-900" contenteditable="true">• Es regnet stark → <span class="gap-line"><span class="is-answer">die Strasse wird nass</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true">• Die Sonne scheint → <span class="gap-line"><span class="is-answer">es wird wärmer</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true">• Man isst zu viel → <span class="gap-line"><span class="is-answer">der Bauch tut weh</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true">• Das Eis schmilzt → <span class="gap-line"><span class="is-answer">es wird Wasser</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true">• Der Baum wird gefällt → <span class="gap-line"><span class="is-answer">Vögel verlieren ihr Zuhause</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true">• Man übt viel → <span class="gap-line"><span class="is-answer">man wird besser</span></span></p>
+  </div>
+</div>`
+  },
+  {
+    id: "lebenszyklus",
+    name: "Lebenszyklus",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Lebenszyklus</h3>
+  <p class="editable text-gray-600 mb-4" contenteditable="true">Beschrifte die vier Phasen des Lebenszyklus.</p>
+  <div class="flex items-center justify-between gap-2">
+    <div class="flex-1 flex flex-col items-center">
+      <div class="w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true">[Bild 1]</div>
+      <div class="mt-2 gap-line w-full text-center text-sm editable" contenteditable="true"><span class="is-answer">Ei</span></div>
+    </div>
+    <div class="text-3xl text-gray-400 font-bold shrink-0">→</div>
+    <div class="flex-1 flex flex-col items-center">
+      <div class="w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true">[Bild 2]</div>
+      <div class="mt-2 gap-line w-full text-center text-sm editable" contenteditable="true"><span class="is-answer">Raupe</span></div>
+    </div>
+    <div class="text-3xl text-gray-400 font-bold shrink-0">→</div>
+    <div class="flex-1 flex flex-col items-center">
+      <div class="w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true">[Bild 3]</div>
+      <div class="mt-2 gap-line w-full text-center text-sm editable" contenteditable="true"><span class="is-answer">Puppe</span></div>
+    </div>
+    <div class="text-3xl text-gray-400 font-bold shrink-0">→</div>
+    <div class="flex-1 flex flex-col items-center">
+      <div class="w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true">[Bild 4]</div>
+      <div class="mt-2 gap-line w-full text-center text-sm editable" contenteditable="true"><span class="is-answer">Schmetterling</span></div>
+    </div>
+  </div>
+</div>`
+  },
+  {
+    id: "recherche",
+    name: "Recherche-Leitfaden",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-6 text-THEME-700" contenteditable="true">Aufgabe: Recherche-Leitfaden</h3>
+  <div class="space-y-5">
+    <div>
+      <h4 class="font-bold text-gray-900 mb-1 editable flex items-center gap-2" contenteditable="true"><span class="text-xl">🔍</span> Meine Forschungsfrage</h4>
+      <div class="schreib-linie editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">Wie leben Bienen im Winter?</span></div>
+    </div>
+    <div>
+      <h4 class="font-bold text-gray-900 mb-1 editable flex items-center gap-2" contenteditable="true"><span class="text-xl">📚</span> Meine Quellen</h4>
+      <div class="schreib-linie editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">Buch: ..., Internet: ...</span></div>
+    </div>
+    <div>
+      <h4 class="font-bold text-gray-900 mb-1 editable flex items-center gap-2" contenteditable="true"><span class="text-xl">📝</span> Wichtige Erkenntnisse</h4>
+      <div class="schreib-linie editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">...</span></div>
+    </div>
+    <div>
+      <h4 class="font-bold text-gray-900 mb-1 editable flex items-center gap-2" contenteditable="true"><span class="text-xl">✅</span> Meine Antwort</h4>
+      <div class="schreib-linie editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">...</span></div>
+    </div>
+  </div>
+</div>`
+  },
+  {
+    id: "bildgeschichte",
+    name: "Bildgeschichte ordnen",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Bildgeschichte ordnen</h3>
+  <p class="editable text-gray-600 mb-4" contenteditable="true">Bringe die Bilder in die richtige Reihenfolge (1–4) und schreibe dann eine Geschichte dazu.</p>
+  <div class="grid grid-cols-4 gap-3 mb-4">
+    <div class="flex flex-col items-center">
+      <div class="w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true">[Bild A]</div>
+      <div class="mt-2 w-10 h-10 border-2 border-gray-500 rounded flex items-center justify-center font-bold text-lg editable text-THEME-600" contenteditable="true"><span class="is-answer">2</span></div>
+    </div>
+    <div class="flex flex-col items-center">
+      <div class="w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true">[Bild B]</div>
+      <div class="mt-2 w-10 h-10 border-2 border-gray-500 rounded flex items-center justify-center font-bold text-lg editable text-THEME-600" contenteditable="true"><span class="is-answer">4</span></div>
+    </div>
+    <div class="flex flex-col items-center">
+      <div class="w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true">[Bild C]</div>
+      <div class="mt-2 w-10 h-10 border-2 border-gray-500 rounded flex items-center justify-center font-bold text-lg editable text-THEME-600" contenteditable="true"><span class="is-answer">1</span></div>
+    </div>
+    <div class="flex flex-col items-center">
+      <div class="w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true">[Bild D]</div>
+      <div class="mt-2 w-10 h-10 border-2 border-gray-500 rounded flex items-center justify-center font-bold text-lg editable text-THEME-600" contenteditable="true"><span class="is-answer">3</span></div>
+    </div>
+  </div>
+  <p class="editable font-bold mb-2" contenteditable="true">Meine Geschichte:</p>
+  <div class="schreib-linie editable text-THEME-600 italic" contenteditable="true"><span class="is-answer">Es war einmal...</span></div>
+</div>`
+  },
+  {
+    id: "w_fragen",
+    name: "W-Fragen zum Text",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: W-Fragen zum Text</h3>
+  <p class="editable text-gray-600 mb-4" contenteditable="true">Beantworte die W-Fragen zum gelesenen Text.</p>
+  <div class="space-y-2 leading-loose">
+    <p class="editable" contenteditable="true"><span class="font-bold text-THEME-700 inline-block w-24">Wer?</span> <span class="gap-line"><span class="is-answer">...</span></span></p>
+    <p class="editable" contenteditable="true"><span class="font-bold text-THEME-700 inline-block w-24">Was?</span> <span class="gap-line"><span class="is-answer">...</span></span></p>
+    <p class="editable" contenteditable="true"><span class="font-bold text-THEME-700 inline-block w-24">Wann?</span> <span class="gap-line"><span class="is-answer">...</span></span></p>
+    <p class="editable" contenteditable="true"><span class="font-bold text-THEME-700 inline-block w-24">Wo?</span> <span class="gap-line"><span class="is-answer">...</span></span></p>
+    <p class="editable" contenteditable="true"><span class="font-bold text-THEME-700 inline-block w-24">Warum?</span> <span class="gap-line"><span class="is-answer">...</span></span></p>
+    <p class="editable" contenteditable="true"><span class="font-bold text-THEME-700 inline-block w-24">Wie?</span> <span class="gap-line"><span class="is-answer">...</span></span></p>
+  </div>
+</div>`
+  },
+  {
+    id: "abc_liste",
+    name: "ABC-Liste",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: ABC-Liste</h3>
+  <p class="editable text-gray-600 mb-4" contenteditable="true">Finde zu jedem Buchstaben ein passendes Wort zum Thema.</p>
+  <div class="grid grid-cols-2 gap-x-8 gap-y-1">
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">A</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">N</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">B</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">O</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">C</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">P</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">D</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">Q</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">E</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">R</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">F</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">S</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">G</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">T</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">H</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">U</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">I</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">V</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">J</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">W</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">K</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">X</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">L</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">Y</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">M</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+    <p class="editable flex items-baseline gap-2" contenteditable="true"><span class="font-bold text-THEME-700 w-6 shrink-0">Z</span><span class="gap-line flex-1"><span class="is-answer">...</span></span></p>
+  </div>
+</div>`
+  },
+  {
+    id: "reimpaare",
+    name: "Reimpaare",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Finde einen Reim</h3>
+  <p class="editable text-gray-600 mb-4" contenteditable="true">Schreibe zu jedem Wort ein passendes Reimwort auf die Linie.</p>
+  <div class="grid grid-cols-2 gap-x-16 gap-y-2 leading-loose">
+    <p class="editable text-gray-900" contenteditable="true">• Haus – <span class="gap-line"><span class="is-answer">Maus</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true">• Katze – <span class="gap-line"><span class="is-answer">Tatze</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true">• Baum – <span class="gap-line"><span class="is-answer">Schaum</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true">• Hand – <span class="gap-line"><span class="is-answer">Wand</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true">• Nacht – <span class="gap-line"><span class="is-answer">Pracht</span></span></p>
+    <p class="editable text-gray-900" contenteditable="true">• Stein – <span class="gap-line"><span class="is-answer">klein</span></span></p>
+  </div>
+</div>`
+  },
+  {
+    id: "dialog_luecken",
+    name: "Dialog-Lücken",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Dialog ergänzen</h3>
+  <p class="editable text-gray-600 mb-4" contenteditable="true">Ergänze den Dialog mit passenden Antworten.</p>
+  <div class="space-y-4">
+    <div class="flex gap-3 items-start">
+      <div class="w-12 h-12 rounded-full bg-THEME-100 flex items-center justify-center text-2xl shrink-0">👧</div>
+      <div class="flex-1 bg-THEME-50 border border-THEME-200 rounded-xl rounded-tl-none p-3">
+        <p class="editable text-THEME-900" contenteditable="true">Hallo! Wie heisst du?</p>
+      </div>
+    </div>
+    <div class="flex gap-3 items-start flex-row-reverse">
+      <div class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-2xl shrink-0">🧒</div>
+      <div class="flex-1 bg-gray-50 border border-gray-200 rounded-xl rounded-tr-none p-3">
+        <p class="editable text-gray-900" contenteditable="true"><span class="gap-line"><span class="is-answer">Ich heisse Tim. Und du?</span></span></p>
+      </div>
+    </div>
+    <div class="flex gap-3 items-start">
+      <div class="w-12 h-12 rounded-full bg-THEME-100 flex items-center justify-center text-2xl shrink-0">👧</div>
+      <div class="flex-1 bg-THEME-50 border border-THEME-200 rounded-xl rounded-tl-none p-3">
+        <p class="editable text-THEME-900" contenteditable="true">Ich heisse Anna. Wohin gehst du?</p>
+      </div>
+    </div>
+    <div class="flex gap-3 items-start flex-row-reverse">
+      <div class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-2xl shrink-0">🧒</div>
+      <div class="flex-1 bg-gray-50 border border-gray-200 rounded-xl rounded-tr-none p-3">
+        <p class="editable text-gray-900" contenteditable="true"><span class="gap-line"><span class="is-answer">Ich gehe zur Schule.</span></span></p>
+      </div>
+    </div>
+  </div>
+</div>`
+  },
+  {
+    id: "kwl_chart",
+    name: "KWL-Chart",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: KWL-Chart</h3>
+  <p class="editable text-gray-600 mb-4" contenteditable="true">Fülle die drei Spalten zum Thema aus.</p>
+  <table class="w-full border-collapse border-2 border-gray-300">
+    <thead>
+      <tr>
+        <th class="border-2 border-gray-300 p-3 bg-blue-50 text-blue-800 editable font-bold w-1/3" contenteditable="true">K – Was ich weiss</th>
+        <th class="border-2 border-gray-300 p-3 bg-amber-50 text-amber-800 editable font-bold w-1/3" contenteditable="true">W – Was ich wissen will</th>
+        <th class="border-2 border-gray-300 p-3 bg-green-50 text-green-800 editable font-bold w-1/3" contenteditable="true">L – Was ich gelernt habe</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="border-2 border-gray-300 p-3 align-top leading-loose editable text-THEME-600 italic" style="min-height:120px;" contenteditable="true"><span class="is-answer">...</span></td>
+        <td class="border-2 border-gray-300 p-3 align-top leading-loose editable text-THEME-600 italic" style="min-height:120px;" contenteditable="true"><span class="is-answer">...</span></td>
+        <td class="border-2 border-gray-300 p-3 align-top leading-loose editable text-THEME-600 italic" style="min-height:120px;" contenteditable="true"><span class="is-answer">...</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>`
+  },
+  {
+    id: "reflexion",
+    name: "Reflexions-Skala",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Selbsteinschätzung</h3>
+  <p class="editable text-gray-600 mb-4" contenteditable="true">Wie gut kannst du die Aufgaben lösen? Kreuze die passende Antwort an.</p>
+  <table class="w-full border-collapse border-2 border-gray-300">
+    <thead>
+      <tr class="bg-gray-100">
+        <th class="border-2 border-gray-300 p-2 editable font-bold text-left" contenteditable="true">Ich kann...</th>
+        <th class="border-2 border-gray-300 p-2 text-2xl w-16">😄</th>
+        <th class="border-2 border-gray-300 p-2 text-2xl w-16">🙂</th>
+        <th class="border-2 border-gray-300 p-2 text-2xl w-16">😐</th>
+        <th class="border-2 border-gray-300 p-2 text-2xl w-16">😕</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="border-2 border-gray-300 p-2 editable" contenteditable="true">... das Thema in eigenen Worten erklären.</td>
+        <td class="border-2 border-gray-300 p-2 text-center cursor-pointer hover:bg-blue-50 transition-colors"></td>
+        <td class="border-2 border-gray-300 p-2 text-center cursor-pointer hover:bg-blue-50 transition-colors"></td>
+        <td class="border-2 border-gray-300 p-2 text-center cursor-pointer hover:bg-blue-50 transition-colors"></td>
+        <td class="border-2 border-gray-300 p-2 text-center cursor-pointer hover:bg-blue-50 transition-colors"></td>
+      </tr>
+      <tr>
+        <td class="border-2 border-gray-300 p-2 editable" contenteditable="true">... Beispiele dazu nennen.</td>
+        <td class="border-2 border-gray-300 p-2 text-center cursor-pointer hover:bg-blue-50 transition-colors"></td>
+        <td class="border-2 border-gray-300 p-2 text-center cursor-pointer hover:bg-blue-50 transition-colors"></td>
+        <td class="border-2 border-gray-300 p-2 text-center cursor-pointer hover:bg-blue-50 transition-colors"></td>
+        <td class="border-2 border-gray-300 p-2 text-center cursor-pointer hover:bg-blue-50 transition-colors"></td>
+      </tr>
+      <tr>
+        <td class="border-2 border-gray-300 p-2 editable" contenteditable="true">... die Aufgaben selbstständig lösen.</td>
+        <td class="border-2 border-gray-300 p-2 text-center cursor-pointer hover:bg-blue-50 transition-colors"></td>
+        <td class="border-2 border-gray-300 p-2 text-center cursor-pointer hover:bg-blue-50 transition-colors"></td>
+        <td class="border-2 border-gray-300 p-2 text-center cursor-pointer hover:bg-blue-50 transition-colors"></td>
+        <td class="border-2 border-gray-300 p-2 text-center cursor-pointer hover:bg-blue-50 transition-colors"></td>
+      </tr>
+    </tbody>
+  </table>
+</div>`
+  },
+  {
+    id: "ziel_checkliste",
+    name: "Ziel-Checkliste",
+    html: `<div class="avoid-break mb-8 mt-4 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Meine Lernziele</h3>
+  <p class="editable text-gray-600 mb-4" contenteditable="true">Hake ab, was du schon erreicht hast.</p>
+  <ul class="space-y-2 list-none pl-0">
+    <li class="editable flex items-start gap-3" contenteditable="true"><span class="inline-block w-5 h-5 border-2 border-gray-500 rounded shrink-0 mt-0.5"></span><span class="flex-1">Ich kann die wichtigsten Begriffe erklären.</span></li>
+    <li class="editable flex items-start gap-3" contenteditable="true"><span class="inline-block w-5 h-5 border-2 border-gray-500 rounded shrink-0 mt-0.5"></span><span class="flex-1">Ich kann ein Beispiel nennen.</span></li>
+    <li class="editable flex items-start gap-3" contenteditable="true"><span class="inline-block w-5 h-5 border-2 border-gray-500 rounded shrink-0 mt-0.5"></span><span class="flex-1">Ich kann das Gelernte anwenden.</span></li>
+    <li class="editable flex items-start gap-3" contenteditable="true"><span class="inline-block w-5 h-5 border-2 border-gray-500 rounded shrink-0 mt-0.5"></span><span class="flex-1">Ich kann die Ergebnisse anderen erklären.</span></li>
+  </ul>
 </div>`
   }
 ];
