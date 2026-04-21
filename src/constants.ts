@@ -690,7 +690,7 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
   <p class="editable text-gray-600 mb-4" contenteditable="true">Sammle deine Ideen rund um das Hauptthema. Ziehe die Knoten am Rand an die gewünschte Position.</p>
   <div class="mindmap-container relative w-full h-[400px] border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 overflow-hidden">
     <svg class="mindmap-svg absolute inset-0 w-full h-full pointer-events-none" style="z-index:1;"></svg>
-    <div class="mindmap-node mindmap-center absolute flex items-center justify-center text-center font-bold rounded-full bg-THEME-100 border-2 border-THEME-500 shadow text-THEME-900" style="left:40%;top:42%;z-index:10;min-width:130px;min-height:70px;padding:10px;cursor:move;">
+    <div class="mindmap-node mindmap-center absolute flex items-center justify-center text-center font-bold rounded-full bg-white border-2 border-THEME-500 shadow text-THEME-900" style="left:40%;top:42%;z-index:10;min-width:130px;min-height:70px;padding:10px;cursor:move;">
       <div contenteditable="true" class="editable" style="cursor:text;">Hauptthema</div>
     </div>
     <div class="mindmap-node absolute flex items-center justify-center text-center rounded-xl bg-white border border-gray-400 shadow-sm" style="left:5%;top:7%;z-index:5;min-width:95px;min-height:45px;padding:8px;cursor:move;">
@@ -1131,15 +1131,15 @@ ${(() => {
   <div class="grid grid-cols-3 gap-8">
     <div class="flex flex-col items-center">
       <div class="w-full ai-image-slot resize overflow-hidden border-2 border-gray-300 rounded-xl mb-3 flex items-center justify-center text-gray-400 bg-white shadow-sm editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors" contenteditable="true" data-no-reposition="true">[Bild 1]</div>
-      <div class="editable w-full text-center mt-2" contenteditable="true"><span class="gap-line"><span class="is-answer">rennen</span></span></div>
+      <div class="editable w-full text-center mt-2" contenteditable="true"><span class="schreib-linie inline-block min-w-[8rem]"><span class="is-answer">rennen</span></span></div>
     </div>
     <div class="flex flex-col items-center">
       <div class="w-full ai-image-slot resize overflow-hidden border-2 border-gray-300 rounded-xl mb-3 flex items-center justify-center text-gray-400 bg-white shadow-sm editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors" contenteditable="true" data-no-reposition="true">[Bild 2]</div>
-      <div class="editable w-full text-center mt-2" contenteditable="true"><span class="gap-line"><span class="is-answer">essen</span></span></div>
+      <div class="editable w-full text-center mt-2" contenteditable="true"><span class="schreib-linie inline-block min-w-[8rem]"><span class="is-answer">essen</span></span></div>
     </div>
     <div class="flex flex-col items-center">
       <div class="w-full ai-image-slot resize overflow-hidden border-2 border-gray-300 rounded-xl mb-3 flex items-center justify-center text-gray-400 bg-white shadow-sm editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors" contenteditable="true" data-no-reposition="true">[Bild 3]</div>
-      <div class="editable w-full text-center mt-2" contenteditable="true"><span class="gap-line"><span class="is-answer">springen</span></span></div>
+      <div class="editable w-full text-center mt-2" contenteditable="true"><span class="schreib-linie inline-block min-w-[8rem]"><span class="is-answer">springen</span></span></div>
     </div>
   </div>
 </div>`
@@ -1545,22 +1545,22 @@ ${(() => {
   <div class="flex items-center justify-between gap-2">
     <div class="flex-1 flex flex-col items-center">
       <div class="ai-image-slot resize overflow-hidden w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true" data-no-reposition="true">[Bild 1]</div>
-      <div class="mt-2 gap-line w-full text-center text-sm editable" contenteditable="true"><span class="is-answer">Ei</span></div>
+      <div class="mt-2 w-full text-center text-sm editable" contenteditable="true"><span class="schreib-linie inline-block min-w-[6rem]"><span class="is-answer">Ei</span></span></div>
     </div>
     <div class="text-3xl text-gray-400 font-bold shrink-0">→</div>
     <div class="flex-1 flex flex-col items-center">
       <div class="ai-image-slot resize overflow-hidden w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true" data-no-reposition="true">[Bild 2]</div>
-      <div class="mt-2 gap-line w-full text-center text-sm editable" contenteditable="true"><span class="is-answer">Raupe</span></div>
+      <div class="mt-2 w-full text-center text-sm editable" contenteditable="true"><span class="schreib-linie inline-block min-w-[6rem]"><span class="is-answer">Raupe</span></span></div>
     </div>
     <div class="text-3xl text-gray-400 font-bold shrink-0">→</div>
     <div class="flex-1 flex flex-col items-center">
       <div class="ai-image-slot resize overflow-hidden w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true" data-no-reposition="true">[Bild 3]</div>
-      <div class="mt-2 gap-line w-full text-center text-sm editable" contenteditable="true"><span class="is-answer">Puppe</span></div>
+      <div class="mt-2 w-full text-center text-sm editable" contenteditable="true"><span class="schreib-linie inline-block min-w-[6rem]"><span class="is-answer">Puppe</span></span></div>
     </div>
     <div class="text-3xl text-gray-400 font-bold shrink-0">→</div>
     <div class="flex-1 flex flex-col items-center">
       <div class="ai-image-slot resize overflow-hidden w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true" data-no-reposition="true">[Bild 4]</div>
-      <div class="mt-2 gap-line w-full text-center text-sm editable" contenteditable="true"><span class="is-answer">Schmetterling</span></div>
+      <div class="mt-2 w-full text-center text-sm editable" contenteditable="true"><span class="schreib-linie inline-block min-w-[6rem]"><span class="is-answer">Schmetterling</span></span></div>
     </div>
   </div>
 </div>`

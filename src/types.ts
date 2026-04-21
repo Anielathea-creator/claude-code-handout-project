@@ -33,5 +33,9 @@ export interface Project {
   theme?: string;
   selectedTemplateIds?: string[];
   taskInstructions?: string;
+  targetAudience?: string;
+  didacticApproach?: 'inductive' | 'deductive' | 'free';
+  didacticScope?: 'all' | 'selected';
+  didacticChapters?: string;
   snapshots?: Snapshot[];
 }

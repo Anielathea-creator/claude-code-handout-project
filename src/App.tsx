@@ -7,14 +7,41 @@ import { INITIAL_HTML, EXERCISE_TEMPLATES } from './constants';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { WizardModal, WizardData } from './components/WizardModal';
 import { saveProjects, loadProjects } from './lib/storage';
+import { getAudienceLabel } from './lib/audienceProfiles';
+import { formatDidacticBriefing } from './lib/didacticProfiles';
 
 export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [showWizard, setShowWizard] = useState(false);
+  const [chatWidth, setChatWidth] = useState<number>(384);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSnapshotTimeRef = useRef<number>(Date.now());
   const lastSnapshotHtmlRef = useRef<string>('');
+
+  const handleChatResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = chatWidth;
+    const prevBodyCursor = document.body.style.cursor;
+    const prevUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const onMove = (ev: MouseEvent) => {
+      const delta = ev.clientX - startX;
+      const next = Math.min(Math.max(startWidth + delta, 280), Math.round(window.innerWidth * 0.6));
+      setChatWidth(next);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = prevBodyCursor;
+      document.body.style.userSelect = prevUserSelect;
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [chatWidth]);
 
   const activeProject = projects.find(p => p.id === activeProjectId);
 
@@ -208,17 +235,21 @@ export default function App() {
     let briefingMessage = '';
     let initialChatHistory: any[] = [];
 
+    const audienceLabel = getAudienceLabel(data.targetAudience) || 'Nicht spezifiziert';
+    const didacticLabel = formatDidacticBriefing(data.didacticApproach, data.didacticScope, data.didacticChapters);
+
     if (data.mode === 'generate') {
       const selectedTemplates = EXERCISE_TEMPLATES.filter(t => data.selectedTemplateIds.includes(t.id));
       const templateNames = selectedTemplates.map(t => t.name).join(', ');
 
       briefingMessage = `**Dossier-Briefing (KI-Generierung):**
 - **Thema:** ${data.topic}
-- **Zielgruppe:** ${data.targetAudience || 'Nicht spezifiziert'}
+- **Zielgruppe:** ${audienceLabel}
 - **Gewählte Aufgaben-Templates:** ${templateNames || 'Keine spezifischen (KI entscheidet)'}
 - **Anzahl Aufgaben:** ${data.taskCount || 'Nicht spezifiziert'}
 - **Unterthemen:** ${data.subtopics || 'Nicht spezifiziert'}
 - **Merkblätter:** ${data.cheatSheetContent || 'Keine spezifischen'}
+- **Didaktischer Aufbau:** ${didacticLabel}
 - **Spezifische Anweisungen:** ${data.taskInstructions || 'Keine'}
 - **Visueller Stil:** ${data.theme}
 
@@ -228,7 +259,8 @@ Bitte erstelle basierend auf diesem Briefing zunächst NUR einen groben Entwurf 
     } else {
       briefingMessage = `**Dossier-Briefing (Aufgaben-Import):**
 - **Thema:** ${data.topic}
-- **Zielgruppe:** ${data.targetAudience || 'Nicht spezifiziert'}
+- **Zielgruppe:** ${audienceLabel}
+- **Didaktischer Aufbau:** ${didacticLabel}
 - **Visueller Stil:** ${data.theme}
 - **Spezifische Anweisungen:** ${data.importInstructions || 'Keine spezifischen Anweisungen'}
 
@@ -258,6 +290,10 @@ Ich habe eine Datei mit bestehenden Aufgaben hochgeladen. Bitte extrahiere ALLE 
       theme: data.theme,
       selectedTemplateIds: data.selectedTemplateIds,
       taskInstructions: data.taskInstructions,
+      targetAudience: data.targetAudience || undefined,
+      didacticApproach: data.didacticApproach,
+      didacticScope: data.didacticScope,
+      didacticChapters: data.didacticChapters || undefined,
     };
 
     setProjects(prev => {
@@ -362,6 +398,7 @@ Ich habe eine Datei mit bestehenden Aufgaben hochgeladen. Bitte extrahiere ALLE 
           onDeleteProject={handleDeleteProject}
           onRenameProject={handleRenameProject}
           onClearCache={handleClearCache}
+          onExpand={() => setChatWidth(384)}
         />
         
         {activeProject ? (
@@ -377,9 +414,19 @@ Ich habe eine Datei mit bestehenden Aufgaben hochgeladen. Bitte extrahiere ALLE 
               theme={activeProject.theme}
               selectedTemplateIds={activeProject.selectedTemplateIds}
               taskInstructions={activeProject.taskInstructions}
+              targetAudience={activeProject.targetAudience}
+              didacticApproach={activeProject.didacticApproach}
+              didacticScope={activeProject.didacticScope}
+              didacticChapters={activeProject.didacticChapters}
+              width={chatWidth}
               onAddSnapshot={handleAddSnapshot}
               onUpdateHtml={handleUpdateHtml}
               onUpdateTheme={handleUpdateTheme}
+            />
+            <div
+              onMouseDown={handleChatResizeStart}
+              className="w-1 shrink-0 bg-gray-200 hover:bg-indigo-400 active:bg-indigo-500 cursor-col-resize transition-colors"
+              title="Breite anpassen"
             />
             {!activeProject.isDrafting && !activeProject.isImporting ? (
               <Editor
@@ -388,6 +435,10 @@ Ich habe eine Datei mit bestehenden Aufgaben hochgeladen. Bitte extrahiere ALLE 
                 onChange={handleUpdateHtml}
                 theme={activeProject.theme}
                 projectName={activeProject.name}
+                targetAudience={activeProject.targetAudience}
+                didacticApproach={activeProject.didacticApproach}
+                didacticScope={activeProject.didacticScope}
+                didacticChapters={activeProject.didacticChapters}
                 snapshots={activeProject.snapshots || []}
                 onRestoreSnapshot={handleRestoreSnapshot}
                 onAddSnapshot={handleAddSnapshot}

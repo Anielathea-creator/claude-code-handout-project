@@ -1,6 +1,90 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* --- Custom theme colors (Navy, Petrol, Olive, Lachs, Braun) --- */
+@theme {
+  --color-navy-50: #eaefff;
+  --color-navy-100: #d4dffb;
+  --color-navy-200: #a1b5f0;
+  --color-navy-300: #6e89e6;
+  --color-navy-400: #4b6dde;
+  --color-navy-500: #2c50d5;
+  --color-navy-600: #1f3da8;
+  --color-navy-700: #192f82;
+  --color-navy-800: #131f55;
+  --color-navy-900: #0b1333;
+
+  --color-petrol-50: #ebf6f7;
+  --color-petrol-100: #d0e9ed;
+  --color-petrol-200: #9cd0d7;
+  --color-petrol-300: #64b3bd;
+  --color-petrol-400: #3996a3;
+  --color-petrol-500: #1e7986;
+  --color-petrol-600: #186272;
+  --color-petrol-700: #134b5a;
+  --color-petrol-800: #0e3645;
+  --color-petrol-900: #08222c;
+
+  --color-olive-50: #f7f8ea;
+  --color-olive-100: #eff0c4;
+  --color-olive-200: #dfe08a;
+  --color-olive-300: #c9cb52;
+  --color-olive-400: #a8a832;
+  --color-olive-500: #868324;
+  --color-olive-600: #6b6721;
+  --color-olive-700: #524e1c;
+  --color-olive-800: #363414;
+  --color-olive-900: #1c1b09;
+
+  --color-lachs-50: #fff0ea;
+  --color-lachs-100: #ffd5c4;
+  --color-lachs-200: #ffb29b;
+  --color-lachs-300: #fa8f77;
+  --color-lachs-400: #f07157;
+  --color-lachs-500: #e45639;
+  --color-lachs-600: #c43e22;
+  --color-lachs-700: #9a2f19;
+  --color-lachs-800: #6d2011;
+  --color-lachs-900: #3e1208;
+
+  --color-braun-50: #faf3ea;
+  --color-braun-100: #efdcc0;
+  --color-braun-200: #dbb689;
+  --color-braun-300: #c38f58;
+  --color-braun-400: #a86d34;
+  --color-braun-500: #8b5220;
+  --color-braun-600: #70401a;
+  --color-braun-700: #553114;
+  --color-braun-800: #3a220d;
+  --color-braun-900: #1f1207;
+
+  --color-koralle-50: #fff2ef;
+  --color-koralle-100: #ffd7cc;
+  --color-koralle-200: #ffb19e;
+  --color-koralle-300: #ff8a70;
+  --color-koralle-400: #ff6242;
+  --color-koralle-500: #f74a2a;
+  --color-koralle-600: #dc3315;
+  --color-koralle-700: #b42611;
+  --color-koralle-800: #7f1c0c;
+  --color-koralle-900: #4a1208;
+
+  --color-weinrot-50: #fdf2f2;
+  --color-weinrot-100: #fae1e1;
+  --color-weinrot-200: #f3bdbd;
+  --color-weinrot-300: #e78f8f;
+  --color-weinrot-400: #d55c5c;
+  --color-weinrot-500: #b23535;
+  --color-weinrot-600: #911f1f;
+  --color-weinrot-700: #741717;
+  --color-weinrot-800: #571111;
+  --color-weinrot-900: #3a0a0a;
+}
+
+/* --- Safelist for dynamic theme classes (THEME substitution at runtime) --- */
+@source inline("{bg,text,border}-{blue,sky,navy,petrol,teal,cyan,emerald,lime,olive,yellow,amber,orange,koralle,lachs,red,weinrot,rose,pink,fuchsia,purple,violet,indigo,braun,slate,neutral}-{50,100,200,300,400,500,600,700,800,900}");
+@source inline("border-l-{blue,sky,navy,petrol,teal,cyan,emerald,lime,olive,yellow,amber,orange,koralle,lachs,red,weinrot,rose,pink,fuchsia,purple,violet,indigo,braun,slate,neutral}-{400,500}");
+
 @layer base {
   body {
     user-select: text;
