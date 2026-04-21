@@ -33,6 +33,7 @@ interface AIChatProps {
   onAddSnapshot?: (name: string) => void;
   onUpdateHtml?: (html: string) => void;
   onUpdateTheme?: (theme: string) => void;
+  pendingPrompt?: { text: string; autoSend: boolean; hiddenContext?: string; nonce: number } | null;
 }
 
 export function AIChat({
@@ -52,7 +53,8 @@ export function AIChat({
   width,
   onAddSnapshot,
   onUpdateHtml,
-  onUpdateTheme
+  onUpdateTheme,
+  pendingPrompt
 }: AIChatProps) {
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -62,6 +64,7 @@ export function AIChat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasRequestedDraftRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lastPendingPromptNonceRef = useRef<number | null>(null);
 
   // Textarea-Höhe zurücksetzen, wenn der Input-State von außen geleert wird
   // (z.B. nach dem Senden). onInput triggert dabei nicht, deshalb hier explizit.
@@ -349,14 +352,21 @@ Strukturiere das HTML wie folgt:
     }
   }, [isImporting, chatHistory, isGeneratingHtml, aiClient, onConfirmDraft, theme]);
 
-  const handleSend = async () => {
-    if (!input.trim() || isGenerating || isGeneratingHtml) return;
+  const handleSend = async (overrideText?: string, overrideHiddenContext?: string) => {
+    const messageText = overrideText ?? input;
+    if (!messageText.trim() || isGenerating || isGeneratingHtml) return;
     if (!aiClient) return;
 
-    const userMessage: ChatMessage = { role: 'user', content: input };
+    const userMessage: ChatMessage = { role: 'user', content: messageText };
+    // Was an das Modell geschickt wird – enthält optional den Hidden Context, der NICHT in der History landet.
+    const modelMessageText = overrideHiddenContext
+      ? `${messageText}\n\n---\nKONTEXT (intern, nur für diesen Call):\n${overrideHiddenContext}`
+      : messageText;
     const newHistory = [...chatHistory, userMessage];
     onUpdateHistory(newHistory);
-    setInput('');
+    if (overrideText === undefined) {
+      setInput('');
+    }
     setIsGenerating(true);
 
     // --------------- Drafting-Mode: Feedback zum Entwurf (unverändert, kein Tool-Calling) ---------------
@@ -391,7 +401,7 @@ ${didacticBlockDraftUpdate}`,
 
         setStreamingText('');
         const stream = await withRetry(
-          () => chat.sendMessageStream({ message: userMessage.content }),
+          () => chat.sendMessageStream({ message: modelMessageText }),
           {
             onRetry: (attempt) => {
               setStreamingText(`⏳ Server \u00fcberlastet – Versuch ${attempt + 1}/4 …`);
@@ -576,8 +586,8 @@ ${renderDidacticPromptBlock(didacticApproach, didacticScope, didacticChapters)}`
 
       const toolCallRecords: ToolCallRecord[] = [];
       let finalText = '';
-      // Erste Nachricht: User-Input
-      let nextMessage: any = userMessage.content;
+      // Erste Nachricht: User-Input (inkl. optional Hidden Context, der NICHT in der History landet).
+      let nextMessage: any = modelMessageText;
 
       // Multi-Turn-Loop: solange die KI Tools aufruft, weiter senden
       const MAX_TOOL_ROUNDS = 6;
@@ -709,6 +719,47 @@ ${renderDidacticPromptBlock(didacticApproach, didacticScope, didacticChapters)}`
       setIsGenerating(false);
     }
   };
+
+  // Externe Prompts (z.B. vom Teilaufgaben-Button im Editor) entgegennehmen.
+  // Bei autoSend=true wird direkt abgeschickt; sonst wird der Text in die Textarea
+  // geschrieben und der User bestätigt selbst mit Enter.
+  useEffect(() => {
+    if (!pendingPrompt) return;
+    if (lastPendingPromptNonceRef.current === pendingPrompt.nonce) return;
+    lastPendingPromptNonceRef.current = pendingPrompt.nonce;
+
+    if (isDrafting || isImporting) {
+      onUpdateHistory([
+        ...chatHistory,
+        { role: 'model', content: '⚠️ Der Chat ist aktuell im Entwurfs-/Import-Modus. Teilaufgaben-Prompts erst nach Abschluss des Entwurfs nutzen.' },
+      ]);
+      return;
+    }
+
+    if (isGenerating || isGeneratingHtml) {
+      onUpdateHistory([
+        ...chatHistory,
+        { role: 'model', content: '⚠️ Der Chat läuft gerade – bitte warte, bis die aktuelle Generierung abgeschlossen ist, und versuche es dann erneut.' },
+      ]);
+      return;
+    }
+
+    if (!aiClient) {
+      onUpdateHistory([
+        ...chatHistory,
+        { role: 'user', content: pendingPrompt.text },
+        { role: 'model', content: '⚠️ **Kein API-Key gefunden.** Bitte setze die Umgebungsvariable `VITE_GEMINI_API_KEY` und starte den Server neu, damit der Prompt ausgeführt werden kann.' },
+      ]);
+      return;
+    }
+
+    if (pendingPrompt.autoSend) {
+      handleSend(pendingPrompt.text, pendingPrompt.hiddenContext);
+    } else {
+      setInput(pendingPrompt.text);
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    }
+  }, [pendingPrompt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDeleteMessage = (index: number) => {
     const newHistory = [...chatHistory];
@@ -1001,7 +1052,7 @@ Strukturiere das HTML wie folgt:
             disabled={isGenerating || isGeneratingHtml}
           />
           <button
-            onClick={handleSend}
+            onClick={() => handleSend()}
             disabled={!input.trim() || isGenerating || isGeneratingHtml}
             className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
             title="Senden (Enter)"
