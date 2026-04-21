@@ -9,6 +9,7 @@ interface SidebarProps {
   onDeleteProject: (id: string) => void;
   onRenameProject: (id: string, newName: string) => void;
   onClearCache: () => void;
+  onExpand?: () => void;
 }
 
 export function Sidebar({
@@ -19,10 +20,12 @@ export function Sidebar({
   onDeleteProject,
   onRenameProject,
   onClearCache,
+  onExpand,
 }: SidebarProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [collapsed, setCollapsed] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -38,20 +41,46 @@ export function Sidebar({
     setEditingId(null);
   };
 
+  if (collapsed) {
+    return (
+      <div className="w-14 bg-gray-900 text-gray-100 flex flex-col items-center h-full border-r border-gray-800 shrink-0">
+        <div className="p-2 border-b border-gray-800 w-full flex items-center justify-center gap-1">
+          <span className="text-lg">📄</span>
+          <button
+            onClick={() => { setCollapsed(false); onExpand?.(); }}
+            className="p-0.5 hover:bg-gray-800 rounded text-gray-400 hover:text-white transition-colors"
+            title="Seitenleiste ausklappen"
+          >
+            <span className="inline-block -rotate-90 text-sm">▾</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="w-64 bg-gray-900 text-gray-100 flex flex-col h-full border-r border-gray-800">
-      <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+    <div className="w-64 bg-gray-900 text-gray-100 flex flex-col h-full border-r border-gray-800 shrink-0">
+      <div className="p-4 border-b border-gray-800 flex items-center justify-between gap-2">
         <h2 className="font-bold text-lg text-gray-100 flex items-center gap-2">
           <span>📄</span>
           Dossiers
         </h2>
-        <button
-          onClick={onCreateProject}
-          className="w-8 h-8 flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors text-white font-bold"
-          title="Neues Dossier"
-        >
-          ➕
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onCreateProject}
+            className="w-8 h-8 flex items-center justify-center bg-white hover:bg-gray-100 rounded-md transition-colors text-purple-600 text-2xl font-black leading-none shadow-sm"
+            title="Neues Dossier"
+          >
+            <span className="inline-block -translate-y-[3px]">+</span>
+          </button>
+          <button
+            onClick={() => setCollapsed(true)}
+            className="p-1 hover:bg-gray-800 rounded text-gray-400 hover:text-white transition-colors"
+            title="Seitenleiste einklappen"
+          >
+            <span className="inline-block rotate-90 text-sm">▾</span>
+          </button>
+        </div>
       </div>
       
       <div className="flex-1 overflow-y-auto p-2 space-y-1">

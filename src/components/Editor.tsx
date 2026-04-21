@@ -4,6 +4,8 @@ import { jsPDF } from 'jspdf';
 import { GoogleGenAI } from '@google/genai';
 import { Snapshot } from '../types';
 import { EXERCISE_TEMPLATES } from '../constants';
+import { renderAudiencePromptBlock, type AudienceLevel } from '../lib/audienceProfiles';
+import { renderDidacticPromptBlock, type DidacticApproach, type DidacticScope } from '../lib/didacticProfiles';
 import { 
   ZoomIn, ZoomOut, Plus, Minus, Trash2, Copy, Clipboard, 
   ArrowUp, ArrowDown, Scissors, Image, Sparkles, 
@@ -36,13 +38,17 @@ interface EditorProps {
   onChange: (html: string) => void;
   theme?: string;
   projectName?: string;
+  targetAudience?: string;
+  didacticApproach?: DidacticApproach;
+  didacticScope?: DidacticScope;
+  didacticChapters?: string;
   snapshots: Snapshot[];
   onRestoreSnapshot: (snapshot: Snapshot) => void;
   onAddSnapshot: (name: string) => void;
 }
 
 
-export function Editor({ html, onChange, theme, projectName, snapshots, onRestoreSnapshot, onAddSnapshot }: EditorProps) {
+export function Editor({ html, onChange, theme, projectName, targetAudience, didacticApproach, didacticScope, didacticChapters, snapshots, onRestoreSnapshot, onAddSnapshot }: EditorProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageUploadRef = useRef<HTMLInputElement>(null);
   const historyDropdownRef = useRef<HTMLDivElement>(null);
@@ -3875,6 +3881,11 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
       - <span class="is-answer" contenteditable="true">Lösung</span> (Text, der im Schülermodus komplett unsichtbar ist, ohne Linie)
       - <span class="is-strikethrough-answer" contenteditable="true">Falsches Wort</span> (Wort, das im Lösungsmodus durchgestrichen ist, im Schülermodus normal)
       - <div class="schreib-linie editable" contenteditable="true"><span class="is-answer">Musterlösung</span></div> (Für längere Freitext-Antworten wie Professor Zipp Schreibaufgaben oder "Was fällt dir auf?" Fragen)
+
+${renderAudiencePromptBlock(targetAudience as AudienceLevel | '' | undefined)}
+
+${renderDidacticPromptBlock(didacticApproach, didacticScope, didacticChapters)}
+
       Generiere die Aufgabe nun basierend auf diesem Thema:`;
 
       const response = await ai.models.generateContent({

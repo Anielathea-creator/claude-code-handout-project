@@ -1,5 +1,7 @@
 import { useState, useRef } from 'react';
 import { EXERCISE_TEMPLATES } from '../constants';
+import { AUDIENCE_LEVELS, type AudienceLevel } from '../lib/audienceProfiles';
+import { DIDACTIC_OPTIONS, type DidacticApproach, type DidacticScope } from '../lib/didacticProfiles';
 
 interface WizardModalProps {
   onClose: () => void;
@@ -9,7 +11,7 @@ interface WizardModalProps {
 export interface WizardData {
   mode: 'generate' | 'import' | 'empty';
   topic: string;
-  targetAudience: string;
+  targetAudience: AudienceLevel | '';
   selectedTemplateIds: string[];
   taskCount: string;
   subtopics: string;
@@ -18,6 +20,9 @@ export interface WizardData {
   importedFile: { data: string, mimeType: string, name: string } | null;
   importInstructions: string;
   theme: string;
+  didacticApproach: DidacticApproach;
+  didacticScope: DidacticScope;
+  didacticChapters: string;
 }
 
 const SUBJECT_TEMPLATE_IDS: Record<string, string[]> = {
@@ -29,11 +34,35 @@ const SUBJECT_TEMPLATE_IDS: Record<string, string[]> = {
 const SUBJECT_TABS = ['Alle', 'Mathematik', 'NMG', 'Sprachen', 'Allgemein'] as const;
 
 const THEMES = [
-  { id: 'blue', name: 'Blau (Klassisch)', color: 'bg-blue-500' },
-  { id: 'emerald', name: 'Smaragd (Natur)', color: 'bg-emerald-500' },
-  { id: 'purple', name: 'Lila (Kreativ)', color: 'bg-purple-500' },
-  { id: 'amber', name: 'Bernstein (Warm)', color: 'bg-amber-500' },
-  { id: 'rose', name: 'Rose (Verspielt)', color: 'bg-rose-500' },
+  // Row 1: kühle Blautöne
+  { id: 'cyan',     name: 'Türkis',     color: 'bg-cyan-400' },
+  { id: 'sky',      name: 'Himmelblau', color: 'bg-sky-400' },
+  { id: 'blue',     name: 'Blau',       color: 'bg-blue-500' },
+  { id: 'navy',     name: 'Navy',       color: 'bg-navy-700' },
+
+  // Row 2: Grüntöne + Petrol
+  { id: 'lime',     name: 'Limette',    color: 'bg-lime-500' },
+  { id: 'emerald',  name: 'Smaragd',    color: 'bg-emerald-500' },
+  { id: 'olive',    name: 'Olive',      color: 'bg-olive-500' },
+  { id: 'petrol',   name: 'Petrol',     color: 'bg-petrol-600' },
+
+  // Row 3: Warm Gelb → Orange
+  { id: 'yellow',   name: 'Gelb',       color: 'bg-yellow-400' },
+  { id: 'amber',    name: 'Bernstein',  color: 'bg-amber-500' },
+  { id: 'orange',   name: 'Orange',     color: 'bg-orange-500' },
+  { id: 'koralle',  name: 'Koralle',    color: 'bg-koralle-600' },
+
+  // Row 4: warme Rot/Pink-Töne
+  { id: 'lachs',    name: 'Lachs',      color: 'bg-lachs-400' },
+  { id: 'pink',     name: 'Pink',       color: 'bg-pink-500' },
+  { id: 'red',      name: 'Rot',        color: 'bg-red-500' },
+  { id: 'weinrot',  name: 'Weinrot',    color: 'bg-weinrot-700' },
+
+  // Row 5: Magenta/Violett → Neutral
+  { id: 'fuchsia',  name: 'Magenta',    color: 'bg-fuchsia-500' },
+  { id: 'violet',   name: 'Violett',    color: 'bg-violet-600' },
+  { id: 'braun',    name: 'Braun',      color: 'bg-braun-500' },
+  { id: 'neutral',  name: 'Monochrom',  color: 'bg-neutral-700' },
 ];
 
 export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
@@ -41,6 +70,8 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [templateTab, setTemplateTab] = useState<typeof SUBJECT_TABS[number]>('Alle');
   const [templateSearch, setTemplateSearch] = useState('');
+  const [expandedPanel, setExpandedPanel] = useState<'templates' | 'didactic' | null>('templates');
+  const togglePanel = (panel: 'templates' | 'didactic') => setExpandedPanel(prev => prev === panel ? null : panel);
   const [data, setData] = useState<WizardData>({
     mode: 'generate',
     topic: '',
@@ -53,6 +84,9 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
     importedFile: null,
     importInstructions: '',
     theme: 'emerald',
+    didacticApproach: 'inductive',
+    didacticScope: 'all',
+    didacticChapters: '',
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -161,13 +195,23 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">Wer ist die Zielgruppe?</label>
-                    <input
-                      type="text"
-                      value={data.targetAudience}
-                      onChange={(e) => setData({ ...data, targetAudience: e.target.value })}
-                      placeholder="z.B. 5. Klasse, Anfänger, Erwachsene"
-                      className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-indigo-500 outline-none transition-colors"
-                    />
+                    <p className="text-xs text-gray-500 mb-2">Wähle die passende Stufe. Die KI passt Satzbau, Wortwahl und Aufgabenumfang automatisch an.</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {AUDIENCE_LEVELS.map(level => {
+                        const active = data.targetAudience === level.id;
+                        return (
+                          <button
+                            key={level.id}
+                            type="button"
+                            onClick={() => setData({ ...data, targetAudience: active ? '' : level.id })}
+                            className={`text-left p-3 rounded-xl border-2 transition-all ${active ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 hover:border-indigo-300 bg-white'}`}
+                          >
+                            <div className={`font-bold text-sm ${active ? 'text-indigo-700' : 'text-gray-800'}`}>{level.shortLabel}</div>
+                            <div className="text-xs text-gray-500 mt-0.5">{level.description}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -175,11 +219,28 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
           )}
 
           {step === 2 && data.mode === 'generate' && (
-            <div className="space-y-4 animate-in slide-in-from-right-4">
+            <div className="space-y-3 animate-in slide-in-from-right-4 min-h-[520px]">
               <h3 className="text-xl font-bold text-gray-800">2. Aufgaben-Konfiguration</h3>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Welche Aufgabenarten sind gewünscht?</label>
-                {(() => {
+
+              {/* Panel 1: Aufgabenarten */}
+              <div className="border-2 border-gray-100 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => togglePanel('templates')}
+                  className={`w-full flex items-center justify-between p-3 transition-colors ${expandedPanel === 'templates' ? 'bg-indigo-50' : 'bg-gray-50 hover:bg-gray-100'}`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-gray-800">Aufgabenarten</span>
+                    {data.selectedTemplateIds.length > 0 && (
+                      <span className="text-[11px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">{data.selectedTemplateIds.length} ausgewählt</span>
+                    )}
+                  </span>
+                  <span className={`text-gray-400 transition-transform ${expandedPanel === 'templates' ? 'rotate-180' : ''}`}>▾</span>
+                </button>
+                {expandedPanel === 'templates' && (
+                  <div className="p-3 border-t border-gray-100">
+                    <label className="block text-xs text-gray-500 mb-2">Welche Aufgabenarten sind gewünscht?</label>
+                    {(() => {
                   const search = templateSearch.trim().toLowerCase();
                   const tabIds = templateTab === 'Alle'
                     ? EXERCISE_TEMPLATES.map(t => t.id)
@@ -262,10 +323,97 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                     </div>
                   );
                 })()}
+                  </div>
+                )}
               </div>
-              <div className="flex gap-4">
+
+              {/* Panel 2: Didaktischer Aufbau */}
+              {(() => {
+                const didacticSummary = (() => {
+                  const opt = DIDACTIC_OPTIONS.find(o => o.id === data.didacticApproach);
+                  if (!opt) return '';
+                  if (data.didacticApproach === 'free') return opt.label;
+                  const scopePart = data.didacticScope === 'selected'
+                    ? (data.didacticChapters.trim() ? `nur: ${data.didacticChapters.trim()}` : 'keine Kapitel angegeben')
+                    : 'ganzes Dossier';
+                  return `${opt.label} · ${scopePart}`;
+                })();
+                return (
+                  <div className="border-2 border-gray-100 rounded-xl overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => togglePanel('didactic')}
+                      className={`w-full flex items-center justify-between p-3 transition-colors ${expandedPanel === 'didactic' ? 'bg-indigo-50' : 'bg-gray-50 hover:bg-gray-100'}`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-gray-800">Didaktischer Aufbau</span>
+                        <span className="text-[11px] text-gray-500">{didacticSummary}</span>
+                      </span>
+                      <span className={`text-gray-400 transition-transform ${expandedPanel === 'didactic' ? 'rotate-180' : ''}`}>▾</span>
+                    </button>
+                    {expandedPanel === 'didactic' && (
+                      <div className="p-3 border-t border-gray-100 space-y-3">
+                        <select
+                          value={data.didacticApproach}
+                          onChange={(e) => setData({ ...data, didacticApproach: e.target.value as DidacticApproach })}
+                          className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-indigo-500 outline-none transition-colors bg-white"
+                        >
+                          {DIDACTIC_OPTIONS.map(opt => (
+                            <option key={opt.id} value={opt.id}>{opt.label} — {opt.description}</option>
+                          ))}
+                        </select>
+                        {data.didacticApproach === 'inductive' && (
+                          <p className="text-xs text-amber-600">
+                            Merkblätter werden beim induktiven Aufbau standardmässig nicht generiert
+                            <br />— nur wenn du sie im nächsten Schritt explizit anforderst.
+                          </p>
+                        )}
+                        {data.didacticApproach !== 'free' && (
+                          <div className="space-y-2">
+                            <div className="text-xs font-bold text-gray-700">Geltungsbereich</div>
+                            <div className="grid grid-cols-2 gap-2">
+                              {([
+                                { id: 'all' as const, label: 'Ganzes Dossier' },
+                                { id: 'selected' as const, label: 'Nur bestimmte Kapitel' },
+                              ]).map(opt => {
+                                const active = data.didacticScope === opt.id;
+                                return (
+                                  <button
+                                    key={opt.id}
+                                    type="button"
+                                    onClick={() => setData({ ...data, didacticScope: opt.id })}
+                                    className={`p-2 rounded-xl border-2 text-sm font-bold transition-all ${active ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-indigo-300 text-gray-700 bg-white'}`}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {data.didacticScope === 'selected' && (
+                              <div>
+                                <input
+                                  type="text"
+                                  value={data.didacticChapters}
+                                  onChange={(e) => setData({ ...data, didacticChapters: e.target.value })}
+                                  placeholder="z.B. Präsens, Perfekt"
+                                  className="w-full border-2 border-gray-200 rounded-xl p-2 text-sm focus:border-indigo-500 outline-none transition-colors"
+                                />
+                                {!data.didacticChapters.trim() && (
+                                  <p className="text-xs text-amber-600 mt-1">Bitte mindestens ein Kapitel angeben, sonst wirkt der didaktische Aufbau nirgends.</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              <div className="flex gap-4 items-start">
                 <div className="flex-1">
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Wie viele Aufgaben insgesamt?</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Anzahl Aufgaben</label>
                   <input
                     type="number"
                     value={data.taskCount}
@@ -276,12 +424,17 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                 </div>
                 <div className="flex-[2]">
                   <label className="block text-sm font-bold text-gray-700 mb-1">Welche Unterthemen?</label>
-                  <input
-                    type="text"
+                  <textarea
                     value={data.subtopics}
                     onChange={(e) => setData({ ...data, subtopics: e.target.value })}
+                    onInput={(e) => {
+                      const el = e.currentTarget;
+                      el.style.height = 'auto';
+                      el.style.height = el.scrollHeight + 'px';
+                    }}
+                    rows={1}
                     placeholder="z.B. Vorsilben, Nachsilben"
-                    className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-indigo-500 outline-none transition-colors"
+                    className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-indigo-500 outline-none transition-colors resize-none overflow-hidden leading-normal"
                   />
                 </div>
               </div>
@@ -378,15 +531,16 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
             <div className="space-y-4 animate-in slide-in-from-right-4">
               <h3 className="text-xl font-bold text-gray-800">4. Visueller Stil</h3>
               <p className="text-gray-600 text-sm mb-4">Wähle ein Farbschema für das Dossier aus.</p>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-4 gap-2">
                 {THEMES.map((t) => (
                   <button
                     key={t.id}
+                    type="button"
                     onClick={() => setData({ ...data, theme: t.id })}
-                    className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${data.theme === t.id ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 hover:border-indigo-300'}`}
+                    className={`p-2 rounded-lg border-2 flex flex-col items-center gap-1.5 transition-all ${data.theme === t.id ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 hover:border-indigo-300'}`}
                   >
-                    <div className={`w-12 h-12 rounded-full ${t.color} shadow-inner`} />
-                    <span className="font-bold text-sm text-gray-700">{t.name}</span>
+                    <div className={`w-7 h-7 rounded-full ${t.color} shadow-inner`} />
+                    <span className="text-[11px] font-medium text-gray-700 leading-tight">{t.name}</span>
                   </button>
                 ))}
               </div>

@@ -12,6 +12,8 @@ import {
   type ToolResult,
 } from '../lib/aiTools';
 import { withRetry } from '../lib/retry';
+import { renderAudiencePromptBlock, type AudienceLevel } from '../lib/audienceProfiles';
+import { renderDidacticPromptBlock, type DidacticApproach, type DidacticScope } from '../lib/didacticProfiles';
 
 interface AIChatProps {
   chatHistory: ChatMessage[];
@@ -23,24 +25,34 @@ interface AIChatProps {
   theme?: string;
   selectedTemplateIds?: string[];
   taskInstructions?: string;
+  targetAudience?: AudienceLevel | string;
+  didacticApproach?: DidacticApproach;
+  didacticScope?: DidacticScope;
+  didacticChapters?: string;
+  width?: number;
   onAddSnapshot?: (name: string) => void;
   onUpdateHtml?: (html: string) => void;
   onUpdateTheme?: (theme: string) => void;
 }
 
-export function AIChat({ 
-  chatHistory, 
-  onUpdateHistory, 
-  currentHtml, 
-  isDrafting, 
-  isImporting, 
-  onConfirmDraft, 
-  theme, 
+export function AIChat({
+  chatHistory,
+  onUpdateHistory,
+  currentHtml,
+  isDrafting,
+  isImporting,
+  onConfirmDraft,
+  theme,
   selectedTemplateIds,
   taskInstructions,
-  onAddSnapshot, 
-  onUpdateHtml, 
-  onUpdateTheme 
+  targetAudience,
+  didacticApproach,
+  didacticScope,
+  didacticChapters,
+  width,
+  onAddSnapshot,
+  onUpdateHtml,
+  onUpdateTheme
 }: AIChatProps) {
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -103,15 +115,21 @@ export function AIChat({
         hasRequestedDraftRef.current = true;
         setIsGenerating(true);
         try {
+          const audienceBlock = renderAudiencePromptBlock(targetAudience as AudienceLevel | '' | undefined, taskInstructions);
+          const didacticBlock = renderDidacticPromptBlock(didacticApproach, didacticScope, didacticChapters);
           const chat = aiClient.chats.create({
             model: 'gemini-3-flash-preview',
             config: {
               systemInstruction: `Du bist ein erfahrener Lehrmittelautor. Erstelle basierend auf dem Briefing einen strukturierten Entwurf (Inhaltsübersicht) für ein Dossier. Antworte in Markdown. Generiere noch keinen HTML-Code.
-              
+
               STRUKTUR & NUMMERIERUNG (WICHTIG):
               - Kapitel (h1): "Kapitel 1: [Titel]", "Kapitel 2: [Titel]" etc. (Wenn es nur 1 Kapitel gibt, lass die Nummer weg).
               - Unterthemen (h2): "A: [Titel]", "B: [Titel]" etc.
-              - Aufgaben (h3): "Aufgabe [Themenbuchstabe].[Nummer]: [Titel]" (z.B. "Aufgabe A.1: ...", "Aufgabe B.2: ...").`,
+              - Aufgaben (h3): "Aufgabe [Themenbuchstabe].[Nummer]: [Titel]" (z.B. "Aufgabe A.1: ...", "Aufgabe B.2: ...").
+
+${audienceBlock}
+
+${didacticBlock}`,
             },
           });
           
@@ -181,6 +199,19 @@ export function AIChat({
         try {
           // In import mode, provide ALL templates so the AI can match each task to the best fitting one
           const allTemplatesForImport = EXERCISE_TEMPLATES.map(t => `Template ID: ${t.id}\nName: ${t.name}\nHTML:\n${t.html}`).join('\n\n---\n\n');
+          const audienceBlock = renderAudiencePromptBlock(targetAudience as AudienceLevel | '' | undefined, taskInstructions);
+          const didacticBlockImport = renderDidacticPromptBlock(didacticApproach, didacticScope, didacticChapters);
+          const amountsSection = audienceBlock
+            ? `${audienceBlock}\n\nDie MENGEN im Profil oben ERSETZEN alle globalen Mindestwerte. Folge ausschliesslich den Zahlen im Profil.`
+            : `MINDEST-INHALTSANFORDERUNGEN (PFLICHT beim Generieren):
+- Tabellen: Mindestens 6-8 Zeilen mit vollständigem, themenspezifischem Inhalt
+- Lückentexte: Ein vollständiger Absatz (5-8 Sätze) mit 8-15 Lücken, kontextreich und zusammenhängend
+- Eindringling / Sortieraufgaben: Mindestens 6-8 Einträge (a bis h)
+- Matching / Zuordnen: Mindestens 6-8 Paare
+- Ankreuz-Tabellen: Mindestens 6-8 Aussagen/Kriterien
+- Klassifizierung / Wörter sortieren: Mindestens 12-16 Wörter/Begriffe
+- Offene Fragen / Schreibaufgaben: Eine ausführliche, präzise Frage mit konkretem Kontext (kein allgemeiner Platzhalter)
+- Textarbeit / Anstreichen: Ein ganzer Absatz (8-12 Sätze) mit genügend relevanten Elementen`;
 
           const chat = aiClient.chats.create({
             model: 'gemini-3-flash-preview',
@@ -219,15 +250,9 @@ Analysiere jede Aufgabe aus dem hochgeladenen Dokument und ordne sie dem am best
 
 WICHTIG: Die Templates enthalten absichtlich minimalen Platzhalter-Inhalt – beim Generieren musst du den echten Inhalt aus dem hochgeladenen Dokument einsetzen und bei Bedarf ausbauen!
 
-MINDEST-INHALTSANFORDERUNGEN (PFLICHT beim Generieren):
-- Tabellen: Mindestens 6-8 Zeilen mit vollständigem, themenspezifischem Inhalt
-- Lückentexte: Ein vollständiger Absatz (5-8 Sätze) mit 8-15 Lücken, kontextreich und zusammenhängend
-- Eindringling / Sortieraufgaben: Mindestens 6-8 Einträge (a bis h)
-- Matching / Zuordnen: Mindestens 6-8 Paare
-- Ankreuz-Tabellen: Mindestens 6-8 Aussagen/Kriterien
-- Klassifizierung / Wörter sortieren: Mindestens 12-16 Wörter/Begriffe
-- Offene Fragen / Schreibaufgaben: Eine ausführliche, präzise Frage mit konkretem Kontext (kein allgemeiner Platzhalter)
-- Textarbeit / Anstreichen: Ein ganzer Absatz (8-12 Sätze) mit genügend relevanten Elementen
+${amountsSection}
+
+${didacticBlockImport}
 
 Passe das Theme-Farbschema an: text-${theme || 'blue'}-700
 Beachte zudem folgende spezifische Anweisungen des Lehrers: ${taskInstructions || 'Keine'}
@@ -271,7 +296,7 @@ Strukturiere das HTML wie folgt:
 4. Inhaltsverzeichnis: <div class="p-[2.5cm]"><h2 class="editable text-[20pt] font-bold mb-6 border-b-2 border-black pb-2" contenteditable="true">Inhaltsverzeichnis</h2><ul id="toc-list" class="space-y-1 mb-8 max-w-2xl text-[14pt]"><li class="italic text-gray-500">Klicke oben auf "Inhaltsverzeichnis Auto-Sync"...</li></ul></div>
 5. <div class="page-break avoid-break"></div>
 6. Für jedes Unterthema:
-   a) <div class="p-[2.5cm] space-y-6"> mit h2 + Merkblatt (Merkblatt MUSS in <div class="avoid-break ..."> gewrappt sein!) </div>
+   a) <div class="p-[2.5cm] space-y-6"> mit h2 und — NUR falls die MERKBLATT-REGEL des DIDAKTISCHEN AUFBAUS dies vorschreibt oder der Lehrer im Briefing explizit Merkblatt-Inhalt angegeben hat — einem Merkblatt (Merkblatt MUSS in <div class="avoid-break ..."> gewrappt sein!). Ohne Merkblatt enthält dieser Container nur die h2-Überschrift.</div>
    b) <div class="page-break avoid-break"></div>
    c) <div class="p-[2.5cm] space-y-6"> mit ersten Aufgaben (2-3 je nach Grösse) </div>
    d) Falls mehr Aufgaben: <div class="page-break avoid-break"></div> + neuer <div class="p-[2.5cm] space-y-6"> usw.`,
@@ -338,6 +363,8 @@ Strukturiere das HTML wie folgt:
     if (isDrafting) {
       try {
         const templatesPrompt = formatTemplatesForPrompt(selectedTemplateIds);
+        const audienceBlockDraftUpdate = renderAudiencePromptBlock(targetAudience as AudienceLevel | '' | undefined, taskInstructions);
+        const didacticBlockDraftUpdate = renderDidacticPromptBlock(didacticApproach, didacticScope, didacticChapters);
         const chat = aiClient.chats.create({
           model: 'gemini-3-flash-preview',
           history: pruneHistoryForApi(chatHistory),
@@ -354,7 +381,11 @@ ${templatesPrompt}
 STRUKTUR & NUMMERIERUNG:
 - Kapitel (h1): "Kapitel 1: …", "Kapitel 2: …" (bei nur 1 Kapitel Nummer weglassen)
 - Unterthemen (h2): "A: …", "B: …"
-- Aufgaben (h3): "Aufgabe [Themenbuchstabe].[Nummer]: [Titel]"`,
+- Aufgaben (h3): "Aufgabe [Themenbuchstabe].[Nummer]: [Titel]"
+
+${audienceBlockDraftUpdate}
+
+${didacticBlockDraftUpdate}`,
           },
         });
 
@@ -528,7 +559,11 @@ AUFGABEN-KONVENTIONEN (bei update_block / insert_block):
 LEHRER-ANWEISUNGEN: ${taskInstructions || 'Keine'}
 
 VERFÜGBARE TEMPLATES ALS STRUKTURREFERENZ:
-${templatesPrompt}`;
+${templatesPrompt}
+
+${renderAudiencePromptBlock(targetAudience as AudienceLevel | '' | undefined, taskInstructions)}
+
+${renderDidacticPromptBlock(didacticApproach, didacticScope, didacticChapters)}`;
 
       const chat = aiClient.chats.create({
         model: 'gemini-3-flash-preview',
@@ -695,6 +730,19 @@ ${templatesPrompt}`;
     try {
       const selectedTemplates = EXERCISE_TEMPLATES.filter(t => selectedTemplateIds?.includes(t.id));
       const templatesHtml = selectedTemplates.map(t => `Template ID: ${t.id}\nName: ${t.name}\nHTML: ${t.html}`).join('\n\n---\n\n');
+      const audienceBlockHtml = renderAudiencePromptBlock(targetAudience as AudienceLevel | '' | undefined, taskInstructions);
+      const didacticBlockHtml = renderDidacticPromptBlock(didacticApproach, didacticScope, didacticChapters);
+      const amountsSectionHtml = audienceBlockHtml
+        ? `${audienceBlockHtml}\n\nDie MENGEN im Profil oben ERSETZEN alle globalen Mindestwerte. Folge ausschliesslich den Zahlen im Profil.`
+        : `MINDEST-INHALTSANFORDERUNGEN (PFLICHT beim Generieren):
+- Tabellen: Mindestens 6-8 Zeilen mit vollständigem, themenspezifischem Inhalt
+- Lückentexte: Ein vollständiger Absatz (5-8 Sätze) mit 8-15 Lücken, kontextreich und zusammenhängend
+- Eindringling / Sortieraufgaben: Mindestens 6-8 Einträge (a bis h)
+- Matching / Zuordnen: Mindestens 6-8 Paare
+- Ankreuz-Tabellen: Mindestens 6-8 Aussagen/Kriterien
+- Klassifizierung / Wörter sortieren: Mindestens 12-16 Wörter/Begriffe
+- Offene Fragen / Schreibaufgaben: Eine ausführliche, präzise Frage mit konkretem Kontext (kein allgemeiner Platzhalter)
+- Textarbeit / Anstreichen: Ein ganzer Absatz (8-12 Sätze) mit genügend relevanten Elementen`;
 
       const chat = aiClient.chats.create({
         model: 'gemini-3-flash-preview',
@@ -720,15 +768,9 @@ Prüfe am Ende der Generierung: Jede Überschrift und jeder Akzent muss ${theme 
 WICHTIG FÜR AUFGABEN:
 Nutze die mitgelieferten HTML-Templates als STRUKTURELLE VORLAGE (HTML-Klassen, Layout). Die Templates enthalten absichtlich minimalen Platzhalter-Inhalt für manuelle Bearbeitung – beim GENERIEREN musst du den Inhalt massiv ausbauen!
 
-MINDEST-INHALTSANFORDERUNGEN (PFLICHT beim Generieren):
-- Tabellen: Mindestens 6-8 Zeilen mit vollständigem, themenspezifischem Inhalt
-- Lückentexte: Ein vollständiger Absatz (5-8 Sätze) mit 8-15 Lücken, kontextreich und zusammenhängend
-- Eindringling / Sortieraufgaben: Mindestens 6-8 Einträge (a bis h)
-- Matching / Zuordnen: Mindestens 6-8 Paare
-- Ankreuz-Tabellen: Mindestens 6-8 Aussagen/Kriterien
-- Klassifizierung / Wörter sortieren: Mindestens 12-16 Wörter/Begriffe
-- Offene Fragen / Schreibaufgaben: Eine ausführliche, präzise Frage mit konkretem Kontext (kein allgemeiner Platzhalter)
-- Textarbeit / Anstreichen: Ein ganzer Absatz (8-12 Sätze) mit genügend relevanten Elementen
+${amountsSectionHtml}
+
+${didacticBlockHtml}
 
 Passe das Theme-Farbschema an: text-${theme || 'blue'}-700
 Beachte zudem folgende spezifische Anweisungen des Lehrers: ${taskInstructions || 'Keine'}
@@ -772,7 +814,7 @@ Strukturiere das HTML wie folgt:
 4. Inhaltsverzeichnis: <div class="p-[2.5cm]"><h2 class="editable text-[20pt] font-bold mb-6 border-b-2 border-black pb-2" contenteditable="true">Inhaltsverzeichnis</h2><ul id="toc-list" class="space-y-1 mb-8 max-w-2xl text-[14pt]"><li class="italic text-gray-500">Klicke oben auf "Inhaltsverzeichnis Auto-Sync"...</li></ul></div>
 5. <div class="page-break avoid-break"></div>
 6. Für jedes Unterthema:
-   a) <div class="p-[2.5cm] space-y-6"> mit h2 + Merkblatt (Merkblatt MUSS in <div class="avoid-break ..."> gewrappt sein!) </div>
+   a) <div class="p-[2.5cm] space-y-6"> mit h2 und — NUR falls die MERKBLATT-REGEL des DIDAKTISCHEN AUFBAUS dies vorschreibt oder der Lehrer im Briefing explizit Merkblatt-Inhalt angegeben hat — einem Merkblatt (Merkblatt MUSS in <div class="avoid-break ..."> gewrappt sein!). Ohne Merkblatt enthält dieser Container nur die h2-Überschrift.</div>
    b) <div class="page-break avoid-break"></div>
    c) <div class="p-[2.5cm] space-y-6"> mit ersten Aufgaben (2-3 je nach Grösse) </div>
    d) Falls mehr Aufgaben: <div class="page-break avoid-break"></div> + neuer <div class="p-[2.5cm] space-y-6"> usw.`,
@@ -815,7 +857,7 @@ Strukturiere das HTML wie folgt:
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 border-r border-gray-200 w-80 lg:w-96">
+    <div className="flex flex-col h-full bg-gray-50 border-r border-gray-200 shrink-0" style={{ width: width ?? 384 }}>
       <div className="p-4 bg-white border-b border-gray-200 shadow-sm z-10 relative">
         <h2 className="font-bold text-lg text-indigo-900 flex items-center gap-2">
           <span>✨</span>
