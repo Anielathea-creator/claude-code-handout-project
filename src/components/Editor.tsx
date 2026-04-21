@@ -53,7 +53,8 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
   const [globalFont, setGlobalFont] = useState('system-ui, -apple-system, sans-serif');
   const [activeTableCell, setActiveTableCell] = useState<HTMLElement | null>(null);
   const [activeBlock, setActiveBlock] = useState<HTMLElement | null>(null);
-  const [activeEditable, setActiveEditable] = useState<HTMLElement | null>(null); 
+  const [activeEditable, setActiveEditable] = useState<HTMLElement | null>(null);
+  const [confirmDeletePos, setConfirmDeletePos] = useState<{ top: number; left: number } | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showSolutions, setShowSolutions] = useState(true);
 
@@ -971,13 +972,6 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
       if (target.nodeType === 3) target = target.parentElement as HTMLElement;
       if (!target?.closest) return;
 
-      // Clear text-editing lock on any cover element when clicking outside it
-      const editingEl = document.querySelector('.cover-draggable[data-editing="true"]') as HTMLElement | null;
-      if (editingEl && !editingEl.contains(target)) {
-        editingEl.removeAttribute('data-editing');
-        editingEl.style.cursor = 'move';
-      }
-
       const coverContainer = target.closest('.cover-page-container') as HTMLElement;
       if (!coverContainer) return;
 
@@ -991,20 +985,12 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
       }
       if (!el || el === innerContainer || el.style.position !== 'absolute') return;
 
-      // If element is locked in text-editing mode, skip drag
-      if (el.dataset.editing === 'true') return;
-
-      // If the click landed directly on editable text content, enter editing mode immediately.
-      // This prevents the drag handler from firing when the user tries to click-drag to select text.
-      // The image wrapper is excluded so double-click on the cover image still triggers regeneration.
+      // Drag zone = wrapper padding. Click on inner editable text → skip drag so native
+      // text selection / editing works. Image wrapper is excluded (whole image drags).
       const isClickOnEditableContent = !!(
         target.classList.contains('editable') || target.closest('.editable')
       );
-      if (isClickOnEditableContent && !el.classList.contains('resizable-cover-image-wrapper')) {
-        el.setAttribute('data-editing', 'true');
-        el.style.cursor = 'text';
-        return;
-      }
+      if (isClickOnEditableContent && !el.classList.contains('resizable-cover-image-wrapper')) return;
 
       isDragging = true;
       dragTarget = el;
@@ -1029,6 +1015,25 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
       // Don't preventDefault yet — allow initial click to focus text
     };
 
+    let guideEl: HTMLDivElement | null = null;
+    const SNAP_PX = 6;
+
+    const updateCenterGuide = (centered: boolean) => {
+      if (!centered || !innerContainerRect) {
+        guideEl?.remove();
+        guideEl = null;
+        return;
+      }
+      if (!guideEl) {
+        guideEl = document.createElement('div');
+        guideEl.style.cssText = 'position:fixed;width:1px;background:#ec4899;box-shadow:0 0 4px rgba(236,72,153,0.6);pointer-events:none;z-index:9999;';
+        document.body.appendChild(guideEl);
+      }
+      guideEl.style.left = `${innerContainerRect.left + innerContainerRect.width / 2}px`;
+      guideEl.style.top = `${innerContainerRect.top}px`;
+      guideEl.style.height = `${innerContainerRect.height}px`;
+    };
+
     const onMouseMove = (e: MouseEvent) => {
       if (!isDragging || !dragTarget || !innerContainerRect) return;
 
@@ -1049,8 +1054,19 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
 
       const newLeft = Math.max(0, Math.min(100, startLeft + (dx / innerContainerRect.width) * 100));
       const newTop = Math.max(0, Math.min(100, startTop + (dy / innerContainerRect.height) * 100));
+
       dragTarget.style.left = `${newLeft.toFixed(1)}%`;
       dragTarget.style.top = `${newTop.toFixed(1)}%`;
+
+      // Horizontal-center snap via measured center (works for both plain and translate(-50%) wrappers)
+      const elRect = dragTarget.getBoundingClientRect();
+      const deltaPx = (elRect.left + elRect.width / 2) - (innerContainerRect.left + innerContainerRect.width / 2);
+      const isCentered = Math.abs(deltaPx) < SNAP_PX;
+      if (isCentered && Math.abs(deltaPx) > 0.25) {
+        const corrected = newLeft - (deltaPx / innerContainerRect.width) * 100;
+        dragTarget.style.left = `${corrected.toFixed(2)}%`;
+      }
+      updateCenterGuide(isCentered);
     };
 
     const onMouseUp = () => {
@@ -1065,12 +1081,143 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
         innerContainerRect = null;
         hasMoved = false;
       }
+      updateCenterGuide(false);
     };
 
     document.addEventListener('mousedown', onMouseDown);
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
     return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      guideEl?.remove();
+    };
+  }, []);
+
+  // Mindmap: draggable nodes + dynamic SVG connectors between center and branches
+  useEffect(() => {
+    const root = document.getElementById('dossier-root');
+    if (!root) return;
+
+    const redrawContainer = (container: HTMLElement) => {
+      const svg = container.querySelector(':scope > .mindmap-svg') as SVGSVGElement | null;
+      const center = container.querySelector(':scope > .mindmap-center') as HTMLElement | null;
+      if (!svg || !center) return;
+      const nodes = container.querySelectorAll(':scope > .mindmap-node:not(.mindmap-center)');
+      const crect = container.getBoundingClientRect();
+      const centerRect = center.getBoundingClientRect();
+      const cx = centerRect.left + centerRect.width / 2 - crect.left;
+      const cy = centerRect.top + centerRect.height / 2 - crect.top;
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+      nodes.forEach((node) => {
+        const nr = (node as HTMLElement).getBoundingClientRect();
+        const nx = nr.left + nr.width / 2 - crect.left;
+        const ny = nr.top + nr.height / 2 - crect.top;
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', String(cx));
+        line.setAttribute('y1', String(cy));
+        line.setAttribute('x2', String(nx));
+        line.setAttribute('y2', String(ny));
+        line.setAttribute('stroke', '#cbd5e1');
+        line.setAttribute('stroke-width', '3');
+        line.setAttribute('stroke-linecap', 'round');
+        svg.appendChild(line);
+      });
+    };
+
+    const redrawAll = () => {
+      root.querySelectorAll<HTMLElement>('.mindmap-container').forEach(redrawContainer);
+    };
+
+    redrawAll();
+    const obs = new MutationObserver((mutations) => {
+      // Ignore mutations caused by our own SVG redraw (prevents infinite loop)
+      const hasMeaningfulChange = mutations.some(
+        (m) => !(m.target as Element).closest?.('.mindmap-svg')
+      );
+      if (hasMeaningfulChange) redrawAll();
+    });
+    obs.observe(root, { childList: true, subtree: true });
+    const onResize = () => redrawAll();
+    window.addEventListener('resize', onResize);
+
+    let isDragging = false;
+    let dragNode: HTMLElement | null = null;
+    let dragContainer: HTMLElement | null = null;
+    let containerRect: DOMRect | null = null;
+    let startMouseX = 0, startMouseY = 0, startLeft = 0, startTop = 0, hasMoved = false;
+
+    const onMouseDown = (e: MouseEvent) => {
+      let target = e.target as HTMLElement;
+      if (!target) return;
+      if (target.nodeType === 3) target = target.parentElement as HTMLElement;
+      if (!target?.closest) return;
+
+      const node = target.closest('.mindmap-node') as HTMLElement | null;
+      if (!node) return;
+      const container = node.closest('.mindmap-container') as HTMLElement | null;
+      if (!container) return;
+
+      // Drag only when clicking on the node's padding (target === node).
+      // Clicks on the inner editable fall through to native text selection/editing.
+      if (target !== node) return;
+
+      isDragging = true;
+      dragNode = node;
+      dragContainer = container;
+      containerRect = container.getBoundingClientRect();
+      startMouseX = e.clientX;
+      startMouseY = e.clientY;
+      const nodeRect = node.getBoundingClientRect();
+      startLeft = node.style.left
+        ? parseFloat(node.style.left)
+        : ((nodeRect.left - containerRect.left) / containerRect.width) * 100;
+      startTop = node.style.top
+        ? parseFloat(node.style.top)
+        : ((nodeRect.top - containerRect.top) / containerRect.height) * 100;
+      hasMoved = false;
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isDragging || !dragNode || !dragContainer || !containerRect) return;
+      const dx = e.clientX - startMouseX;
+      const dy = e.clientY - startMouseY;
+      if (!hasMoved && Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
+      if (!hasMoved) {
+        hasMoved = true;
+        dragNode.style.userSelect = 'none';
+        dragNode.style.cursor = 'grabbing';
+        (document.activeElement as HTMLElement)?.blur();
+      }
+      e.preventDefault();
+      const newLeft = Math.max(0, Math.min(95, startLeft + (dx / containerRect.width) * 100));
+      const newTop = Math.max(0, Math.min(92, startTop + (dy / containerRect.height) * 100));
+      dragNode.style.left = `${newLeft.toFixed(1)}%`;
+      dragNode.style.top = `${newTop.toFixed(1)}%`;
+      redrawContainer(dragContainer);
+    };
+
+    const onMouseUp = () => {
+      if (isDragging && hasMoved && dragNode) {
+        dragNode.style.userSelect = '';
+        dragNode.style.cursor = 'move';
+        saveHistoryState();
+      }
+      isDragging = false;
+      dragNode = null;
+      dragContainer = null;
+      containerRect = null;
+      hasMoved = false;
+    };
+
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+
+    return () => {
+      obs.disconnect();
+      window.removeEventListener('resize', onResize);
       document.removeEventListener('mousedown', onMouseDown);
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
@@ -1544,24 +1691,47 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     let blockToMove = activeBlock;
     let pageContainer = blockToMove.parentElement;
 
-    // If activeBlock is a direct child of dossier-root (e.g. a page container was selected),
-    // try to find a movable content block inside it instead.
+    // Whole-page move: activeBlock is a page container (direct child of dossier-root, not a page-break).
+    // Move the entire page before/after the adjacent page and normalize page-break separators.
     if (pageContainer === dossierRoot) {
-      // Check if the activeBlock is actually a page container with content blocks inside.
-      // In that case, we can't move the page itself — skip silently.
-      // But if there's a focused editable inside, use findBlockForElement to get the right block.
-      const focused = document.activeElement as HTMLElement;
-      if (focused && blockToMove.contains(focused)) {
-        const correctBlock = findBlockForElement(focused);
-        if (correctBlock && correctBlock !== blockToMove && correctBlock.parentElement !== dossierRoot) {
-          blockToMove = correctBlock;
-          pageContainer = blockToMove.parentElement;
-        } else {
-          return;
-        }
-      } else {
-        return;
+      if (blockToMove.classList.contains('page-break')) return;
+
+      let target: Element | null = direction === 'up'
+        ? blockToMove.previousElementSibling
+        : blockToMove.nextElementSibling;
+      while (target && target.classList.contains('page-break')) {
+        target = direction === 'up' ? target.previousElementSibling : target.nextElementSibling;
       }
+      if (!target) return;
+
+      saveHistoryState();
+
+      if (direction === 'up') target.before(blockToMove);
+      else target.after(blockToMove);
+
+      while (dossierRoot.firstElementChild?.classList.contains('page-break')) dossierRoot.firstElementChild.remove();
+      while (dossierRoot.lastElementChild?.classList.contains('page-break')) dossierRoot.lastElementChild.remove();
+      Array.from(dossierRoot.querySelectorAll('.page-break')).forEach(pb => {
+        const nxt = pb.nextElementSibling;
+        if (nxt && nxt.classList.contains('page-break')) nxt.remove();
+      });
+      const kids = Array.from(dossierRoot.children);
+      for (let i = 0; i < kids.length - 1; i++) {
+        const a = kids[i], b = kids[i + 1];
+        if (!a.classList.contains('page-break') && !b.classList.contains('page-break')) {
+          const pb = document.createElement('div');
+          pb.className = 'page-break avoid-break';
+          a.after(pb);
+        }
+      }
+
+      setActiveBlock(blockToMove);
+      document.querySelectorAll('.active-block-highlight').forEach(el => el.classList.remove('active-block-highlight'));
+      blockToMove.classList.add('active-block-highlight');
+
+      saveHistoryState();
+      blockToMove.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
     }
 
     if (!pageContainer) return;
@@ -1742,6 +1912,18 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     const root = document.getElementById('dossier-root');
     if (!root) return;
 
+    // 0a. Mindmap branch node: delete the whole node (not just the inner editable)
+    if (activeEditable && activeBlock) {
+      const mindmapNode = activeEditable.closest('.mindmap-node:not(.mindmap-center)') as HTMLElement | null;
+      if (mindmapNode && activeBlock.contains(mindmapNode)) {
+        saveHistoryState();
+        mindmapNode.remove();
+        setActiveEditable(null);
+        saveHistoryState();
+        return;
+      }
+    }
+
     // 0. Suchsel: delete the word block if cursor is inside .suchsel-woerter
     if (activeEditable && activeBlock) {
       const suchselBlock = activeEditable.closest('.suchsel-woerter');
@@ -1771,11 +1953,29 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
     // 2. Sonst den ganzen Block löschen
     if (!activeBlock || !root.contains(activeBlock)) return;
 
+    // Confirmation for deleting a page container with content: show popover anchored to delete button
+    const isPageContainer = activeBlock.parentElement === root && !activeBlock.classList.contains('page-break');
+    if (isPageContainer && activeBlock.children.length > 0) {
+      const btn = document.querySelector('button[title="Block löschen"]') as HTMLElement | null;
+      if (btn) {
+        const r = btn.getBoundingClientRect();
+        setConfirmDeletePos({ top: r.top, left: r.left + r.width / 2 });
+      } else {
+        setConfirmDeletePos({ top: window.innerHeight / 2, left: window.innerWidth / 2 });
+      }
+      return;
+    }
+
+    performBlockDelete();
+  };
+
+  const performBlockDelete = () => {
+    const root = document.getElementById('dossier-root');
+    if (!root || !activeBlock || !root.contains(activeBlock)) return;
+
     saveHistoryState();
     activeBlock.remove();
 
-    // Cleanup: remove duplicate / orphaned page-breaks so no oversized gray gap remains
-    // between the neighbouring pages after deleting the block in between.
     const pageBreaks = Array.from(root.querySelectorAll('.page-break'));
     for (const pb of pageBreaks) {
       const next = pb.nextElementSibling;
@@ -1947,19 +2147,28 @@ export function Editor({ html, onChange, theme, projectName, snapshots, onRestor
       const table = activeTableCell.closest('table');
       if (row && table) {
         const isRechenmauer = table.classList.contains('rechenmauer-table');
-        const newRow = row.cloneNode(true) as HTMLTableRowElement;
-        newRow.querySelectorAll('.editable').forEach(el => el.innerHTML = '...');
 
         if (isRechenmauer) {
-          const lastCell = newRow.cells[newRow.cells.length - 1];
-          if (lastCell) {
-            const newCell = lastCell.cloneNode(true) as HTMLTableCellElement;
-            newCell.innerHTML = '...';
-            newRow.appendChild(newCell);
+          // Rechenmauer: neue Zeile IMMER am Ende mit einem Feld mehr als die letzte Reihe.
+          const tbody = table.querySelector('tbody') || table;
+          const rows = tbody.querySelectorAll(':scope > tr');
+          const lastRow = rows[rows.length - 1] as HTMLTableRowElement | undefined;
+          if (lastRow) {
+            const newRow = lastRow.cloneNode(true) as HTMLTableRowElement;
+            newRow.querySelectorAll('.editable').forEach(el => el.innerHTML = '...');
+            const lastCell = newRow.cells[newRow.cells.length - 1];
+            if (lastCell) {
+              const newCell = lastCell.cloneNode(true) as HTMLTableCellElement;
+              newCell.innerHTML = '...';
+              newRow.appendChild(newCell);
+            }
+            lastRow.parentNode?.appendChild(newRow);
           }
+        } else {
+          const newRow = row.cloneNode(true) as HTMLTableRowElement;
+          newRow.querySelectorAll('.editable').forEach(el => el.innerHTML = '...');
+          row.parentNode?.insertBefore(newRow, row.nextSibling);
         }
-
-        row.parentNode?.insertBefore(newRow, row.nextSibling);
       }
       saveHistoryState();
       return;
@@ -4608,6 +4817,44 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
     }
   };
 
+  const coverTargetRef = useRef<{ target: HTMLElement; mode: 'replace' | 'prepend' } | null>(null);
+
+  const resolveCoverTarget = (): { target: HTMLElement; mode: 'replace' | 'prepend' } | { error: string } => {
+    const root = document.getElementById('dossier-root');
+    if (!root) return { error: 'Editor ist nicht bereit.' };
+
+    const firstPage = Array.from(root.children).find(c => !c.classList.contains('page-break')) as HTMLElement | undefined;
+
+    let target: HTMLElement | null = null;
+    if (activeBlock && activeBlock.parentElement === root && !activeBlock.classList.contains('page-break')) {
+      target = activeBlock;
+    }
+    if (!target) target = firstPage || null;
+    if (!target) return { error: 'Keine Seite im Dossier gefunden.' };
+
+    const isFirst = target === firstPage;
+    const isCover = target.classList.contains('cover-page-wrapper')
+      || target.hasAttribute('data-cover')
+      || target.classList.contains('title-page-placeholder');
+    const isEmpty = target.children.length === 0;
+
+    if (!isFirst && !isEmpty && !isCover) {
+      return { error: 'Cover-Design geht nur auf der ersten Seite oder einer leeren Seite. Wähle eine leere Seite aus oder hebe die Auswahl auf.' };
+    }
+
+    return { target, mode: (isCover || isEmpty) ? 'replace' : 'prepend' };
+  };
+
+  const openCoverModal = () => {
+    const res = resolveCoverTarget();
+    if ('error' in res) {
+      setNotification({ message: res.error, type: 'error' });
+      return;
+    }
+    coverTargetRef.current = res;
+    setShowCoverModal(true);
+  };
+
   const handleGenerateCover = async () => {
     if (!coverTitle.trim()) return;
     setIsGeneratingCover(true);
@@ -4690,27 +4937,6 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
 
       const root = document.getElementById('dossier-root');
       if (root) {
-        // Remove all existing cover pages
-        const existingWrappers = root.querySelectorAll('.cover-page-wrapper, [data-cover="true"], .title-page-placeholder');
-        existingWrappers.forEach(wrapper => {
-          const nextSibling = wrapper.nextElementSibling;
-          if (nextSibling && nextSibling.classList.contains('page-break')) {
-            nextSibling.remove();
-          }
-          wrapper.remove();
-        });
-
-        const existingCovers = root.querySelectorAll('.cover-page-container');
-        existingCovers.forEach(existingCover => {
-          const nextSibling = existingCover.nextElementSibling;
-          if (nextSibling && nextSibling.classList.contains('page-break')) {
-            nextSibling.remove();
-          }
-          existingCover.remove();
-        });
-
-        root.querySelectorAll('.cover-image').forEach(el => el.remove());
-
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = generatedHtml;
 
@@ -4723,7 +4949,30 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
           frag.appendChild(tempDiv.firstChild);
         }
 
-        root.insertBefore(frag, root.firstChild);
+        const targetInfo = coverTargetRef.current;
+        if (targetInfo && root.contains(targetInfo.target)) {
+          if (targetInfo.mode === 'replace') {
+            targetInfo.target.replaceWith(frag);
+          } else {
+            root.insertBefore(frag, targetInfo.target);
+          }
+        } else {
+          // Fallback: legacy behavior — wipe existing covers, prepend
+          root.querySelectorAll('.cover-page-wrapper, [data-cover="true"], .title-page-placeholder').forEach(wrapper => {
+            const nx = wrapper.nextElementSibling;
+            if (nx && nx.classList.contains('page-break')) nx.remove();
+            wrapper.remove();
+          });
+          root.querySelectorAll('.cover-page-container').forEach(c => {
+            const nx = c.nextElementSibling;
+            if (nx && nx.classList.contains('page-break')) nx.remove();
+            c.remove();
+          });
+          root.querySelectorAll('.cover-image').forEach(el => el.remove());
+          root.insertBefore(frag, root.firstChild);
+        }
+
+        coverTargetRef.current = null;
 
         if (firstElement) {
           setTimeout(() => firstElement.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
@@ -5130,48 +5379,21 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
 
     if (block && block !== root) {
       const isEditable = target.classList.contains('editable') || target.closest('.editable') || target.contentEditable === 'true';
-      const isCover = block.classList.contains('cover-page-wrapper') || block.classList.contains('cover-page-container') || block.hasAttribute('data-cover');
-      
+
       if (activeBlock !== block) {
         setActiveBlock(block);
       }
 
-      // Immer den aktiven Block hervorheben, außer es ist eine ganze Seite und wir klicken auf Text
       document.querySelectorAll('.active-block-highlight').forEach(el => el.classList.remove('active-block-highlight'));
-      
-      if (!isCover || !isEditable) {
-        block.classList.add('active-block-highlight');
-      }
+      block.classList.add('active-block-highlight');
 
       if (!isEditable) {
         root?.focus({ preventScroll: true });
       }
     } else if (target.getAttribute('id') === 'dossier-root' && root) {
-      // Find closest child based on Y coordinate if clicking on the background
-      const children = Array.from(root.children) as HTMLElement[];
-      const y = e.clientY;
-      let closest = null;
-      let minDistance = Infinity;
-      
-      children.forEach(child => {
-        const rect = child.getBoundingClientRect();
-        const distance = Math.abs(y - (rect.top + rect.height / 2));
-        if (distance < minDistance) {
-          minDistance = distance;
-          closest = child;
-        }
-      });
-      
-      if (closest) {
-        block = closest;
-        setActiveBlock(block);
-        document.querySelectorAll('.active-block-highlight').forEach(el => el.classList.remove('active-block-highlight'));
-        (block as HTMLElement).classList.add('active-block-highlight');
-        root.focus({ preventScroll: true });
-      } else {
-        document.querySelectorAll('.active-block-highlight').forEach(el => el.classList.remove('active-block-highlight'));
-        setActiveBlock(null);
-      }
+      // Click on the root background (left/right of pages) → deselect
+      document.querySelectorAll('.active-block-highlight').forEach(el => el.classList.remove('active-block-highlight'));
+      setActiveBlock(null);
     }
 
     if (target.tagName === 'TD' && target.classList.contains('cursor-pointer')) {
@@ -5209,29 +5431,6 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
       return;
     }
 
-    // Handle double-click on cover text elements: lock element in place for text editing
-    // and select all text so the user can immediately apply formatting (e.g. font size).
-    const coverDraggable = target.closest('.cover-draggable') as HTMLElement | null;
-    if (coverDraggable && !coverDraggable.classList.contains('resizable-cover-image-wrapper')) {
-      coverDraggable.setAttribute('data-editing', 'true');
-      coverDraggable.style.cursor = 'text';
-      // Select all text in the editable child after the browser's own word-selection has fired
-      const editable = coverDraggable.querySelector('[contenteditable="true"]') as HTMLElement | null;
-      if (editable) {
-        editable.focus();
-        setTimeout(() => {
-          const range = document.createRange();
-          range.selectNodeContents(editable);
-          const sel = window.getSelection();
-          if (sel) {
-            sel.removeAllRanges();
-            sel.addRange(range);
-          }
-        }, 0);
-      }
-      return;
-    }
-
     const root = document.getElementById('dossier-root');
     if (!root) return;
 
@@ -5240,7 +5439,6 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
 
     if (block && block !== root) {
       const isEditable = target.classList.contains('editable') || target.closest('.editable') || target.contentEditable === 'true';
-      const isCover = block.classList.contains('cover-page-wrapper') || block.classList.contains('cover-page-container') || block.hasAttribute('data-cover');
 
       if (!isEditable) {
         e.preventDefault();
@@ -5248,22 +5446,16 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
         window.getSelection()?.removeAllRanges();
 
         document.querySelectorAll('.active-block-highlight').forEach(el => el.classList.remove('active-block-highlight'));
-        if (!isCover) {
-          block.classList.add('active-block-highlight');
-        }
+        block.classList.add('active-block-highlight');
         setActiveBlock(block);
 
         // Focus root to receive key events
         root.focus({ preventScroll: true });
       } else {
-        // Bei Doppelklick auf Text: Normales Verhalten (Text auswählen),
-        // aber Block-Highlight beibehalten damit der aktive Block sichtbar bleibt
         const currentBlock = findBlockForElement(target);
         if (currentBlock) {
           document.querySelectorAll('.active-block-highlight').forEach(el => el.classList.remove('active-block-highlight'));
-          if (!isCover) {
-            currentBlock.classList.add('active-block-highlight');
-          }
+          currentBlock.classList.add('active-block-highlight');
           setActiveBlock(currentBlock);
         }
       }
@@ -5403,6 +5595,45 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
           <span>{notification.type === 'error' ? '⚠️' : '✅'}</span>
           <span className="font-bold">{notification.message}</span>
           <button onClick={() => setNotification(null)} className="ml-2 hover:opacity-70">✕</button>
+        </div>
+      )}
+
+      {/* CONFIRM POPOVER: Seite mit Inhalt löschen — direkt über dem Lösch-Button */}
+      {confirmDeletePos && (
+        <div
+          data-confirm-popover
+          className="fixed z-[9999] bg-white border-2 border-red-300 rounded-xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.3)] px-4 py-3 animate-in fade-in zoom-in duration-150"
+          style={{
+            top: confirmDeletePos.top,
+            left: confirmDeletePos.left,
+            transform: 'translate(-50%, calc(-100% - 10px))',
+          }}
+        >
+          <div className="text-sm font-medium text-gray-800 mb-2 whitespace-nowrap">
+            Diese Seite enthält Inhalt. Wirklich löschen?
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => setConfirmDeletePos(null)}
+              className="px-3 py-1.5 text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+            >
+              Abbrechen
+            </button>
+            <button
+              onClick={() => { performBlockDelete(); setConfirmDeletePos(null); }}
+              className="px-3 py-1.5 text-sm font-medium bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+            >
+              Löschen
+            </button>
+          </div>
+          <div
+            className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0"
+            style={{
+              borderLeft: '8px solid transparent',
+              borderRight: '8px solid transparent',
+              borderTop: '8px solid #fca5a5',
+            }}
+          />
         </div>
       )}
 
@@ -6043,7 +6274,7 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
               )}
             </div>
 
-            <button onClick={() => setShowCoverModal(true)} className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-medium transition-colors text-sm shadow-sm" title="Generiert eine professionelle Titelseite">
+            <button onClick={openCoverModal} className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-medium transition-colors text-sm shadow-sm" title="Erstellt ein Cover für die ausgewählte Seite (erste Seite oder leere Seite)">
               <span className="text-lg">🎨</span>
               <span className="hidden md:inline">Cover-Design</span>
             </button>
@@ -6196,6 +6427,27 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
            border-radius: 4px;
         }
 
+        #dossier-root > .active-block-highlight:not(.page-break) {
+          outline: none !important;
+          box-shadow:
+            inset 0 0 0 3px #3b82f6,
+            0 4px 20px rgba(0,0,0,0.18) !important;
+          background-color: #eff6ff !important;
+        }
+
+        /* Cover-draggable: padding acts as drag zone, inner editable for text selection */
+        .cover-draggable:not(.resizable-cover-image-wrapper) {
+          padding: 6px !important;
+          border-radius: 4px;
+        }
+        .cover-draggable:not(.resizable-cover-image-wrapper):hover {
+          box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.45);
+        }
+        .cover-draggable .editable,
+        .cover-draggable [contenteditable="true"] {
+          cursor: text;
+        }
+
         /* FRAME DESIGNS - New SVG Overlay System */
         .avoid-break {
           position: relative;
@@ -6232,8 +6484,10 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
           transition: padding 0.3s ease;
         }
 
-        /* Sicherstellen, dass leere Blöcke im Editor klickbar bleiben */
-        #dossier-root > *:empty {
+        /* Sicherstellen, dass leere Blöcke im Editor klickbar bleiben.
+           .page-break ausgenommen, da diese bewusst leer sind und sonst
+           als gestrichelte Linie am Seitenrand sichtbar würden. */
+        #dossier-root > *:empty:not(.page-break) {
           min-height: 1.5em;
           border: 1px dashed #e2e8f0;
           margin-bottom: 0.5rem;
@@ -6302,6 +6556,7 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
           /* 2. Hide UI Elements */
           .no-print, .no-print * { display: none !important; }
           .active-block-highlight { outline: none !important; border: none !important; }
+          #dossier-root > .active-block-highlight:not(.page-break) { box-shadow: none !important; background-color: white !important; }
           .draggable-image-wrapper { resize: none !important; border: none !important; padding: 0 !important; margin: 0 !important; }
           .cover-page-container { visibility: visible !important; display: flex !important; }
           
@@ -6367,7 +6622,16 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
       `}} />
       
       {/* HAUPTBEREICH DOKUMENT */}
-      <div className="flex-1 overflow-y-auto py-10 pb-40 bg-slate-400" style={{ overflowAnchor: 'none' }}>
+      <div
+        className="flex-1 overflow-y-auto py-10 pb-40 bg-slate-400"
+        style={{ overflowAnchor: 'none' }}
+        onClick={(e) => {
+          if (!(e.target as HTMLElement).closest('#dossier-root')) {
+            setActiveBlock(null);
+            document.querySelectorAll('.active-block-highlight').forEach(el => el.classList.remove('active-block-highlight'));
+          }
+        }}
+      >
         <div
           id="dossier-wrapper"
           style={{ fontFamily: globalFont, transitionProperty: 'none' }}
@@ -6585,8 +6849,8 @@ Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
               const byId = (id: string) => EXERCISE_TEMPLATES.find(t => t.id === id);
               const subjects: { label: string; ids: string[] }[] = [
                 { label: 'Mathematik', ids: ['geld_rechnen', 'rechengitter', 'punktraster', 'rechenmauer', 'sachaufgabe', 'stellenwerttafel', 'uhrzeit', 'zeitspanne_tabelle', 'zahlenhaus', 'zahlenreihe', 'zahlenstrahl'] },
-                { label: 'NMG', ids: ['matching', 'bildbeschriftung', 'experiment', 'film_fragen', 'interview', 'klassifizierung', 'lebenszyklus', 'lueckentext', 'bild_beschriftung_multi', 'mindmap', 'offene_frage', 'recherche', 'steckbrief', 'steckbrief_gross', 't_chart', 'anstreichen', 'ursache_wirkung', 'venn_diagramm', 'vergleichstabelle', 'was_faellt_auf', 'zeitstrahl'] },
-                { label: 'Sprachen', ids: ['abc_liste', 'bildgeschichte', 'dialog_luecken', 'klassifizierung', 'konjugations_faecher', 'korrektur_zeile', 'klammer_luecken', 'lueckentext', 'professor_zipp', 'reimpaare', 'satz_transformator', 'suchsel', 'anstreichen', 'liste_zweispaltig', 'w_fragen', 'was_faellt_auf', 'eindringling'] },
+                { label: 'NMG', ids: ['matching', 'bildbeschriftung', 'experiment', 'film_fragen', 'interview', 'klassifizierung', 'lebenszyklus', 'lueckentext', 'bild_beschriftung_multi', 'mindmap', 'offene_frage', 'recherche', 'steckbrief', 'steckbrief_gross', 't_chart', 'anstreichen_nmg', 'ursache_wirkung', 'venn_diagramm', 'vergleichstabelle', 'was_faellt_auf', 'zeitstrahl'] },
+                { label: 'Sprachen', ids: ['abc_liste', 'bildgeschichte', 'dialog_luecken', 'geschichte', 'klassifizierung', 'konjugations_faecher', 'korrektur_zeile', 'klammer_luecken', 'lueckentext', 'professor_zipp', 'reimpaare', 'satz_transformator', 'suchsel', 'anstreichen', 'liste_zweispaltig', 'w_fragen', 'was_faellt_auf', 'eindringling'] },
                 { label: 'Allgemein', ids: ['checkbox-table', 'klassifizierung', 'kwl_chart', 'offene_frage', 'reflexion', 'table', 'suchsel', 't_chart', 'anstreichen', 'venn_diagramm', 'zeichnungsauftrag', 'ziel_checkliste'] },
               ];
               const itemCls = "w-full text-left px-3 py-1.5 text-xs hover:bg-indigo-100 text-indigo-900 whitespace-nowrap";

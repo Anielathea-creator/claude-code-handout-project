@@ -510,12 +510,35 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
   },
   {
     id: "anstreichen",
-    name: "Text zum Anstreichen",
+    name: "Text zum Anstreichen (Sprachen)",
     html: `<div class="avoid-break mb-8 text-[12pt]">
   <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Textarbeit</h3>
   <p class="editable text-gray-600 mb-3" contenteditable="true">Übermale alle Verben (Tunwörter) im folgenden Text.</p>
   <div class="p-6 bg-gray-50 border border-gray-200 rounded-xl leading-loose">
     <p class="editable" contenteditable="true">Der Hund <span class="is-highlight-answer">rennt</span> schnell über die weite Wiese. Die kleine Katze <span class="is-highlight-answer">schläft</span> lieber gemütlich auf dem weichen Sofa.</p>
+  </div>
+</div>`
+  },
+  {
+    id: "anstreichen_nmg",
+    name: "Text zum Anstreichen (NMG)",
+    html: `<div class="avoid-break mb-8 text-[12pt]">
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Textarbeit – Wald</h3>
+  <p class="editable text-gray-600 mb-3" contenteditable="true">Lies den Text und markiere alle Baumarten, die vorkommen.</p>
+  <div class="p-6 bg-gray-50 border border-gray-200 rounded-xl leading-loose">
+    <p class="editable" contenteditable="true">Der Schweizer Wald ist vielfältig. Im Mittelland findet man vor allem die <span class="is-highlight-answer">Buche</span> und die <span class="is-highlight-answer">Eiche</span>. In den höheren Lagen wachsen dagegen die <span class="is-highlight-answer">Fichte</span> und die <span class="is-highlight-answer">Tanne</span>. Entlang von Flüssen sieht man oft die <span class="is-highlight-answer">Weide</span> und die <span class="is-highlight-answer">Erle</span>. Im Herbst leuchten die Blätter der <span class="is-highlight-answer">Birke</span> und des <span class="is-highlight-answer">Ahorns</span> besonders schön. Auch die <span class="is-highlight-answer">Linde</span> ist ein häufiger Baum in vielen Dörfern.</p>
+  </div>
+</div>`
+  },
+  {
+    id: "geschichte",
+    name: "Lesetext / Geschichte",
+    html: `<div class="avoid-break mb-8 text-[12pt]">
+  <h3 class="editable font-bold text-[16pt] mb-3 text-THEME-700" contenteditable="true">Titel der Geschichte</h3>
+  <div class="p-6 bg-white border-2 border-THEME-100 rounded-xl leading-relaxed space-y-3">
+    <p class="editable text-gray-900" contenteditable="true">Es war einmal ein kleiner Hund, der jeden Morgen durch das Dorf lief. Er kannte jede Gasse und jede Tür.</p>
+    <p class="editable text-gray-900" contenteditable="true">Eines Tages entdeckte er hinter einem alten Zaun etwas, das er noch nie zuvor gesehen hatte …</p>
+    <p class="editable text-gray-900" contenteditable="true">(Hier kannst du die Geschichte weiterschreiben oder von der KI ergänzen lassen.)</p>
   </div>
 </div>`
   },
@@ -664,24 +687,30 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
     name: "Mind-Map-Starter",
     html: `<div class="avoid-break mb-8 text-[12pt]">
   <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Mind-Map erstellen</h3>
-  <p class="editable text-gray-600 mb-6" contenteditable="true">Sammle deine Ideen in den Ästen der Mind-Map.</p>
-  
-  <div class="relative h-[250px] w-full max-w-lg mx-auto flex items-center justify-center">
-    <svg class="absolute inset-0 w-full h-full z-0" pointer-events="none">
-      <line x1="50%" y1="50%" x2="25%" y2="20%" stroke="#cbd5e1" stroke-width="3" stroke-linecap="round" />
-      <line x1="50%" y1="50%" x2="75%" y2="20%" stroke="#cbd5e1" stroke-width="3" stroke-linecap="round" />
-      <line x1="50%" y1="50%" x2="25%" y2="80%" stroke="#cbd5e1" stroke-width="3" stroke-linecap="round" />
-      <line x1="50%" y1="50%" x2="75%" y2="80%" stroke="#cbd5e1" stroke-width="3" stroke-linecap="round" />
-    </svg>
-    
-    <div class="absolute z-20 w-36 h-20 bg-blue-50 border-2 border-blue-300 rounded-3xl flex items-center justify-center text-center font-bold editable shadow-sm text-blue-900" contenteditable="true">
-      Hauptthema
+  <p class="editable text-gray-600 mb-4" contenteditable="true">Sammle deine Ideen rund um das Hauptthema. Ziehe die Knoten am Rand an die gewünschte Position.</p>
+  <div class="mindmap-container relative w-full h-[400px] border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 overflow-hidden">
+    <svg class="mindmap-svg absolute inset-0 w-full h-full pointer-events-none" style="z-index:1;"></svg>
+    <div class="mindmap-node mindmap-center absolute flex items-center justify-center text-center font-bold rounded-full bg-THEME-100 border-2 border-THEME-500 shadow text-THEME-900" style="left:40%;top:42%;z-index:10;min-width:130px;min-height:70px;padding:10px;cursor:move;">
+      <div contenteditable="true" class="editable" style="cursor:text;">Hauptthema</div>
     </div>
-    
-    <div class="absolute top-0 left-[5%] w-32 h-12 border-b-2 border-gray-400 flex items-end justify-center editable z-10" contenteditable="true"><span class="is-answer">Idee 1</span></div>
-    <div class="absolute top-0 right-[5%] w-32 h-12 border-b-2 border-gray-400 flex items-end justify-center editable z-10" contenteditable="true"><span class="is-answer">Idee 2</span></div>
-    <div class="absolute bottom-4 left-[5%] w-32 h-12 border-b-2 border-gray-400 flex items-end justify-center editable z-10" contenteditable="true"><span class="is-answer">Idee 3</span></div>
-    <div class="absolute bottom-4 right-[5%] w-32 h-12 border-b-2 border-gray-400 flex items-end justify-center editable z-10" contenteditable="true"><span class="is-answer">Idee 4</span></div>
+    <div class="mindmap-node absolute flex items-center justify-center text-center rounded-xl bg-white border border-gray-400 shadow-sm" style="left:5%;top:7%;z-index:5;min-width:95px;min-height:45px;padding:8px;cursor:move;">
+      <div contenteditable="true" class="editable" style="cursor:text;"><span class="is-answer">Idee 1</span></div>
+    </div>
+    <div class="mindmap-node absolute flex items-center justify-center text-center rounded-xl bg-white border border-gray-400 shadow-sm" style="left:72%;top:7%;z-index:5;min-width:95px;min-height:45px;padding:8px;cursor:move;">
+      <div contenteditable="true" class="editable" style="cursor:text;"><span class="is-answer">Idee 2</span></div>
+    </div>
+    <div class="mindmap-node absolute flex items-center justify-center text-center rounded-xl bg-white border border-gray-400 shadow-sm" style="left:2%;top:42%;z-index:5;min-width:95px;min-height:45px;padding:8px;cursor:move;">
+      <div contenteditable="true" class="editable" style="cursor:text;"><span class="is-answer">Idee 3</span></div>
+    </div>
+    <div class="mindmap-node absolute flex items-center justify-center text-center rounded-xl bg-white border border-gray-400 shadow-sm" style="left:78%;top:42%;z-index:5;min-width:95px;min-height:45px;padding:8px;cursor:move;">
+      <div contenteditable="true" class="editable" style="cursor:text;"><span class="is-answer">Idee 4</span></div>
+    </div>
+    <div class="mindmap-node absolute flex items-center justify-center text-center rounded-xl bg-white border border-gray-400 shadow-sm" style="left:5%;top:78%;z-index:5;min-width:95px;min-height:45px;padding:8px;cursor:move;">
+      <div contenteditable="true" class="editable" style="cursor:text;"><span class="is-answer">Idee 5</span></div>
+    </div>
+    <div class="mindmap-node absolute flex items-center justify-center text-center rounded-xl bg-white border border-gray-400 shadow-sm" style="left:72%;top:78%;z-index:5;min-width:95px;min-height:45px;padding:8px;cursor:move;">
+      <div contenteditable="true" class="editable" style="cursor:text;"><span class="is-answer">Idee 6</span></div>
+    </div>
   </div>
 </div>`
   },
@@ -1101,15 +1130,15 @@ ${(() => {
   <p class="editable text-gray-900 mb-6" contenteditable="true">Schreibe den passenden Begriff unter jedes Bild.</p>
   <div class="grid grid-cols-3 gap-8">
     <div class="flex flex-col items-center">
-      <div class="w-full min-h-[10rem] ai-image-slot resize overflow-hidden border-2 border-gray-300 rounded-xl mb-3 flex items-center justify-center text-gray-400 bg-white shadow-sm editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors" contenteditable="true" data-no-reposition="true">[Bild 1]</div>
+      <div class="w-full ai-image-slot resize overflow-hidden border-2 border-gray-300 rounded-xl mb-3 flex items-center justify-center text-gray-400 bg-white shadow-sm editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors" contenteditable="true" data-no-reposition="true">[Bild 1]</div>
       <div class="editable w-full text-center mt-2" contenteditable="true"><span class="gap-line"><span class="is-answer">rennen</span></span></div>
     </div>
     <div class="flex flex-col items-center">
-      <div class="w-full min-h-[10rem] ai-image-slot resize overflow-hidden border-2 border-gray-300 rounded-xl mb-3 flex items-center justify-center text-gray-400 bg-white shadow-sm editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors" contenteditable="true" data-no-reposition="true">[Bild 2]</div>
+      <div class="w-full ai-image-slot resize overflow-hidden border-2 border-gray-300 rounded-xl mb-3 flex items-center justify-center text-gray-400 bg-white shadow-sm editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors" contenteditable="true" data-no-reposition="true">[Bild 2]</div>
       <div class="editable w-full text-center mt-2" contenteditable="true"><span class="gap-line"><span class="is-answer">essen</span></span></div>
     </div>
     <div class="flex flex-col items-center">
-      <div class="w-full min-h-[10rem] ai-image-slot resize overflow-hidden border-2 border-gray-300 rounded-xl mb-3 flex items-center justify-center text-gray-400 bg-white shadow-sm editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors" contenteditable="true" data-no-reposition="true">[Bild 3]</div>
+      <div class="w-full ai-image-slot resize overflow-hidden border-2 border-gray-300 rounded-xl mb-3 flex items-center justify-center text-gray-400 bg-white shadow-sm editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors" contenteditable="true" data-no-reposition="true">[Bild 3]</div>
       <div class="editable w-full text-center mt-2" contenteditable="true"><span class="gap-line"><span class="is-answer">springen</span></span></div>
     </div>
   </div>
@@ -1426,27 +1455,27 @@ ${(() => {
       <div class="flex flex-col items-center flex-1">
         <div class="h-6 w-0.5 bg-gray-800"></div>
         <div class="editable text-center font-bold mt-1 text-THEME-700" contenteditable="true">1291</div>
-        <div class="mt-2 editable italic text-THEME-600 border-b border-gray-400 w-full text-center text-sm min-h-[1.5rem] px-1" contenteditable="true"><span class="is-answer">Bundesbrief</span></div>
+        <div class="mt-2 schreib-linie editable italic text-THEME-600 w-full text-center text-sm" contenteditable="true"><span class="is-answer">Bundesbrief</span></div>
       </div>
       <div class="flex flex-col items-center flex-1">
         <div class="h-6 w-0.5 bg-gray-800"></div>
         <div class="editable text-center font-bold mt-1 text-THEME-700" contenteditable="true">1499</div>
-        <div class="mt-2 editable italic text-THEME-600 border-b border-gray-400 w-full text-center text-sm min-h-[1.5rem] px-1" contenteditable="true"><span class="is-answer">Schwabenkrieg</span></div>
+        <div class="mt-2 schreib-linie editable italic text-THEME-600 w-full text-center text-sm" contenteditable="true"><span class="is-answer">Schwabenkrieg</span></div>
       </div>
       <div class="flex flex-col items-center flex-1">
         <div class="h-6 w-0.5 bg-gray-800"></div>
         <div class="editable text-center font-bold mt-1 text-THEME-700" contenteditable="true">1798</div>
-        <div class="mt-2 editable italic text-THEME-600 border-b border-gray-400 w-full text-center text-sm min-h-[1.5rem] px-1" contenteditable="true"><span class="is-answer">Helvetische Republik</span></div>
+        <div class="mt-2 schreib-linie editable italic text-THEME-600 w-full text-center text-sm" contenteditable="true"><span class="is-answer">Helvetische Republik</span></div>
       </div>
       <div class="flex flex-col items-center flex-1">
         <div class="h-6 w-0.5 bg-gray-800"></div>
         <div class="editable text-center font-bold mt-1 text-THEME-700" contenteditable="true">1848</div>
-        <div class="mt-2 editable italic text-THEME-600 border-b border-gray-400 w-full text-center text-sm min-h-[1.5rem] px-1" contenteditable="true"><span class="is-answer">Bundesverfassung</span></div>
+        <div class="mt-2 schreib-linie editable italic text-THEME-600 w-full text-center text-sm" contenteditable="true"><span class="is-answer">Bundesverfassung</span></div>
       </div>
       <div class="flex flex-col items-center flex-1">
         <div class="h-6 w-0.5 bg-gray-800"></div>
         <div class="editable text-center font-bold mt-1 text-THEME-700" contenteditable="true">1971</div>
-        <div class="mt-2 editable italic text-THEME-600 border-b border-gray-400 w-full text-center text-sm min-h-[1.5rem] px-1" contenteditable="true"><span class="is-answer">Frauenstimmrecht</span></div>
+        <div class="mt-2 schreib-linie editable italic text-THEME-600 w-full text-center text-sm" contenteditable="true"><span class="is-answer">Frauenstimmrecht</span></div>
       </div>
     </div>
   </div>
@@ -1497,7 +1526,7 @@ ${(() => {
     html: `<div class="avoid-break mb-8 text-[12pt]">
   <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Ursache und Wirkung</h3>
   <p class="editable text-gray-600 mb-4" contenteditable="true">Schreibe zu jeder Ursache die passende Wirkung auf die Linie.</p>
-  <div class="grid grid-cols-2 gap-x-16 gap-y-2 w-full leading-loose">
+  <div class="flex flex-col gap-2 w-full leading-loose">
     <p class="editable text-gray-900" contenteditable="true">• Es regnet stark → <span class="gap-line"><span class="is-answer">die Strasse wird nass</span></span></p>
     <p class="editable text-gray-900" contenteditable="true">• Die Sonne scheint → <span class="gap-line"><span class="is-answer">es wird wärmer</span></span></p>
     <p class="editable text-gray-900" contenteditable="true">• Man isst zu viel → <span class="gap-line"><span class="is-answer">der Bauch tut weh</span></span></p>
@@ -1515,22 +1544,22 @@ ${(() => {
   <p class="editable text-gray-600 mb-4" contenteditable="true">Beschrifte die vier Phasen des Lebenszyklus.</p>
   <div class="flex items-center justify-between gap-2">
     <div class="flex-1 flex flex-col items-center">
-      <div class="w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true">[Bild 1]</div>
+      <div class="ai-image-slot resize overflow-hidden w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true" data-no-reposition="true">[Bild 1]</div>
       <div class="mt-2 gap-line w-full text-center text-sm editable" contenteditable="true"><span class="is-answer">Ei</span></div>
     </div>
     <div class="text-3xl text-gray-400 font-bold shrink-0">→</div>
     <div class="flex-1 flex flex-col items-center">
-      <div class="w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true">[Bild 2]</div>
+      <div class="ai-image-slot resize overflow-hidden w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true" data-no-reposition="true">[Bild 2]</div>
       <div class="mt-2 gap-line w-full text-center text-sm editable" contenteditable="true"><span class="is-answer">Raupe</span></div>
     </div>
     <div class="text-3xl text-gray-400 font-bold shrink-0">→</div>
     <div class="flex-1 flex flex-col items-center">
-      <div class="w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true">[Bild 3]</div>
+      <div class="ai-image-slot resize overflow-hidden w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true" data-no-reposition="true">[Bild 3]</div>
       <div class="mt-2 gap-line w-full text-center text-sm editable" contenteditable="true"><span class="is-answer">Puppe</span></div>
     </div>
     <div class="text-3xl text-gray-400 font-bold shrink-0">→</div>
     <div class="flex-1 flex flex-col items-center">
-      <div class="w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true">[Bild 4]</div>
+      <div class="ai-image-slot resize overflow-hidden w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true" data-no-reposition="true">[Bild 4]</div>
       <div class="mt-2 gap-line w-full text-center text-sm editable" contenteditable="true"><span class="is-answer">Schmetterling</span></div>
     </div>
   </div>
@@ -1569,20 +1598,20 @@ ${(() => {
   <p class="editable text-gray-600 mb-4" contenteditable="true">Bringe die Bilder in die richtige Reihenfolge (1–4) und schreibe dann eine Geschichte dazu.</p>
   <div class="grid grid-cols-4 gap-3 mb-4">
     <div class="flex flex-col items-center">
-      <div class="w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true">[Bild A]</div>
-      <div class="mt-2 w-10 h-10 border-2 border-gray-500 rounded flex items-center justify-center font-bold text-lg editable text-THEME-600" contenteditable="true"><span class="is-answer">2</span></div>
+      <div class="ai-image-slot resize overflow-hidden w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true" data-no-reposition="true">[Bild A]</div>
+      <div style="margin-top: 10px;" class="w-10 h-10 border-2 border-gray-500 rounded flex items-center justify-center font-bold text-lg editable text-THEME-600" contenteditable="true"><span class="is-answer">2</span></div>
     </div>
     <div class="flex flex-col items-center">
-      <div class="w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true">[Bild B]</div>
-      <div class="mt-2 w-10 h-10 border-2 border-gray-500 rounded flex items-center justify-center font-bold text-lg editable text-THEME-600" contenteditable="true"><span class="is-answer">4</span></div>
+      <div class="ai-image-slot resize overflow-hidden w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true" data-no-reposition="true">[Bild B]</div>
+      <div style="margin-top: 10px;" class="w-10 h-10 border-2 border-gray-500 rounded flex items-center justify-center font-bold text-lg editable text-THEME-600" contenteditable="true"><span class="is-answer">4</span></div>
     </div>
     <div class="flex flex-col items-center">
-      <div class="w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true">[Bild C]</div>
-      <div class="mt-2 w-10 h-10 border-2 border-gray-500 rounded flex items-center justify-center font-bold text-lg editable text-THEME-600" contenteditable="true"><span class="is-answer">1</span></div>
+      <div class="ai-image-slot resize overflow-hidden w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true" data-no-reposition="true">[Bild C]</div>
+      <div style="margin-top: 10px;" class="w-10 h-10 border-2 border-gray-500 rounded flex items-center justify-center font-bold text-lg editable text-THEME-600" contenteditable="true"><span class="is-answer">1</span></div>
     </div>
     <div class="flex flex-col items-center">
-      <div class="w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true">[Bild D]</div>
-      <div class="mt-2 w-10 h-10 border-2 border-gray-500 rounded flex items-center justify-center font-bold text-lg editable text-THEME-600" contenteditable="true"><span class="is-answer">3</span></div>
+      <div class="ai-image-slot resize overflow-hidden w-full aspect-square border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors text-xs" contenteditable="true" data-no-reposition="true">[Bild D]</div>
+      <div style="margin-top: 10px;" class="w-10 h-10 border-2 border-gray-500 rounded flex items-center justify-center font-bold text-lg editable text-THEME-600" contenteditable="true"><span class="is-answer">3</span></div>
     </div>
   </div>
   <p class="editable font-bold mb-2" contenteditable="true">Meine Geschichte:</p>
@@ -1693,9 +1722,9 @@ ${(() => {
   },
   {
     id: "kwl_chart",
-    name: "KWL-Chart",
+    name: "Kennen-Wissen-Lernen-Chart",
     html: `<div class="avoid-break mb-8 text-[12pt]">
-  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: KWL-Chart</h3>
+  <h3 class="editable font-bold text-[14pt] mb-1 text-THEME-700" contenteditable="true">Aufgabe: Kennen-Wissen-Lernen-Chart</h3>
   <p class="editable text-gray-600 mb-4" contenteditable="true">Fülle die drei Spalten zum Thema aus.</p>
   <table class="w-full border-collapse border-2 border-gray-300">
     <thead>
