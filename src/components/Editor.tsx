@@ -45,10 +45,11 @@ interface EditorProps {
   snapshots: Snapshot[];
   onRestoreSnapshot: (snapshot: Snapshot) => void;
   onAddSnapshot: (name: string) => void;
+  onSendChatPrompt?: (prompt: string, options?: { autoSend?: boolean; hiddenContext?: string }) => void;
 }
 
 
-export function Editor({ html, onChange, theme, projectName, targetAudience, didacticApproach, didacticScope, didacticChapters, snapshots, onRestoreSnapshot, onAddSnapshot }: EditorProps) {
+export function Editor({ html, onChange, theme, projectName, targetAudience, didacticApproach, didacticScope, didacticChapters, snapshots, onRestoreSnapshot, onAddSnapshot, onSendChatPrompt }: EditorProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageUploadRef = useRef<HTMLInputElement>(null);
   const historyDropdownRef = useRef<HTMLDivElement>(null);
@@ -2320,382 +2321,51 @@ export function Editor({ html, onChange, theme, projectName, targetAudience, did
     saveHistoryState();
   };
 
-  const handleAddSubTask = async () => {
-    try {
-      if (!activeBlock) {
-        setNotification({ message: 'Bitte wähle zuerst einen Block aus', type: 'error' });
-        return;
-      }
-    
-    // 1. Identify structure (Table, List, or Generic)
-    const tables = activeBlock.querySelectorAll('table');
-    const lists = activeBlock.querySelectorAll('ul, ol');
-    const contentWrapper = activeBlock.querySelector('.content-wrapper');
-
-    let type: 'table' | 'list' | 'structure' | 'editable' = 'structure';
-    if (tables.length > 0) type = 'table';
-    else if (lists.length > 0) type = 'list';
-
-    let unitToClone: HTMLElement | null = null;
-    let container: HTMLElement | null = null;
-
-    if (type === 'table') {
-      const lastTable = tables[tables.length - 1];
-      container = lastTable.querySelector('tbody') || lastTable;
-      const rows = container.querySelectorAll('tr');
-      if (rows.length > 0) unitToClone = rows[rows.length - 1] as HTMLElement;
-    } else if (type === 'list') {
-      container = lists[lists.length - 1] as HTMLElement;
-      const items = container.querySelectorAll('li');
-      if (items.length > 0) unitToClone = items[items.length - 1] as HTMLElement;
-    } else if (contentWrapper && contentWrapper.children.length > 0) {
-      container = contentWrapper as HTMLElement;
-      unitToClone = contentWrapper.children[contentWrapper.children.length - 1] as HTMLElement;
-    } else {
-      // Fallback for exercise templates without .content-wrapper:
-      // find the last editable element and use its parent as the container
-      const editables = activeBlock.querySelectorAll('.editable[contenteditable="true"]');
-      if (editables.length > 0) {
-        const lastEditable = editables[editables.length - 1] as HTMLElement;
-        container = lastEditable.parentElement as HTMLElement;
-        unitToClone = lastEditable;
-        type = 'editable';
-      }
+  const handleAddSubTask = () => {
+    if (!activeBlock) {
+      setNotification({ message: 'Bitte wähle zuerst einen Block aus', type: 'error' });
+      return;
     }
-
-    if (!unitToClone || !container) {
-      setNotification({ message: 'Kein passendes Aufgabenformat gefunden', type: 'error' });
+    if (!onSendChatPrompt) {
+      setNotification({ message: 'Chat-Anbindung fehlt – bitte App neu laden', type: 'error' });
       return;
     }
 
-    saveHistoryState();
+    // Block-Titel: erstes h1/h2/h3 im Block. Fallback: erste Zeile des innerText.
+    const headingEl = activeBlock.querySelector('h1, h2, h3') as HTMLElement | null;
+    const blockTitle = (headingEl?.innerText || activeBlock.innerText.split('\n')[0] || '')
+      .trim()
+      .slice(0, 140);
 
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-      setNotification({ message: 'API Key fehlt', type: 'error' });
+    if (!blockTitle) {
+      setNotification({ message: 'Block hat keinen erkennbaren Titel', type: 'error' });
       return;
     }
-    const ai = new GoogleGenAI({ apiKey });
 
-    const blacklist = Array.from(container.children)
-      .slice(-10)
-      .map(el => (el as HTMLElement).innerText?.trim() || '')
-      .filter(t => t && t !== '...' && t.length > 2)
-      .join(', ');
+    // Vollständiges Block-HTML, damit die KI das existierende Format sieht –
+    // wird als Hidden Context mitgeschickt, aber nicht im Chat-Bubble angezeigt.
+    const blockHtml = activeBlock.outerHTML;
+    const count = aiSubtaskCount;
+    const plural = count === 1 ? '1 neue Teilaufgabe' : `${count} neue Teilaufgaben`;
 
-    // Pattern recognition for lists
-    let prefixPattern = '';
-    let separatorPattern = ' – '; // Default separator
-    
-    if (type === 'list' && lists.length > 0) {
-      const lastList = lists[lists.length - 1];
-      const items = Array.from(lastList.querySelectorAll('li')).slice(-2);
-      if (items.length >= 1) {
-        const lastItemText = (items[items.length - 1] as HTMLElement).innerText?.trim() || '';
-        // Extract prefix (e.g., "a) ", "1. ", "• ")
-        const prefixMatch = lastItemText.match(/^([a-z]\)|[0-9]+\.|[•\-\*])\s*/i);
-        if (prefixMatch) {
-          prefixPattern = prefixMatch[1];
-        }
-        
-        // Extract separator
-        if (lastItemText.includes(' – ')) separatorPattern = ' – ';
-        else if (lastItemText.includes(' / ')) separatorPattern = ' / ';
-        else if (lastItemText.includes(', ')) separatorPattern = ', ';
-      }
-    }
+    // Sichtbarer Chat-Bubble: kurz & lesbar.
+    const visibleText = `Füge **${plural}** zum Block «${blockTitle}» hinzu – gleiches Format (gap-line, is-answer, schreib-linie), bestehende Teilaufgaben unverändert lassen, keine Duplikate.`;
 
-    setIsGeneratingAi(true);
+    // Hidden Context: die detaillierten Regeln + aktuelles Block-HTML. Wird nur an die API geschickt.
+    const hiddenContext = `Nutze dafür das Tool update_block und übergib den kompletten Block neu. Das HTML MUSS:
+- die bestehende Struktur (Tabelle, Liste, content-wrapper, avoid-break etc.) beibehalten,
+- das bestehende Antwort-Format nutzen (gap-line, is-answer, is-strikethrough-answer, schreib-linie etc.),
+- die vorhandenen Teilaufgaben unverändert lassen und die ${count === 1 ? 'neue Teilaufgabe' : `${count} neuen Teilaufgaben`} einfach anhängen,
+- keine Duplikate vorhandener Inhalte erzeugen.
 
-    // For editable type: find a clone source WITH answer structure (not a previously
-    // generated plain-text item). This separates "what to clone" from "where to insert".
-    let cloneTemplate: HTMLElement = unitToClone;
-    if (type === 'editable') {
-      const _ansSel = '.is-answer, .is-highlight-answer, .is-strikethrough-answer';
-      if (!unitToClone.querySelector(_ansSel)) {
-        const siblings = Array.from(container.children) as HTMLElement[];
-        for (let k = siblings.length - 1; k >= 0; k--) {
-          if (siblings[k].querySelector(_ansSel)) {
-            cloneTemplate = siblings[k];
-            break;
-          }
-        }
-      }
-    }
+Hier das aktuelle HTML des Blocks (inkl. aller bestehenden Teilaufgaben als Stilreferenz):
 
-    // We generate one by one to keep the "pulse" feedback and avoid complex multi-unit parsing
-    let currentAnchor = unitToClone;
-    for (let i = 0; i < aiSubtaskCount; i++) {
-        // Re-query container and unitToClone in case they changed during loop
-        if (type === 'table') {
-          const lastTable = tables[tables.length - 1];
-          container = lastTable.querySelector('tbody') || lastTable;
-        } else if (type === 'list') {
-          container = lists[lists.length - 1] as HTMLElement;
-        } else if (type === 'editable') {
-          // Keep the container as-is – it was already set to the parent of the editable element
-        } else if (contentWrapper && contentWrapper.children.length > 0) {
-          container = contentWrapper as HTMLElement;
-        }
+\`\`\`html
+${blockHtml}
+\`\`\``;
 
-        if (!container || !currentAnchor) break;
-
-        // Check if the anchor is already a placeholder
-        const isPlaceholder = (el: HTMLElement) => {
-          if (!el) return false;
-          const editables = el.querySelectorAll('.editable');
-          if (editables.length === 0) return el.innerText?.trim() === '...';
-          return Array.from(editables).every(e => e.innerHTML?.trim() === '...');
-        };
-
-        let targetUnit: HTMLElement;
-        
-        // 1. Raus aus dem Element: Finde LI oder DIV.avoid-break
-        let anchor = currentAnchor;
-        if (type === 'list') {
-          anchor = currentAnchor.closest('li') || currentAnchor;
-        } else if (type === 'structure') {
-          anchor = currentAnchor.closest('.avoid-break') || currentAnchor;
-        } else if (type === 'editable') {
-          // Keep anchor at the individual editable element – don't walk up
-          anchor = currentAnchor;
-        }
-
-        // Answer marker selector (shared across reset, detect, fill)
-        const ansSel = '.is-answer, .is-highlight-answer, .is-strikethrough-answer';
-
-        // Smart reset: preserve gap-line/answer structure, only clear text content
-        const smartResetEl = (el: HTMLElement) => {
-          const answers = el.querySelectorAll(ansSel);
-          if (answers.length > 0) {
-            const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-            const tNodes: Array<{ node: Text, inAnswer: boolean }> = [];
-            while (tw.nextNode()) {
-              const tn = tw.currentNode as Text;
-              if (!tn.textContent?.trim()) continue;
-              tNodes.push({ node: tn, inAnswer: !!tn.parentElement?.closest(ansSel) });
-            }
-            const seen = new Set<Element>();
-            tNodes.forEach(({ node: n, inAnswer }) => {
-              if (inAnswer) {
-                const a = n.parentElement?.closest(ansSel);
-                if (a && !seen.has(a)) { seen.add(a); a.textContent = '...'; }
-              } else {
-                n.textContent = '... ';
-              }
-            });
-          } else {
-            el.textContent = '...';
-          }
-        };
-
-        if (isPlaceholder(anchor) && i === 0) {
-          targetUnit = anchor;
-        } else {
-          // Clone from cloneTemplate (with answer structure) for editable type,
-          // or from anchor for table/list/structure types
-          targetUnit = (type === 'editable' ? cloneTemplate : anchor).cloneNode(true) as HTMLElement;
-
-          // 2. Smart Reset: preserve answer markers, reset only text content
-          if (type === 'editable') {
-            smartResetEl(targetUnit);
-          } else {
-            const editables = targetUnit.querySelectorAll('.editable');
-            if (editables.length > 0) {
-              editables.forEach(ed => smartResetEl(ed as HTMLElement));
-            } else {
-              targetUnit.innerHTML = '...';
-            }
-          }
-          
-        // 3. Harter Umbruch: insertAdjacentElement('afterend')
-        if (anchor.parentElement) {
-          anchor.insertAdjacentElement('afterend', targetUnit);
-          currentAnchor = targetUnit; // Move anchor forward
-        } else {
-          console.warn('Anchor has no parent element, appending to container');
-          container.appendChild(targetUnit);
-          currentAnchor = targetUnit;
-        }
-        }
-
-        targetUnit.classList.add('animate-pulse', 'bg-blue-50/50');
-        try {
-          targetUnit.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        } catch (e) {
-          // Ignore scroll errors
-        }
-
-        const blockText = activeBlock?.innerText || '';
-        const editableFields = targetUnit.querySelectorAll('.editable');
-
-        // Detect fillable text zones in DOM order (text nodes + answer spans)
-        const detectZones = (el: HTMLElement): Array<{ type: 'text' | 'answer', node: Text | Element }> => {
-          const zones: Array<{ type: 'text' | 'answer', node: Text | Element }> = [];
-          const seen = new Set<Element>();
-          const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-          while (tw.nextNode()) {
-            const tn = tw.currentNode as Text;
-            if (!tn.textContent?.trim()) continue;
-            const ansEl = tn.parentElement?.closest(ansSel) as Element | null;
-            if (ansEl && !seen.has(ansEl)) {
-              seen.add(ansEl);
-              zones.push({ type: 'answer', node: ansEl });
-            } else if (!ansEl) {
-              zones.push({ type: 'text', node: tn });
-            }
-          }
-          return zones;
-        };
-
-        // For editable type: zones within the element itself
-        // For table/list: each editable cell is one AI field
-        let fillZones: Array<{ type: 'text' | 'answer', node: Text | Element }> = [];
-        let fieldCount: number;
-
-        if (type === 'editable') {
-          fillZones = detectZones(targetUnit);
-          fieldCount = fillZones.length || 1;
-        } else {
-          fieldCount = editableFields.length || 1;
-        }
-
-        // Build the prompt – use a specialized prompt for structured templates (with answer zones)
-        let prompt: string;
-
-        if (fillZones.length > 1) {
-          // Structured template: extract MULTIPLE examples from existing items
-          const siblings = Array.from(container!.children) as HTMLElement[];
-          const examples: string[] = [];
-          for (const sib of siblings) {
-            if (!sib.querySelector(ansSel)) continue; // Only items with answer structure
-            const sibZones = detectZones(sib);
-            if (sibZones.length === fillZones.length) {
-              const parts = sibZones.map(z =>
-                z.type === 'answer'
-                  ? (z.node as Element).textContent?.trim()
-                  : (z.node as Text).textContent?.trim()
-              );
-              examples.push(parts.join(' | '));
-            }
-            if (examples.length >= 3) break;
-          }
-
-          const formatLabels = fillZones.map(z =>
-            z.type === 'answer' ? 'LÖSUNG' : 'AUFGABE'
-          ).join(' | ');
-
-          prompt = `Generiere EINE neue Teilaufgabe für dieses Lehrmittel.
-Kontext: "${blockText.substring(0, 200)}"
-Nicht wiederholen: ${blacklist}
-
-FORMAT: ${formatLabels}
-${examples.length > 0 ? `BEISPIELE:\n${examples.join('\n')}` : ''}
-
-Generiere EINE neue Aufgabe im EXAKT selben Format.
-Gib NUR die Werte zurück, getrennt durch "|". KEIN HTML, KEINE Erklärung.`;
-        } else {
-          prompt = `Du bist ein präziser Content-Generator für Lehrmittel.
-        Generiere EINE neue, inhaltlich passende Teilaufgabe für dieses Dossier.
-        Kontext des Blocks: "${blockText.substring(0, 300)}"
-        Bereits vorhandene Aufgaben (Blacklist): ${blacklist}
-
-        ANFORDERUNGEN:
-        - Erstelle EXAKT ${fieldCount} kurze, prägnante Inhalte.
-        - Falls es eine Liste ist: Nutze das Präfix "${prefixPattern}" (falls vorhanden).
-        - Falls es ein Lückentext ist: Nutze das Trennzeichen "${separatorPattern}".
-        - Gib NUR die Inhalte zurück, getrennt durch das Zeichen "|".
-        - KEINE Formatierung, KEIN HTML, NUR der reine Text.
-        - Beispiel für 2 Felder: "Inhalt 1 | Inhalt 2"`;
-        }
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.1-flash-lite-preview',
-          contents: prompt,
-        });
-        
-        if (!response.text) {
-          throw new Error('KI hat keinen Text zurückgegeben');
-        }
-        
-        const aiResponse = response.text.trim();
-        
-        // 1. Text-Only: HTML-Tags säubern (stripTags)
-        let cleanResponse = aiResponse.replace(/<[^>]*>?/gm, '');
-        
-        // 2. No-Echo Prinzip: Falls KI ein -> zur Erklärung nutzt, nimm den letzten Teil
-        if (cleanResponse.includes('->')) {
-          const parts = cleanResponse.split('->');
-          if (parts.length > 1 && parts[0].length > 5) {
-             cleanResponse = parts[parts.length - 1].trim();
-          }
-        }
-        
-        // 3. Bullet-Points entfernen (skip for structured templates – bullet is part of format)
-        if (fillZones.length <= 1) {
-          cleanResponse = cleanResponse.replace(/^[•\-\*\d\.]+\s*/, '').trim();
-        }
-
-        // 4. Kontext-Sperre: Nummerierung automatisch inkrementieren (skip for structured)
-        const numberMatch = fillZones.length <= 1 ? cleanResponse.match(/^(\d+)\.\s*(.*)/) : null;
-        if (numberMatch) {
-          const currentNum = parseInt(numberMatch[1]);
-          const restText = numberMatch[2];
-          
-          // Prüfe existierende Nummern im Container
-          const existingItems = Array.from(container.children);
-          const existingNumbers = existingItems.map(el => {
-            const m = (el as HTMLElement).innerText?.trim()?.match(/^(\d+)\./);
-            return m ? parseInt(m[1]) : 0;
-          });
-          
-          if (existingNumbers.includes(currentNum)) {
-            const maxNum = Math.max(...existingNumbers, 0);
-            cleanResponse = `${maxNum + 1}. ${restText}`;
-          }
-        }
-        
-        const values = cleanResponse.split('|').map(v => v.trim());
-
-        if (fillZones.length > 0) {
-          // Smart fill: put AI values into preserved text/answer zones
-          fillZones.forEach((zone, idx) => {
-            const val = values[idx] || '...';
-            if (zone.type === 'answer') {
-              (zone.node as Element).textContent = val;
-            } else {
-              (zone.node as Text).textContent = val + ' ';
-            }
-          });
-        } else if (editableFields.length > 0) {
-          // Table/list fill: fill each editable cell, preserving answer structure
-          editableFields.forEach((el, idx) => {
-            const val = values[idx] || (values[0] && idx === 0 ? values[0] : '...');
-            const firstAnswer = el.querySelector(ansSel);
-            if (firstAnswer) {
-              // Cell has answer structure: put value in the answer span
-              firstAnswer.textContent = val;
-            } else {
-              el.innerHTML = val;
-            }
-          });
-        } else {
-          targetUnit.innerHTML = cleanResponse;
-        }
-
-        targetUnit.classList.remove('animate-pulse', 'bg-blue-50/50');
-        // Small delay between generations for visual rhythm
-        if (aiSubtaskCount > 1) await new Promise(r => setTimeout(r, 300));
-      }
-
-      setNotification({ message: `${aiSubtaskCount} KI-Teilaufgabe(n) hinzugefügt`, type: 'success' });
-    } catch (err) {
-      console.error('AI Subtask Error:', err);
-      setNotification({ message: 'KI-Fehler. Bitte manuell ausfüllen.', type: 'error' });
-    } finally {
-      setIsGeneratingAi(false);
-      saveHistoryState();
-    }
+    onSendChatPrompt(visibleText, { autoSend: true, hiddenContext });
+    setNotification({ message: `Teilaufgaben-Prompt an Chat gesendet (${count})`, type: 'success' });
   };
 
   const handleDeleteColumn = () => {

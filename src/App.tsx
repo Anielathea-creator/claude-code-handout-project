@@ -15,9 +15,19 @@ export default function App() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [showWizard, setShowWizard] = useState(false);
   const [chatWidth, setChatWidth] = useState<number>(384);
+  const [pendingChatPrompt, setPendingChatPrompt] = useState<{ text: string; autoSend: boolean; hiddenContext?: string; nonce: number } | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSnapshotTimeRef = useRef<number>(Date.now());
   const lastSnapshotHtmlRef = useRef<string>('');
+
+  const handleSendChatPrompt = useCallback((text: string, options?: { autoSend?: boolean; hiddenContext?: string }) => {
+    setPendingChatPrompt({
+      text,
+      autoSend: options?.autoSend ?? false,
+      hiddenContext: options?.hiddenContext,
+      nonce: Date.now(),
+    });
+  }, []);
 
   const handleChatResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -422,6 +432,7 @@ Ich habe eine Datei mit bestehenden Aufgaben hochgeladen. Bitte extrahiere ALLE 
               onAddSnapshot={handleAddSnapshot}
               onUpdateHtml={handleUpdateHtml}
               onUpdateTheme={handleUpdateTheme}
+              pendingPrompt={pendingChatPrompt}
             />
             <div
               onMouseDown={handleChatResizeStart}
@@ -442,6 +453,7 @@ Ich habe eine Datei mit bestehenden Aufgaben hochgeladen. Bitte extrahiere ALLE 
                 snapshots={activeProject.snapshots || []}
                 onRestoreSnapshot={handleRestoreSnapshot}
                 onAddSnapshot={handleAddSnapshot}
+                onSendChatPrompt={handleSendChatPrompt}
               />
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-8 text-center">
