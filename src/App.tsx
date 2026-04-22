@@ -3,7 +3,8 @@ import { Sidebar } from './components/Sidebar';
 import { AIChat } from './components/AIChat';
 import { Editor } from './components/Editor';
 import { Project, ChatMessage } from './types';
-import { INITIAL_HTML, EXERCISE_TEMPLATES } from './constants';
+import { EXERCISE_TEMPLATES } from './constants';
+import { buildWelcomeHTML } from './lib/welcomeDossier';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { WizardModal, WizardData } from './components/WizardModal';
 import { saveProjects, loadProjects } from './lib/storage';
@@ -169,8 +170,8 @@ export default function App() {
           // Create initial project if none exist
           const initialProject: Project = {
             id: crypto.randomUUID(),
-            name: 'Mein erstes Dossier',
-            html: INITIAL_HTML,
+            name: 'Überblick – Funktionen & Templates',
+            html: buildWelcomeHTML(),
             chatHistory: [],
           };
           setProjects([initialProject]);

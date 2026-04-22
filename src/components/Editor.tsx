@@ -7,8 +7,8 @@ import { EXERCISE_TEMPLATES } from '../constants';
 import { renderAudiencePromptBlock, type AudienceLevel } from '../lib/audienceProfiles';
 import { renderDidacticPromptBlock, type DidacticApproach, type DidacticScope } from '../lib/didacticProfiles';
 import { 
-  ZoomIn, ZoomOut, Plus, Minus, Trash2, Copy, Clipboard, 
-  ArrowUp, ArrowDown, Scissors, Image, Sparkles, 
+  ZoomIn, ZoomOut, Plus, Minus, Trash2, Copy, Clipboard, ClipboardPaste,
+  ArrowUp, ArrowDown, Scissors, Image, Sparkles,
   Undo2, Redo2, Eye, EyeOff, Clock, Hash, MapPin,
   ChevronRight, ChevronLeft
 } from 'lucide-react';
@@ -254,6 +254,10 @@ export function Editor({ html, onChange, theme, projectName, targetAudience, did
   const [aiPrompt, setAiPrompt] = useState('');
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [aiError, setAiError] = useState('');
+  const [showSmartPasteModal, setShowSmartPasteModal] = useState(false);
+  const [smartPasteText, setSmartPasteText] = useState('');
+  const [smartPasteGoal, setSmartPasteGoal] = useState('');
+  const [smartPasteAdaptToTheme, setSmartPasteAdaptToTheme] = useState(false);
   const [markerMode, setMarkerMode] = useState(false);
   const markerModeRef = useRef(markerMode);
   
@@ -2674,7 +2678,17 @@ ${blockHtml}
           cloneEl.style.width = '100%';
         }
         if (el.tagName === 'TD' || el.tagName === 'TH') {
-          cloneEl.style.border = '1px solid #000';
+          // Nur als Fallback eine schwarze 1px-Border setzen, wenn die Originalzelle
+          // GAR keine Border hat — sonst wurden alle Tabellen mit z.B. border-gray-300
+          // oder farbigen Zellen platt auf Schwarz überschrieben. Per-Side-Border und
+          // -Color wurden oben bereits in den Clone übernommen.
+          const bt = parseFloat(style.borderTopWidth) || 0;
+          const br2 = parseFloat(style.borderRightWidth) || 0;
+          const bb = parseFloat(style.borderBottomWidth) || 0;
+          const bl = parseFloat(style.borderLeftWidth) || 0;
+          if (bt + br2 + bb + bl === 0) {
+            cloneEl.style.border = '1px solid #000';
+          }
           // Flatten cell dimensions so table rows match the editor height
           const cellH = style.height;
           if (cellH && cellH !== 'auto') cloneEl.style.height = cellH;
@@ -2685,6 +2699,13 @@ ${blockHtml}
           cloneEl.style.paddingBottom = style.paddingBottom;
           cloneEl.style.paddingLeft = style.paddingLeft;
           cloneEl.style.verticalAlign = style.verticalAlign;
+        }
+        // Row-Höhe sichern, damit html2canvas die Zeilen nicht wegen Line-Height-
+        // Unterschieden schrumpft/streckt. Offset-Height ist die vom Browser tatsächlich
+        // gerenderte Höhe — die ist das, was der User im Editor sieht.
+        if (el.tagName === 'TR') {
+          const rowH = (el as HTMLElement).offsetHeight;
+          if (rowH > 0) cloneEl.style.height = `${rowH}px`;
         }
       } catch (e) {
         console.warn('Style flattening error for element', el, e);
@@ -2744,422 +2765,79 @@ ${blockHtml}
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  // Native Druck-Pipeline (ersetzt html2canvas+jsPDF): window.print() nutzt die
+  // gleiche Rendering-Engine wie der Editor → pixelgenaues WYSIWYG. Das @media
+  // print Stylesheet in index.css blendet UI-Chrome aus und konfiguriert A4 +
+  // Seitenumbrüche. Der User wählt im Druckdialog "Als PDF speichern".
+  const handlePrint = () => {
+    repaginate();
+    const root = document.getElementById('dossier-root');
+    if (!root) return;
+    const originalParent = root.parentNode;
+    const originalNext = root.nextSibling;
+    const originalTitle = document.title;
+    const safeName = (projectName || 'Mein_Dossier')
+      .replace(/[^a-zA-Z0-9äöüÄÖÜß _-]/g, '')
+      .replace(/\s+/g, '_')
+      .trim() || 'Mein_Dossier';
+    // #dossier-root temporär direkt an <body> hängen, damit die is-printing-CSS
+    // (die alle Nicht-#dossier-root-Kinder von body ausblendet) korrekt greift.
+    document.body.appendChild(root);
+    document.body.classList.add('is-printing');
+    document.title = safeName;
+    const cleanup = () => {
+      if (originalParent) {
+        originalParent.insertBefore(root, originalNext);
+      }
+      document.body.classList.remove('is-printing');
+      document.title = originalTitle;
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => window.print());
+    });
+  };
+
   const handleDownloadPDF = async () => {
     setIsDownloadingPdf(true);
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Repaginate before export to ensure no page overflows (user may have edited since last repaginate)
-    repaginate();
-
-    // Off-screen staging area outside #dossier-root so none of its !important CSS rules apply
-    const stage = document.createElement('div');
-    stage.style.cssText = 'position:absolute;left:-9999px;top:0;';
-    document.body.appendChild(stage);
-
     try {
+      repaginate();
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(null))));
+
       const root = document.getElementById('dossier-root');
-      if (!root) throw new Error('dossier-root not found');
+      if (!root) throw new Error('Dossier-Wurzel nicht gefunden');
 
-      const pages = Array.from(root.children).filter(
-        c => !c.classList.contains('page-break')
-      ) as HTMLElement[];
-      if (pages.length === 0) throw new Error('No pages found');
-
-      let tocPageIndex = -1;
-      pages.forEach((page, idx) => {
-        if (tocPageIndex === -1 && page.querySelector('#toc-list')) tocPageIndex = idx;
+      const dossierHtml = root.innerHTML;
+      const response = await fetch('/api/pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html: dossierHtml, projectName: projectName || 'Dossier' }),
       });
 
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
-      const A4_W_MM = 210;
-      const A4_H_MM = 297;
-
-      // Reset ALL scrollTops before rendering (not just direct children of root)
-      for (const page of pages) {
-        page.scrollTop = 0;
-        page.querySelectorAll('*').forEach(el => { (el as HTMLElement).scrollTop = 0; });
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.error || `PDF-Server antwortete mit ${response.status}`);
       }
 
-      for (let i = 0; i < pages.length; i++) {
-        const page = pages[i];
-        const pageW = page.offsetWidth;
-        const pageH = page.offsetHeight;
-
-        // --- Clone the page into the staging area (outside #dossier-root) ---
-        // The CSS rule "#dossier-root > *" does NOT match here, so overflow:clip !important
-        // and height:29.7cm !important don't apply. We set them explicitly as safe inline styles.
-        const clone = page.cloneNode(true) as HTMLElement;
-        clone.style.width = `${pageW}px`;
-        clone.style.height = `${pageH}px`;
-        clone.style.overflow = 'hidden';   // html2canvas supports 'hidden', not 'clip'
-        clone.style.boxShadow = 'none';
-        clone.style.margin = '0';
-        clone.style.display = 'block';
-        clone.style.boxSizing = 'border-box';
-        clone.style.position = 'relative';
-
-        // (Top-margin shift is applied post-render by cropping the canvas — see below.)
-
-        // IMPORTANT: Flatten colors FIRST, before any DOM modifications that change element count.
-        // flattenElementStyles matches live ↔ clone elements by array index.
-        // Adding/removing elements to the clone afterwards would shift indices and break matching.
-        flattenElementStyles(page, clone);
-
-        // --- Now apply all clone modifications (may change element count) ---
-
-        // Propagate hide-solutions state so .hide-solutions .is-answer CSS rules still match
-        if (root.classList.contains('hide-solutions')) {
-          clone.classList.add('hide-solutions');
-        }
-
-        // Strip editor-only decorations
-        clone.querySelectorAll('.active-block-highlight').forEach(el => el.classList.remove('active-block-highlight'));
-        clone.querySelectorAll<HTMLElement>('.no-print').forEach(el => { el.style.display = 'none'; });
-        clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
-        clone.querySelectorAll<HTMLElement>('.resizable-cover-image-wrapper').forEach(el => {
-          el.style.border = 'none'; el.style.outline = 'none';
-        });
-
-        // Fix cover-draggable overflow clipping (Name field etc.)
-        clone.querySelectorAll<HTMLElement>('.cover-draggable').forEach(el => {
-          el.style.overflow = 'visible';
-        });
-
-        // Fix absolute+transform positioning for html2canvas compatibility (cover page).
-        const liveAbsEls = page.querySelectorAll<HTMLElement>('[style*="translate"]');
-        const cloneAbsEls = clone.querySelectorAll<HTMLElement>('[style*="translate"]');
-        for (let j = 0; j < liveAbsEls.length && j < cloneAbsEls.length; j++) {
-          const liveEl = liveAbsEls[j];
-          const cloneEl = cloneAbsEls[j];
-          const liveRect = liveEl.getBoundingClientRect();
-          const parentEl = liveEl.offsetParent as HTMLElement | null;
-          if (parentEl) {
-            const parentRect = parentEl.getBoundingClientRect();
-            cloneEl.style.left = `${liveRect.left - parentRect.left}px`;
-            cloneEl.style.top = `${liveRect.top - parentRect.top}px`;
-            cloneEl.style.transform = 'none';
-          }
-        }
-
-        // Strip .editable class for PDF export. In the editor, .editable applies
-        // margin: -2px -4px; padding: 2px 4px. The padding and margin cancel out
-        // horizontally (net 0), and vertically the -2px margin causes slight overlap
-        // that html2canvas exaggerates. Strategy:
-        // - Text tags (P, H1-H6, LI): keep .editable's padding for correct element
-        //   sizing and descender buffer. Zero vertical margins to prevent both
-        //   browser defaults (1em), Tailwind oversized margins (mb-4=16px), and
-        //   html2canvas negative-margin overlap. Keep -4px horizontal margin so
-        //   text stays at the same horizontal position as in the editor.
-        // - Non-text elements (TD, TH, SPAN, DIV, UL, etc.): just strip .editable.
-        //   Their padding/dimensions were already flattened by flattenElementStyles.
-        {
-          const textTags = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI']);
-          const liveEditables = page.querySelectorAll<HTMLElement>('.editable');
-          const cloneEditables = clone.querySelectorAll<HTMLElement>('.editable');
-          for (let j = 0; j < liveEditables.length && j < cloneEditables.length; j++) {
-            if (textTags.has(liveEditables[j].tagName)) {
-              cloneEditables[j].style.margin = '0 -4px';
-              cloneEditables[j].style.padding = '2px 4px';
-            }
-            cloneEditables[j].classList.remove('editable');
-          }
-        }
-
-        // Fix border-bottom on inline-block spans (e.g. cover page Name/Klasse/Datum lines).
-        // html2canvas doesn't reliably render border-bottom on empty elements — replace
-        // the CSS border with a background-image gradient line (no new DOM elements needed).
-        {
-          const liveBorderEls = page.querySelectorAll<HTMLElement>('span.border-b, span[class*="border-b-"]');
-          const cloneBorderEls = clone.querySelectorAll<HTMLElement>('span.border-b, span[class*="border-b-"]');
-          for (let j = 0; j < liveBorderEls.length && j < cloneBorderEls.length; j++) {
-            const liveEl = liveBorderEls[j];
-            const cloneEl = cloneBorderEls[j];
-            const cs = window.getComputedStyle(liveEl);
-            const bw = parseFloat(cs.borderBottomWidth);
-            if (bw > 0 && liveEl.offsetHeight > 0) {
-              // Use the already-resolved rgb color from flattenElementStyles
-              const bColor = cloneEl.style.borderBottomColor || cs.borderBottomColor || '#9ca3af';
-              cloneEl.style.borderBottomWidth = '0';
-              cloneEl.style.display = cs.display;
-              cloneEl.style.width = cs.width;
-              cloneEl.style.height = cs.height;
-              // Draw the line at the very bottom via gradient
-              cloneEl.style.backgroundImage = `linear-gradient(to top, ${bColor} ${Math.max(bw, 1)}px, transparent ${Math.max(bw, 1)}px)`;
-              cloneEl.style.backgroundSize = '100% 100%';
-              cloneEl.style.backgroundRepeat = 'no-repeat';
-            }
-          }
-        }
-
-        // Fix gap-line: html2canvas renders border-bottom too high on inline-block elements,
-        // causing text to sit directly on the line instead of above it.
-        // Replace border with an absolutely positioned div for correct placement.
-        {
-          const liveGapLines = page.querySelectorAll<HTMLElement>('.gap-line');
-          const cloneGapLines = clone.querySelectorAll<HTMLElement>('.gap-line');
-          for (let j = 0; j < liveGapLines.length && j < cloneGapLines.length; j++) {
-            const liveEl = liveGapLines[j];
-            const cloneEl = cloneGapLines[j];
-            const cs = window.getComputedStyle(liveEl);
-            const bw = parseFloat(cs.borderBottomWidth);
-            if (bw > 0) {
-              const bColor = cs.borderBottomColor || '#000';
-              cloneEl.style.borderBottom = 'none';
-              cloneEl.style.position = 'relative';
-              cloneEl.style.overflow = 'visible';
-              const line = document.createElement('div');
-              line.style.cssText = `position:absolute;left:0;right:0;bottom:-3px;height:${Math.max(bw, 1.5)}px;background:${bColor};pointer-events:none;`;
-              cloneEl.appendChild(line);
-            }
-          }
-        }
-
-        // Fix schreib-linie: html2canvas doesn't support background-attachment:local or CSS variables.
-        // Draw lines at the BOTTOM of each line-height block (not the top), so text sits above lines.
-        clone.querySelectorAll<HTMLElement>('.schreib-linie').forEach(el => {
-          const lineH = 40; // 2.5rem ≈ 40px
-          el.style.lineHeight = `${lineH}px`;
-          // Line at bottom of each block: transparent for 39px, then 1px colored line
-          el.style.backgroundImage = `linear-gradient(transparent ${lineH - 1}px, #cbd5e1 ${lineH - 1}px)`;
-          el.style.backgroundSize = `100% ${lineH}px`;
-          el.style.backgroundAttachment = 'scroll';
-          el.style.backgroundRepeat = 'repeat';
-          el.style.backgroundPosition = '0 0';
-          el.style.paddingTop = '0';
-          el.style.resize = 'none';
-          el.style.overflow = 'visible';
-        });
-
-        stage.appendChild(clone);
-
-        // Fix flex-centered boxes: html2canvas has limited flex support.
-        // Target fixed-size boxes (answer squares, emoji frames) but skip full-width layout containers.
-        const liveFlexEls = page.querySelectorAll<HTMLElement>('.flex.items-center.justify-center');
-        const cloneFlexEls = clone.querySelectorAll<HTMLElement>('.flex.items-center.justify-center');
-        for (let j = 0; j < liveFlexEls.length && j < cloneFlexEls.length; j++) {
-          const liveEl = liveFlexEls[j];
-          const cloneEl = cloneFlexEls[j];
-          const h = liveEl.offsetHeight;
-          const w = liveEl.offsetWidth;
-          // Fix boxes up to ~200px (answer squares w-8/h-8, emoji frames w-24/h-24, etc.)
-          // Skip large layout containers (full-width rows, page sections)
-          const isCenterBox = h > 0 && h <= 200 && w > 0 && w <= 200;
-          if (isCenterBox) {
-            // Measure actual content height from live element to compute exact padding
-            const firstChild = liveEl.firstElementChild as HTMLElement | null;
-            // Use getBoundingClientRect for accurate height of inline elements (spans)
-            const contentH = firstChild ? firstChild.getBoundingClientRect().height : (liveEl.scrollHeight - (liveEl.offsetHeight - liveEl.clientHeight));
-            // Account for borders: with border-box, padding shares space with borders
-            const liveStyle = window.getComputedStyle(liveEl);
-            const borderT = parseFloat(liveStyle.borderTopWidth) || 0;
-            const borderB = parseFloat(liveStyle.borderBottomWidth) || 0;
-            const innerH = h - borderT - borderB;
-            // Emojis (larger boxes) need +5px down nudge on padding
-            const isSmallBox = h <= 60;
-            const emojiNudge = isSmallBox ? 0 : 5;
-            const padTop = Math.max(0, Math.round((innerH - contentH) / 2) + emojiNudge);
-
-            cloneEl.style.display = 'block';
-            cloneEl.style.width = `${w}px`;
-            cloneEl.style.height = `${h}px`;
-            cloneEl.style.boxSizing = 'border-box';
-            cloneEl.style.textAlign = 'center';
-            cloneEl.style.paddingTop = `${padTop}px`;
-            cloneEl.style.paddingLeft = '0';
-            cloneEl.style.paddingRight = '0';
-            cloneEl.style.paddingBottom = '0';
-            cloneEl.style.overflow = 'visible';
-            // Reset children to inline for horizontal text-align centering
-            cloneEl.querySelectorAll<HTMLElement>(':scope > *').forEach(child => {
-              child.style.display = 'inline';
-              child.style.lineHeight = 'normal';
-              child.style.verticalAlign = 'top';
-              // Small number boxes: shift content up 5px with relative positioning
-              // (padding approach can't go negative, so use position offset instead)
-              if (isSmallBox) {
-                child.style.position = 'relative';
-                child.style.top = '-5px';
-              }
-            });
-          }
-        }
-
-        // Fix highlight: html2canvas renders background-color at the top of the line box,
-        // but the visible text sits lower. Replace background-color with a gradient that
-        // starts 7px from the top — text is unaffected, background shifts down.
-        // Skip when hide-solutions is active — highlights must be invisible in student mode.
-        const isHideSolutions = clone.classList.contains('hide-solutions');
-        clone.querySelectorAll<HTMLElement>('.is-highlight-answer').forEach(cloneEl => {
-          cloneEl.style.backgroundColor = 'transparent';
-          if (isHideSolutions) {
-            cloneEl.style.backgroundImage = 'none';
-          } else {
-            // Gradient starts 7px from top (background shifts down) and extends 7px
-            // below the element via padding-bottom (background grows downward).
-            cloneEl.style.backgroundImage = 'linear-gradient(transparent 7px, #fef08a 7px)';
-            cloneEl.style.backgroundRepeat = 'no-repeat';
-            cloneEl.style.backgroundSize = '100% 100%';
-            // Extend padding-bottom by 7px so the yellow area reaches further down
-            const existingPadBottom = parseFloat(window.getComputedStyle(cloneEl).paddingBottom) || 0;
-            cloneEl.style.paddingBottom = `${existingPadBottom + 7}px`;
-          }
-        });
-
-        // Fix strikethrough: html2canvas misrenders text-decoration: line-through.
-        // MUST run AFTER stage.appendChild(clone) so offsetHeight is available.
-        // Skip when hide-solutions is active — strikethrough answers must look normal in student mode.
-        clone.querySelectorAll<HTMLElement>('.is-strikethrough-answer').forEach(cloneEl => {
-          cloneEl.style.textDecoration = 'none';
-          if (isHideSolutions) {
-            // Student mode: remove blue color, show as normal text
-            cloneEl.style.color = 'inherit';
-          } else {
-            // Teacher mode: draw the strikethrough line manually
-            cloneEl.style.position = 'relative';
-            cloneEl.style.display = 'inline-block';
-            cloneEl.style.color = '#2563eb';
-            const h = cloneEl.offsetHeight;
-            const lineTop = Math.round(h / 2) + 8;
-            const line = document.createElement('div');
-            line.style.cssText = `position:absolute;left:-1px;right:-1px;top:${lineTop}px;height:2px;background:#2563eb;pointer-events:none;`;
-            cloneEl.appendChild(line);
-          }
-        });
-
-        // Final safety pass: scrub any remaining oklch/oklab from ALL elements in the clone
-        // (covers elements added after flattenElementStyles, e.g. strikethrough line divs).
-        {
-          const scrubCanvas = document.createElement('canvas');
-          scrubCanvas.width = 1; scrubCanvas.height = 1;
-          const scrubCtx = scrubCanvas.getContext('2d', { willReadFrequently: true })!;
-          const scrubCache = new Map<string, string>();
-          const scrubProps = ['color', 'backgroundColor', 'borderColor', 'borderTopColor',
-            'borderRightColor', 'borderBottomColor', 'borderLeftColor', 'outlineColor'];
-          clone.querySelectorAll<HTMLElement>('*').forEach(el => {
-            const cs = window.getComputedStyle(el);
-            scrubProps.forEach(prop => {
-              const val = (cs as any)[prop];
-              if (val && hasModernColor(val)) {
-                (el.style as any)[prop] = resolveColorToRgb(val, scrubCtx, scrubCache);
-              }
-            });
-          });
-        }
-
-        const canvas = await html2canvas(clone, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-          width: pageW,
-          height: pageH,
-          scrollX: 0,
-          scrollY: 0,
-          onclone: (clonedDoc: Document) => {
-            // Strip any residual oklch from ALL stylesheets (inline styles above win on specificity).
-            // Process <style> tags by text replacement:
-            clonedDoc.querySelectorAll('style').forEach(styleEl => {
-              try {
-                let css = styleEl.innerHTML;
-                css = css.replace(/overflow\s*:\s*clip(\s*!important)?/g, 'overflow: hidden !important');
-                css = css.replace(/oklch\s*\([^)]+\)/gs, 'transparent');
-                css = css.replace(/oklab\s*\([^)]+\)/gs, 'transparent');
-                css = css.replace(/color-mix\s*\([^)]+\)/gs, 'transparent');
-                styleEl.innerHTML = css;
-              } catch (_) {}
-            });
-            // Also strip oklch from CSSOM rules (covers <link> stylesheets and Vite-injected styles):
-            try {
-              for (const sheet of Array.from(clonedDoc.styleSheets)) {
-                try {
-                  const rules = sheet.cssRules;
-                  for (let r = rules.length - 1; r >= 0; r--) {
-                    const ruleText = rules[r].cssText;
-                    if (/oklch|oklab|color-mix/.test(ruleText)) {
-                      const fixed = ruleText
-                        .replace(/oklch\s*\([^)]+\)/g, 'transparent')
-                        .replace(/oklab\s*\([^)]+\)/g, 'transparent')
-                        .replace(/color-mix\s*\([^)]+\)/g, 'transparent');
-                      sheet.deleteRule(r);
-                      sheet.insertRule(fixed, r);
-                    }
-                  }
-                } catch (_) {} // CORS blocked stylesheets
-              }
-            } catch (_) {}
-          },
-        });
-
-        stage.removeChild(clone);
-
-        // Dynamic per-page margin balancing: scan the rendered canvas to find
-        // the first row with non-white pixels (= where visible content starts),
-        // then shift content so every page has the same effective top margin.
-        // This handles pages with different internal spacing (exercises vs Merkblätter).
-        const canvasCtx = canvas.getContext('2d')!;
-        const imgPixels = canvasCtx.getImageData(0, 0, canvas.width, Math.min(canvas.height, 400));
-        const pixels = imgPixels.data;
-        const cw = canvas.width;
-
-        // Find first row containing a non-white pixel (threshold 250 to ignore JPEG artifacts)
-        let firstContentRow = 0;
-        findRow:
-        for (let row = 0; row < imgPixels.height; row++) {
-          for (let col = 0; col < cw; col++) {
-            const idx = (row * cw + col) * 4;
-            if (pixels[idx] < 250 || pixels[idx + 1] < 250 || pixels[idx + 2] < 250) {
-              firstContentRow = row;
-              break findRow;
-            }
-          }
-        }
-
-        // Target: first visible content should be at this many canvas-pixels from the top.
-        // ~90 CSS-px at scale 2 = 180 canvas-px ≈ 2.4cm from page edge.
-        const TARGET_TOP = 180;
-        const isCoverPage = page.hasAttribute('data-cover') || page.querySelector('.cover-page-container') !== null;
-        const cropPx = isCoverPage ? 0 : Math.max(0, firstContentRow - TARGET_TOP);
-
-        let finalCanvas: HTMLCanvasElement;
-        if (cropPx > 0) {
-          finalCanvas = document.createElement('canvas');
-          finalCanvas.width = canvas.width;
-          finalCanvas.height = canvas.height;
-          const sCtx = finalCanvas.getContext('2d')!;
-          sCtx.fillStyle = '#ffffff';
-          sCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
-          sCtx.drawImage(
-            canvas,
-            0, cropPx, canvas.width, canvas.height - cropPx,
-            0, 0, canvas.width, canvas.height - cropPx
-          );
-        } else {
-          finalCanvas = canvas;
-        }
-
-        const imgData = finalCanvas.toDataURL('image/png');
-        if (i > 0) pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, 0, A4_W_MM, A4_H_MM);
-      }
-
-      if (tocPageIndex >= 0) {
-        const totalPages = pdf.getNumberOfPages();
-        for (let i = tocPageIndex + 1; i <= totalPages; i++) {
-          pdf.setPage(i);
-          pdf.setFontSize(10);
-          pdf.setTextColor(120, 120, 120);
-          pdf.text(`Seite ${i - tocPageIndex}`, A4_W_MM / 2, A4_H_MM - 7, { align: 'center' });
-        }
-      }
-
-      const safePdfName = (projectName || 'Mein_Dossier').replace(/[^a-zA-Z0-9äöüÄÖÜß _-]/g, '').replace(/\s+/g, '_');
-      pdf.save(`${safePdfName}.pdf`);
-
-    } catch (err: any) {
-      const msg = err?.message || String(err);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const safeName = (projectName || 'Mein_Dossier')
+        .replace(/[^a-zA-Z0-9äöüÄÖÜß _-]/g, '')
+        .replace(/\s+/g, '_')
+        .trim() || 'Mein_Dossier';
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${safeName}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error('PDF Download Fehler:', err);
       setNotification({ message: `PDF Fehler: ${msg}`, type: 'error' });
     } finally {
-      document.body.removeChild(stage);
       setIsDownloadingPdf(false);
     }
   };
@@ -3509,106 +3187,136 @@ ${blockHtml}
     setNotification({ message: "Nummerierung wurde aktualisiert.", type: 'success' });
   };
 
-  const handleGenerateAiExercise = async () => {
+  const handleGenerateAiExercise = () => {
     if (!aiPrompt.trim()) return;
-    setIsGeneratingAi(true);
-    setAiError('');
-    
-    // Take snapshot before AI action
-    onAddSnapshot('Vor KI-Aufgabe');
-
-    try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error("Gemini API Key fehlt in der Umgebung.");
-      }
-      const ai = new GoogleGenAI({ apiKey });
-      const themeColor = theme || 'blue';
-      const systemInstruction = `Du bist ein brillanter Assistent für Lehrpersonen. Erstelle eine inhaltliche Aufgabe passend zum Thema des Nutzers.
-      WICHTIG: Gib AUSSCHLIESSLICH validen HTML-Code zurück, keine Markdown-Erklärungen, kein \`\`\`html davor.
-      
-      STRUKTUR & NUMMERIERUNG (WICHTIG):
-      - Erstelle KEINE Kapitel (h1) oder Unterthemen (h2).
-      - Erstelle NUR die Aufgabe (h3).
-      - Format für den Titel (h3): "Aufgabe [Themenbuchstabe].[Nummer]: [Titel]" (z.B. "Aufgabe D.3: Ein Tag im Wald").
-      - Falls der Kontext (Themenbuchstabe/Nummer) unbekannt ist, nutze Platzhalter wie "X.Y" oder lass es weg, der Nutzer kann es mit "Aufg.-Sync" korrigieren.
-      
-      SCHRIFTGRADE:
-      - Aufgabentitel (h3): text-[14pt]
-      - Aufgabenstellung (p): text-[12pt]
-      - Inhalt der Aufgabe (div/p): text-[12pt]
-      
-      Das HTML MUSS genau dieses Format nutzen:
-      <div class="avoid-break relative mb-8 transition-all text-[12pt]">
-        <div class="content-wrapper p-8 border-2 border-dashed border-gray-400 rounded-xl bg-gray-50 leading-loose">
-          <h3 class="editable font-bold text-[14pt] mb-2 text-${themeColor}-700" contenteditable="true" suppresscontenteditablewarning="true">Aufgabe: [Titel]</h3>
-          <p class="editable mb-4 text-gray-600 italic" contenteditable="true" suppresscontenteditablewarning="true">[Arbeitsanweisung für Schüler]</p>
-          <div class="editable text-justify" contenteditable="true" suppresscontenteditablewarning="true">[Hier der Text, Lückentext oder die Aufgabe]</div>
-        </div>
-      </div>
-      TIPP: Um Lösungen oder Lücken einzubauen, umschließe die Wörter mit:
-      - <span class="gap-line is-answer" contenteditable="true">Lösungswort</span> (Lösung direkt auf der Schreiblinie. Im Schülermodus unsichtbar, aber die Linie bleibt!)
-      - <span class="is-answer" contenteditable="true">Lösung</span> (Text, der im Schülermodus komplett unsichtbar ist, ohne Linie)
-      - <span class="is-strikethrough-answer" contenteditable="true">Falsches Wort</span> (Wort, das im Lösungsmodus durchgestrichen ist, im Schülermodus normal)
-      - <div class="schreib-linie editable" contenteditable="true"><span class="is-answer">Musterlösung</span></div> (Für längere Freitext-Antworten wie Professor Zipp Schreibaufgaben oder "Was fällt dir auf?" Fragen)
-
-${renderAudiencePromptBlock(targetAudience as AudienceLevel | '' | undefined)}
-
-${renderDidacticPromptBlock(didacticApproach, didacticScope, didacticChapters)}
-
-      Generiere die Aufgabe nun basierend auf diesem Thema:`;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-lite-preview',
-        contents: aiPrompt,
-        config: {
-          systemInstruction: systemInstruction,
-        }
-      });
-
-      let generatedHtml = response.text || '';
-      generatedHtml = generatedHtml.replace(/\`\`\`html/gi, '').replace(/\`\`\`/g, '').trim();
-
-      if (!generatedHtml) {
-          throw new Error("Leere Antwort von der KI erhalten.");
-      }
-
-      saveHistoryState();
-      
-      const newBlock = document.createElement('div');
-      newBlock.innerHTML = generatedHtml;
-      
-      let htmlElement = newBlock.firstElementChild as HTMLElement;
-      if (!htmlElement) {
-         htmlElement = document.createElement('div');
-         htmlElement.className = 'avoid-break mb-8 transition-all';
-         htmlElement.innerHTML = generatedHtml;
-      }
-      
-      if (activeBlock) {
-         activeBlock.parentNode?.insertBefore(htmlElement, activeBlock.nextSibling);
-         setTimeout(() => htmlElement.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
-      } else {
-         const root = document.getElementById('dossier-root');
-         if(root) {
-             root.appendChild(htmlElement);
-             setTimeout(() => root.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
-         }
-      }
-      
-      setTimeout(saveHistoryState, 50);
-      setShowAiModal(false);
-      setAiPrompt('');
-    } catch (error: any) {
-      let errorMessage = "Es gab einen Fehler bei der Generierung: " + error.message;
-      if (error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED')) {
-        errorMessage = "⚠️ Rate-Limit erreicht (Anfragen pro Minute). Bitte warte kurz und versuche es gleich noch einmal.";
-      }
-      setAiError(errorMessage);
-      console.log("API Error:", error.message);
-    } finally {
-      setIsGeneratingAi(false);
+    if (!onSendChatPrompt) {
+      setAiError('Chat-Anbindung fehlt – bitte App neu laden.');
+      return;
     }
+
+    // Kontext für den Chat: Titel des aktiven Blocks (für after_block_title)
+    // und der davor liegenden Aufgabe (für fortlaufende Nummerierung).
+    const getBlockTitle = (el: HTMLElement | null): string => {
+      if (!el) return '';
+      const h = el.querySelector('h1, h2, h3') as HTMLElement | null;
+      return (h?.innerText || el.innerText.split('\n')[0] || '').trim().slice(0, 140);
+    };
+    const activeTitle = getBlockTitle(activeBlock);
+
+    const topic = aiPrompt.trim();
+    const visibleText = `Füge eine neue Aufgabe zum Thema «${topic}» ein${activeTitle ? ` – nach dem Block «${activeTitle}»` : ''}.`;
+
+    const hiddenContextParts: string[] = [
+      'Nutze bevorzugt insert_template, wenn ein Template zum Aufgabentyp passt; sonst insert_block.',
+      'Es soll GENAU EINE neue Aufgabe entstehen (ein avoid-break-Block, ein h3-Titel).',
+    ];
+    if (activeTitle) {
+      hiddenContextParts.push(`Einfüge-Position: direkt NACH dem Block «${activeTitle}» (nutze after_block_title="${activeTitle}").`);
+      hiddenContextParts.push('Wähle die Aufgabennummer fortlaufend im bestehenden Schema (z.B. nach "Aufgabe A.2" kommt "Aufgabe A.3"). Falls unklar, frage kurz zurück, bevor du einfügst.');
+    } else {
+      hiddenContextParts.push('Es ist kein aktiver Block ausgewählt – füge die Aufgabe am Ende des Dossiers an.');
+    }
+
+    onSendChatPrompt(visibleText, { autoSend: true, hiddenContext: hiddenContextParts.join('\n') });
+
+    setShowAiModal(false);
+    setAiPrompt('');
+    setAiError('');
+    setNotification({ message: 'KI-Aufgabe an Chat gesendet', type: 'success' });
+  };
+
+  const handleOpenSmartPaste = () => {
+    if (!activeBlock) {
+      setNotification({ message: 'Bitte wähle zuerst einen Block aus, nach dem Smart-Paste eingefügt werden soll.', type: 'error' });
+      return;
+    }
+    setShowSmartPasteModal(true);
+  };
+
+  const handleSmartPasteSubmit = () => {
+    const raw = smartPasteText.trim();
+    if (!raw) return;
+    if (!activeBlock) {
+      setNotification({ message: 'Kein aktiver Block mehr – bitte erneut auswählen.', type: 'error' });
+      setShowSmartPasteModal(false);
+      return;
+    }
+    if (!onSendChatPrompt) {
+      setNotification({ message: 'Chat-Anbindung fehlt – bitte App neu laden', type: 'error' });
+      return;
+    }
+
+    const getBlockTitle = (el: HTMLElement | null): string => {
+      if (!el) return '';
+      const h = el.querySelector('h1, h2, h3') as HTMLElement | null;
+      return (h?.innerText || el.innerText.split('\n')[0] || '').trim().slice(0, 140);
+    };
+    const activeTitle = getBlockTitle(activeBlock);
+
+    // Nächstgelegenes Kapitel (h1) bzw. Unterthema (h2) VOR dem aktiven Block finden –
+    // gibt der KI den thematischen Kontext, an den sie den Text anpassen soll.
+    const findPrecedingHeading = (tag: 'h1' | 'h2'): string => {
+      const root = document.getElementById('dossier-root');
+      if (!root || !activeBlock) return '';
+      const all = Array.from(root.querySelectorAll(`${tag}, .avoid-break`)) as HTMLElement[];
+      let lastHeading = '';
+      for (const el of all) {
+        if (el === activeBlock || activeBlock.contains(el)) break;
+        if (el.tagName.toLowerCase() === tag) {
+          lastHeading = (el.innerText || '').trim().slice(0, 200);
+        }
+      }
+      return lastHeading;
+    };
+    const chapterTitle = findPrecedingHeading('h1');
+    const subtopicTitle = findPrecedingHeading('h2');
+
+    const cleaned = raw
+      .replace(/<o:p>.*?<\/o:p>/gis, '')
+      .replace(/\sstyle="[^"]*mso-[^"]*"/gi, '')
+      .replace(/\sclass="Mso[^"]*"/gi, '');
+
+    const goal = smartPasteGoal.trim();
+    const adapt = smartPasteAdaptToTheme;
+    const visibleText = goal
+      ? `Smart-Paste: Wandle den eingefügten Text um zu «${goal}»${adapt ? ' (ans Dossier-Thema angepasst)' : ' (Originalthema beibehalten)'} und füge ihn nach «${activeTitle}» ein.`
+      : `Smart-Paste: Forme den eingefügten Text in eine passende Aufgabe/Merkblatt um${adapt ? ' und passe ihn ans Dossier-Thema an' : ' (Originalthema beibehalten)'}, füge ihn nach «${activeTitle}» ein.`;
+
+    const hiddenContextParts: string[] = [
+      'Nutze bevorzugt insert_template, wenn ein Template zum Aufgabentyp passt; sonst insert_block.',
+      'Es soll GENAU EIN neuer Block entstehen (ein avoid-break, ein h3-Titel).',
+      `Einfüge-Position: direkt NACH dem Block «${activeTitle}» (nutze after_block_title="${activeTitle}").`,
+      'Wähle die Aufgabennummer fortlaufend im bestehenden Schema als eigenständige Aufgabe (keine Teilaufgabe).',
+    ];
+    if (goal) {
+      hiddenContextParts.push(`Lehrerinnen-Wunsch zur Umformung: ${goal}`);
+    } else {
+      hiddenContextParts.push('Die Lehrerin hat keinen spezifischen Umform-Wunsch angegeben – wähle selbst eine passende Form (Lückentext, Merkblatt, Tabelle, Frage-Serie …) und begründe die Wahl kurz in deiner Chat-Antwort.');
+    }
+    if (adapt) {
+      hiddenContextParts.push(
+        'INHALTS-ANPASSUNG: Passe Thema, Beispiele und Vokabular des eingefügten Textes an den Kontext des Dossiers an dieser Stelle an. Konkret:',
+        chapterTitle ? `- Kapitel-Kontext: «${chapterTitle}»` : '- (kein Kapitel erkannt)',
+        subtopicTitle ? `- Unterthema-Kontext: «${subtopicTitle}»` : '- (kein Unterthema erkannt)',
+        `- Direkt davor: «${activeTitle}»`,
+        'Formuliere die Aufgabe so, dass sie sich inhaltlich in diese Umgebung einfügt (gleiches Thema, passende Beispielwörter, passende Schwierigkeit). Die STRUKTUR des eingefügten Texts (Art der Aufgabe, Format) darf erhalten bleiben, aber die konkreten Inhalte werden thematisch angepasst.'
+      );
+    } else {
+      hiddenContextParts.push('INHALTS-ANPASSUNG: KEINE. Übernimm das Original-Thema und die Original-Beispiele des eingefügten Texts 1:1. Passe nur das Format an (z.B. Lückentext-Struktur), aber NICHT den inhaltlichen Gegenstand.');
+    }
+    hiddenContextParts.push(
+      'Eingefügter Rohtext der Lehrerin (1:1 aus der Zwischenablage, ggf. von Word/Web – ignoriere Formatierungsreste):',
+      '```',
+      cleaned,
+      '```'
+    );
+
+    onSendChatPrompt(visibleText, { autoSend: true, hiddenContext: hiddenContextParts.join('\n') });
+    setShowSmartPasteModal(false);
+    setSmartPasteText('');
+    setSmartPasteGoal('');
+    setSmartPasteAdaptToTheme(false);
+    setNotification({ message: 'Smart-Paste an Chat gesendet', type: 'success' });
   };
 
   const handleApplyFrame = (frameId: string) => {
@@ -5377,6 +5085,79 @@ ${renderDidacticPromptBlock(didacticApproach, didacticScope, didacticChapters)}
         </div>
       )}
 
+      {/* SMART-PASTE MODAL */}
+      {showSmartPasteModal && (
+        <div className="absolute inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4 overflow-y-auto backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] p-10 w-full max-w-3xl my-8 border border-teal-100 animate-in fade-in zoom-in duration-300">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-black text-teal-900 flex items-center gap-3">
+                <span className="bg-teal-100 p-2 rounded-xl">📋</span>
+                Smart-Paste
+              </h2>
+              <button onClick={() => setShowSmartPasteModal(false)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all text-2xl font-bold">&times;</button>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-bold text-teal-700 mb-2 ml-1 uppercase tracking-wider">Text / Tabelle einfügen</label>
+                <p className="text-gray-500 text-sm mb-3 ml-1">Füge hier deinen Rohtext ein (Ctrl+V) – z.B. aus Word, einem Schulbuch oder einer Webseite. Die KI formt ihn zu einer Aufgabe oder einem Merkblatt um.</p>
+                <textarea
+                  value={smartPasteText}
+                  onChange={(e) => setSmartPasteText(e.target.value)}
+                  className="w-full border-2 border-teal-50 rounded-2xl p-4 focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 outline-none min-h-[220px] resize-y text-base transition-all shadow-inner bg-gray-50/50 font-mono"
+                  placeholder="Hier Text einfügen..."
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-teal-700 mb-2 ml-1 uppercase tracking-wider">Was soll daraus werden? <span className="text-gray-400 font-normal normal-case tracking-normal">(optional)</span></label>
+                <p className="text-gray-500 text-sm mb-3 ml-1">Beschreibe kurz, wie der Text aufbereitet werden soll. Leer lassen = KI entscheidet selbst.</p>
+                <textarea
+                  value={smartPasteGoal}
+                  onChange={(e) => setSmartPasteGoal(e.target.value)}
+                  className="w-full border-2 border-teal-50 rounded-2xl p-4 focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 outline-none min-h-[80px] resize-y text-base transition-all shadow-inner bg-gray-50/50"
+                  placeholder="z.B. &quot;Lückentext mit den Verben&quot;, &quot;Tabelle mit 3 Spalten: Wort / Artikel / Übersetzung&quot;..."
+                />
+              </div>
+
+              <div>
+                <label className="flex items-start gap-3 p-4 border-2 border-teal-100 rounded-2xl bg-teal-50/30 hover:bg-teal-50/60 cursor-pointer transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={smartPasteAdaptToTheme}
+                    onChange={(e) => setSmartPasteAdaptToTheme(e.target.checked)}
+                    className="mt-1 w-5 h-5 accent-teal-600 cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <div className="text-sm font-bold text-teal-800">Inhalt ans Dossier-Thema anpassen</div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      Aktiv: Thema & Beispiele werden ans Kapitel/Unterthema an dieser Stelle angepasst. Inaktiv: Originalinhalt bleibt 1:1.
+                    </div>
+                  </div>
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-4 pt-4">
+                <button
+                  onClick={() => setShowSmartPasteModal(false)}
+                  className="px-6 py-3 text-gray-500 hover:text-gray-700 font-bold transition-colors"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={handleSmartPasteSubmit}
+                  disabled={!smartPasteText.trim()}
+                  className="px-8 py-3 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white font-black rounded-2xl shadow-lg shadow-teal-100 disabled:opacity-50 disabled:shadow-none transition-all flex items-center gap-2 transform active:scale-95"
+                >
+                  ✨ Einsetzen
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* KI-MODAL FÜR TITELBILD */}
       {showCoverModal && (
         <div className="absolute inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4 overflow-y-auto backdrop-blur-sm">
@@ -5739,7 +5520,7 @@ ${renderDidacticPromptBlock(didacticApproach, didacticScope, didacticChapters)}
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
           </div>
           <div>
-            <h1 className="font-black text-xl text-gray-800">Live-Editor</h1>
+            <h1 className="font-black text-xl text-gray-800">Teacher Studio</h1>
           </div>
         </div>
         
@@ -5960,7 +5741,7 @@ ${renderDidacticPromptBlock(didacticApproach, didacticScope, didacticChapters)}
               <span className="hidden md:inline">Cover-Design</span>
             </button>
 
-            <button onClick={handleDownloadPDF} disabled={isDownloadingPdf} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold transition-colors shadow-sm text-sm disabled:opacity-50">
+            <button onClick={handleDownloadPDF} disabled={isDownloadingPdf} title="PDF direkt herunterladen" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold transition-colors shadow-sm text-sm disabled:opacity-50">
               {isDownloadingPdf ? (
                 <><svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Lädt...</>
               ) : (
@@ -6223,83 +6004,11 @@ ${renderDidacticPromptBlock(didacticApproach, didacticScope, didacticChapters)}
           pointer-events: none;
         }
 
-        @media print {
-          /* 1. Reset Layout for Print */
-          html, body, #root, .flex-1, .h-full, .overflow-y-auto, .overflow-hidden {
-            height: auto !important;
-            overflow: visible !important;
-            position: static !important;
-            background-color: white !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          
-          /* 2. Hide UI Elements */
-          .no-print, .no-print * { display: none !important; }
-          .active-block-highlight { outline: none !important; border: none !important; }
-          #dossier-root > .active-block-highlight:not(.page-break) { box-shadow: none !important; background-color: white !important; }
-          .draggable-image-wrapper { resize: none !important; border: none !important; padding: 0 !important; margin: 0 !important; }
-          .cover-page-container { visibility: visible !important; display: flex !important; }
-          
-          /* 3. Page Breaks */
-          .page-break { 
-            border: none !important; 
-            margin: 0 !important; 
-            padding: 0 !important; 
-            height: 0 !important; 
-            page-break-after: always !important; 
-            break-after: page !important; 
-            visibility: hidden !important;
-          }
-          .page-break::after, .page-break::before { 
-            display: none !important; 
-            content: none !important; 
-          }
-          
-          /* 4. Fidelity (Colors, Backgrounds) */
-          * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          
-          /* 5. Dossier Wrapper */
-          #dossier-wrapper {
-            margin: 0 !important;
-            padding: 0 !important;
-            max-width: none !important;
-            width: 100% !important;
-            box-shadow: none !important;
-          }
-          #dossier-root {
-            box-shadow: none !important;
-            border: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          #dossier-root > *:empty {
-            display: none !important;
-          }
-
-          /* 6. Tables */
-          table { 
-            border-collapse: collapse !important; 
-            width: 100% !important; 
-            page-break-inside: auto !important;
-          }
-          tr { page-break-inside: avoid !important; page-break-after: auto !important; }
-          th, td { 
-            border: 1pt solid #000 !important; 
-            padding: 8px !important;
-          }
-          
-          /* 7. Gap Lines */
-          .gap-line { border-bottom: 1.5pt solid #000 !important; }
-          
-          /* 8. Page Settings */
-          @page {
-            margin: 2cm;
-          }
-        }
+        /* Print-Styles wurden nach src/index.css verschoben (globaler Scope,
+           damit sie unabhängig vom React-Rendering greifen). Hier stand früher
+           ein @media print-Block, der u.a. @page { margin: 2cm } setzte und
+           damit in Kombination mit p-[2cm] der Editor-Seiten zu 4cm Rändern
+           führte — das war mit ein Grund für die Abweichungen im alten Pfad. */
       `}} />
       
       {/* HAUPTBEREICH DOKUMENT */}
@@ -6486,36 +6195,10 @@ ${renderDidacticPromptBlock(didacticApproach, didacticScope, didacticChapters)}
         </div>
       </div>
 
-      {/* REIHE 2: Lösungs-Funktionen */}
+      {/* REIHE 2: Struktur, Format & Lösungs-Funktionen */}
       <div className="flex flex-wrap items-center justify-center gap-3 w-full">
-        {/* --- FORMATIERUNG --- */}
-        <div className="flex items-center gap-1 bg-blue-50 border border-blue-200 px-1 py-1 rounded-lg">
-          <span className="text-sm font-bold text-blue-800 mr-1 hidden lg:block">Format:</span>
-          <select onMouseDown={() => saveSelection()} onChange={(e) => applyHeadingType(e.target.value)} className="h-8 bg-white border border-blue-300 rounded text-xs px-2 outline-none focus:border-blue-500 font-bold text-blue-800" value="">
-            <option value="" disabled>Typ wählen...</option>
-            <option value="h1">Haupttitel (36pt)</option>
-            <option value="h2">Untertitel (20pt)</option>
-            <option value="h3">Aufgabentitel (14pt)</option>
-            <option value="p">Standardtext (12pt)</option>
-          </select>
-        </div>
-
-        <div className="flex items-center gap-1 bg-blue-50 border border-blue-200 px-1 py-1 rounded-lg">
-          <span className="text-sm font-bold text-blue-800 mr-1 hidden lg:block">Lösungen:</span>
-          <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={markAsAnswer} className="px-2 h-8 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded transition-colors" title="Markierten Text als Lösung kennzeichnen">Markieren</button>
-          <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={markAsGapLine} className="px-2 h-8 flex items-center justify-center bg-white border border-blue-300 text-blue-600 hover:bg-blue-100 text-xs font-bold rounded transition-colors" title="Lücke einfügen">Lücke</button>
-          <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={markAsStrikethrough} className="px-2 h-8 flex items-center justify-center bg-white border border-blue-300 text-blue-600 hover:bg-blue-100 text-xs font-bold rounded transition-colors" title="Wort durchstreichen (Lösung)">Durchstr.</button>
-          <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={markAsHighlight} className="px-2 h-8 flex items-center justify-center bg-white border border-blue-300 text-blue-600 hover:bg-blue-100 text-xs font-bold rounded transition-colors" title="Wort anstreichen (Lösung)">Anstreichen</button>
-          
-          <button onMouseDown={(e) => e.preventDefault()} onClick={toggleSolutions} className={`w-8 h-8 flex items-center justify-center rounded transition-colors border ${showSolutions ? 'bg-white border-blue-300 text-blue-600 hover:bg-blue-100' : 'bg-blue-600 border-blue-600 text-white'}`} title="Lösungen verbergen/anzeigen">
-            {showSolutions ? <Eye size={18} /> : <EyeOff size={18} />}
-          </button>
-        </div>
-      </div>
-
-      {/* REIHE 3: Struktur & Block-Steuerung */}
-      <div className="flex flex-wrap items-center justify-center gap-3 w-full">
-        <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-lg">
+        {/* --- STRUKTUR EINFÜGEN --- */}
+        <div className="flex items-center gap-1 bg-indigo-50 border border-indigo-200 px-1 py-1 rounded-lg">
           <div className="relative" ref={structureMenuRef}>
             <button
               type="button"
@@ -6536,7 +6219,7 @@ ${renderDidacticPromptBlock(didacticApproach, didacticScope, didacticChapters)}
               ];
               const itemCls = "w-full text-left px-3 py-1.5 text-xs hover:bg-indigo-100 text-indigo-900 whitespace-nowrap";
               return (
-                <div className="absolute bottom-9 left-0 z-50 bg-white border border-indigo-300 rounded shadow-lg min-w-[220px] py-1">
+                <div className="absolute top-9 left-0 z-50 bg-white border border-indigo-300 rounded shadow-lg min-w-[220px] py-1">
                   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick('text')} className={itemCls}>Textabschnitt</button>
                   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick('merkblatt')} className={itemCls}>Merkblatt (Box)</button>
                   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick('merkblatt2')} className={itemCls}>Merkblatt II (Regeln)</button>
@@ -6558,7 +6241,7 @@ ${renderDidacticPromptBlock(didacticApproach, didacticScope, didacticChapters)}
                         <ChevronRight size={14} />
                       </button>
                       {openSubject === s.label && (
-                        <div className="absolute bottom-0 left-full ml-0 bg-white border border-indigo-300 rounded shadow-lg min-w-[240px] py-1 max-h-[70vh] overflow-y-auto">
+                        <div className="absolute top-0 left-full ml-0 bg-white border border-indigo-300 rounded shadow-lg min-w-[240px] py-1 max-h-[70vh] overflow-y-auto">
                           {s.ids.map(id => {
                             const t = byId(id);
                             if (!t) return null;
@@ -6582,6 +6265,39 @@ ${renderDidacticPromptBlock(didacticApproach, didacticScope, didacticChapters)}
               );
             })()}
           </div>
+        </div>
+
+        {/* --- FORMATIERUNG --- */}
+        <div className="flex items-center gap-1 bg-blue-50 border border-blue-200 px-1 py-1 rounded-lg">
+          <select onMouseDown={() => saveSelection()} onChange={(e) => applyHeadingType(e.target.value)} className="h-8 bg-white border border-blue-300 rounded text-xs px-2 outline-none focus:border-blue-500 font-bold text-blue-800" value="">
+            <option value="" disabled>Format wählen...</option>
+            <option value="h1">Haupttitel (36pt)</option>
+            <option value="h2">Untertitel (20pt)</option>
+            <option value="h3">Aufgabentitel (14pt)</option>
+            <option value="p">Standardtext (12pt)</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-1 bg-blue-50 border border-blue-200 px-1 py-1 rounded-lg">
+          <span className="text-sm font-bold text-blue-800 mr-1 hidden lg:block">Lösungen:</span>
+          <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={markAsAnswer} className="px-2 h-8 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded transition-colors" title="Markierten Text als Lösung kennzeichnen">Markieren</button>
+          <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={markAsGapLine} className="px-2 h-8 flex items-center justify-center bg-white border border-blue-300 text-blue-600 hover:bg-blue-100 text-xs font-bold rounded transition-colors" title="Lücke einfügen">Lücke</button>
+          <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={markAsStrikethrough} className="px-2 h-8 flex items-center justify-center bg-white border border-blue-300 text-blue-600 hover:bg-blue-100 text-xs font-bold rounded transition-colors" title="Wort durchstreichen (Lösung)">Durchstr.</button>
+          <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={markAsHighlight} className="px-2 h-8 flex items-center justify-center bg-white border border-blue-300 text-blue-600 hover:bg-blue-100 text-xs font-bold rounded transition-colors" title="Wort anstreichen (Lösung)">Anstreichen</button>
+          
+          <button onMouseDown={(e) => e.preventDefault()} onClick={toggleSolutions} className={`w-8 h-8 flex items-center justify-center rounded transition-colors border ${showSolutions ? 'bg-white border-blue-300 text-blue-600 hover:bg-blue-100' : 'bg-blue-600 border-blue-600 text-white'}`} title="Lösungen verbergen/anzeigen">
+            {showSolutions ? <Eye size={18} /> : <EyeOff size={18} />}
+          </button>
+        </div>
+      </div>
+
+      {/* REIHE 3: Block-Steuerung & Zoom */}
+      <div className="flex flex-wrap items-center justify-center gap-3 w-full">
+        <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-lg">
+          <button onMouseDown={(e) => e.preventDefault()} onClick={handleOpenSmartPaste} className="px-3 h-8 flex items-center gap-1.5 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white text-xs font-bold rounded shadow-sm transition-all" title="Text aus Zwischenablage mit KI in eine Aufgabe umwandeln">
+            <ClipboardPaste size={14} />
+            <span>Smart-Paste</span>
+          </button>
 
           <button onMouseDown={(e) => e.preventDefault()} onClick={() => setShowAiModal(true)} className="px-3 h-8 flex items-center gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white text-xs font-bold rounded shadow-sm transition-all" title="KI generiert neue Aufgabe">
             <Sparkles size={14} />

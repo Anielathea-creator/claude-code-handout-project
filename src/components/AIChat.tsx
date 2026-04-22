@@ -524,11 +524,9 @@ Wenn der Nutzer "das Lückentext-Template", "die Aufgabe" o.ä. ohne Index oder 
 
 INSERT-VERHALTEN (NEUE AUFGABE EINFÜGEN):
 Wenn der Nutzer "füge eine neue Aufgabe/Tabelle/Lückentext ein" sagt:
-- Prüfe die direkt davor liegende Aufgabe. Falls der User nicht explizit sagt, ob es eigenständig oder eine Teilaufgabe sein soll, FRAGE zurück, BEVOR du insert_block aufrufst:
-  "Soll das eine eigenständige neue Aufgabe werden (z.B. 'Aufgabe A.3'), oder eine Teilaufgabe der vorherigen (z.B. 'Aufgabe A.2b')?"
-- Bei eigenständiger Aufgabe: Nummeriere fortlaufend im vorhandenen Schema (A.1, A.2, A.3 …).
-- Bei Teilaufgabe: Verwende denselben Haupt-Index mit Buchstaben-Suffix (A.2a, A.2b, A.2c …).
-- Erst NACH der Rückfrage rufst du insert_block auf.
+- Füge IMMER eine eigenständige neue Aufgabe ein. Frage NICHT zurück, ob es eine Teilaufgabe sein soll.
+- Nummeriere fortlaufend im vorhandenen Schema (z.B. nach "Aufgabe A.2" kommt "Aufgabe A.3").
+- Nur wenn der Nutzer EXPLIZIT nach einer Teilaufgabe fragt (z.B. "als Teilaufgabe", "a/b/c-Suffix", "Unteraufgabe"), nutze den Buchstaben-Suffix (A.2a, A.2b, A.2c …).
 
 LÜCKENTEXT-QUALITÄT (PFLICHT – STRIKTE REGELN, sonst ist die Aufgabe kaputt):
 
