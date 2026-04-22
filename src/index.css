@@ -202,11 +202,22 @@
   }
 
   /* --- SCHREIBLINIEN ENGINE --- */
+  /* Ein einziger Gradient für Screen UND Print. Die frühere @media-print-Override
+     setzte eine TOP-line-Variante, die in 44px-Elementen (editable-Padding!) zwei
+     Linien zeigte, weil das 40px-Tile zweimal repeatet. Mit print-color-adjust:exact
+     bleibt der Screen-Gradient im PDF sichtbar. */
   .schreib-linie {
     --line-height: 2.5rem; /* ca. 40px Abstand */
     line-height: var(--line-height) !important;
-    background-image: linear-gradient(transparent calc(var(--line-height) - 1px), #cbd5e1 calc(var(--line-height) - 1px));
+    /* SVG-Background mit shape-rendering=crispEdges statt CSS-Gradient:
+       Chrome rasterisiert CSS-Gradienten beim PDF-Export und rundet an
+       fraktionalen Y-Positionen (Parent-Margins mit Fraktionswerten) einzelne
+       Linien über 2 Device-Pixel → Linien wirken unterschiedlich dick oder
+       doppelt. Das SVG nutzt crispEdges, was Pixel-Snapping erzwingt, und
+       wird beim PDF-Export als Vektor-Pattern eingebettet. */
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40' preserveAspectRatio='none' shape-rendering='crispEdges'><line x1='0' y1='39.5' x2='40' y2='39.5' stroke='%23cbd5e1' stroke-width='1'/></svg>");
     background-size: 100% var(--line-height);
+    background-repeat: repeat;
     background-attachment: local;
     padding-top: 0; /* Linie ist jetzt am Ende jedes Blocks, kein Offset nötig */
     min-height: var(--line-height); /* Standardmäßig 1 Linie (flexibler) */
@@ -214,6 +225,8 @@
     overflow: hidden;
     position: relative;
     transition: background-color 0.2s;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 
   .schreib-linie:hover {
@@ -221,12 +234,9 @@
     cursor: nwse-resize;
   }
 
-  /* Verhindert, dass Linien beim Drucken verschwinden */
+  /* Im PDF/Druck den Resize-Griff ausblenden (nur UI-Chrome im Editor sichtbar) */
   @media print {
     .schreib-linie {
-      background-image: linear-gradient(#94a3b8 1px, transparent 1px) !important;
-      print-color-adjust: exact !important;
-      -webkit-print-color-adjust: exact !important;
       resize: none !important;
     }
   }
@@ -277,6 +287,24 @@
     -ms-overflow-style: none;
   }
 
+  /* --- LISTEN: Bullets/Nummern innerhalb der Box halten + Hanging-Indent ---
+     list-style-position: outside (Browser-Default) rendert Bullets links des
+     Content-Kastens, was bei Listen in Merkblatt-/Smart-Paste-Boxen mit
+     Hintergrundfarbe und Padding dazu führt, dass die Punkte über den
+     Container-Rand hinausragen. inside hält sie zuverlässig drin.
+     Damit mehrzeilige Listenpunkte trotzdem einen Hanging-Indent behalten
+     (2. Zeile auf Höhe des Textes der 1. Zeile, nicht auf Höhe des Bullets),
+     wird jede <li> mit padding-left + negativem text-indent versehen. */
+  #dossier-root ul.list-disc,
+  #dossier-root ol.list-decimal {
+    list-style-position: inside;
+  }
+  #dossier-root ul.list-disc > li,
+  #dossier-root ol.list-decimal > li {
+    padding-left: 1.5em !important;
+    text-indent: -1.5em !important;
+  }
+
   /* --- RECHENMAUER --- */
   .rechenmauer-table tr {
     display: flex;
@@ -286,5 +314,93 @@
   }
   .rechenmauer-table td {
     flex-shrink: 0;
+  }
+}
+
+/* ================================================================
+   PRINT / PDF-EXPORT
+   window.print() nutzt dieselbe Rendering-Engine wie der Editor →
+   echtes WYSIWYG. Der eigentliche Trick: vor dem Print wird
+   #dossier-root per JS (siehe handlePrint in Editor.tsx) temporär an
+   body verschoben und body.classList.add('is-printing'). Dadurch
+   können diese Regeln das App-Chrome simpel per display:none
+   ausblenden, ohne mit absoluten Positionierungen zu kämpfen.
+   ================================================================ */
+@page {
+  size: A4;
+  margin: 0;
+}
+
+/* Wenn wir uns im Print-Modus befinden (Klasse wird von handlePrint gesetzt),
+   ist nur noch #dossier-root sichtbar. Alles andere wird entfernt. */
+body.is-printing > *:not(#dossier-root) {
+  display: none !important;
+}
+
+body.is-printing {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: white !important;
+}
+
+body.is-printing #dossier-root {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: white !important;
+  box-shadow: none !important;
+  width: 21cm !important;
+  font-size: 12pt;
+}
+
+/* Nur für den tatsächlichen @media print Scope: Feinschliff, der nur im
+   Druck relevant ist (page-breaks, color-adjust). Nicht in der Bildschirm-
+   Preview, damit das Screen-Layout nicht verändert wird, während der Nutzer
+   auf den Dialog wartet. */
+@media print {
+  body.is-printing #dossier-root > *:not(.page-break) {
+    box-shadow: none !important;
+    outline: none !important;
+    margin: 0 !important;
+    page-break-after: always;
+    break-after: page;
+    min-height: 29.7cm;
+  }
+  body.is-printing #dossier-root > *:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+  body.is-printing #dossier-root > .page-break {
+    display: none !important;
+  }
+
+  body.is-printing .avoid-break {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  body.is-printing .active-block-highlight {
+    box-shadow: none !important;
+    outline: none !important;
+    background: transparent !important;
+  }
+  body.is-printing .no-print {
+    display: none !important;
+  }
+
+  body.is-printing #dossier-root .editable,
+  body.is-printing #dossier-root .editable:hover,
+  body.is-printing #dossier-root .editable:focus {
+    background-color: transparent !important;
+    outline: none !important;
+  }
+
+  body.is-printing #dossier-root .schreib-linie {
+    resize: none !important;
+    overflow: hidden !important;
+  }
+
+  body.is-printing * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }

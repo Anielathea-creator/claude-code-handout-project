@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Local-only Claude state
+.claude/scheduled_tasks.lock
+
+# Ad-hoc debug / test artifacts (screenshots, one-off PDFs)
+.debug/
