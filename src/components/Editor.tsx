@@ -6334,7 +6334,7 @@ ${blockHtml}
               ];
               const itemCls = "w-full text-left px-3 py-1.5 text-xs hover:bg-indigo-100 text-indigo-900 whitespace-nowrap";
               return (
-                <div className="absolute top-9 left-0 z-50 bg-white border border-indigo-300 rounded shadow-lg min-w-[220px] py-1">
+                <div className="absolute bottom-full mb-1 left-0 z-50 bg-white border border-indigo-300 rounded shadow-lg min-w-[220px] py-1">
                   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick('text')} className={itemCls}>Textabschnitt</button>
                   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick('merkblatt')} className={itemCls}>Merkblatt (Box)</button>
                   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick('merkblatt2')} className={itemCls}>Merkblatt II (Regeln)</button>
@@ -6356,7 +6356,7 @@ ${blockHtml}
                         <ChevronRight size={14} />
                       </button>
                       {openSubject === s.label && (
-                        <div className="absolute top-0 left-full ml-0 bg-white border border-indigo-300 rounded shadow-lg min-w-[240px] py-1 max-h-[70vh] overflow-y-auto">
+                        <div className="absolute bottom-0 left-full ml-0 bg-white border border-indigo-300 rounded shadow-lg min-w-[240px] py-1 max-h-[70vh] overflow-y-auto">
                           {s.ids.map(id => {
                             const t = byId(id);
                             if (!t) return null;
