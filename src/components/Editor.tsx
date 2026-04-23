@@ -376,11 +376,14 @@ export function Editor({ html, onChange, theme, projectName, targetAudience, did
   const [coverImageDesc, setCoverImageDesc] = useState('');
   const [coverImageStyle, setCoverImageStyle] = useState('realistisch');
   const [coverExtraText, setCoverExtraText] = useState('');
+  const [coverShowName, setCoverShowName] = useState(true);
+  const [coverNoImage, setCoverNoImage] = useState(false);
 
   const [isGeneratingCover, setIsGeneratingCover] = useState(false);
   const [coverError, setCoverError] = useState('');
   const [showRegenConfirm, setShowRegenConfirm] = useState(false);
   const [regenTarget, setRegenTarget] = useState<{img: HTMLImageElement, prompt: string} | null>(null);
+  const [regenPromptDraft, setRegenPromptDraft] = useState('');
   const coverUploadInputRef = useRef<HTMLInputElement>(null);
 
   // KI-Bild-Bearbeitung: Doppelklick auf .ai-image-slot öffnet dieses Modal.
@@ -1526,6 +1529,59 @@ export function Editor({ html, onChange, theme, projectName, targetAudience, did
     saveHistoryState();
   };
 
+  const insertFormatBlock = (type: string) => {
+    // Entscheidung: Wenn die gespeicherte Auswahl echten Text im Editor markiert,
+    // ändern wir das Format der Auswahl (Alt-Verhalten). Andernfalls fügen wir
+    // einen neuen Block mit diesem Format ein.
+    const root = document.getElementById('dossier-root');
+    const saved = savedSelectionRef.current;
+    const hasSelection = !!(
+      saved &&
+      !saved.collapsed &&
+      root &&
+      root.contains(saved.commonAncestorContainer)
+    );
+
+    if (hasSelection) {
+      applyHeadingType(type);
+      return;
+    }
+
+    // Kein selektierter Text → Block einfügen
+    const map: Record<string, string> = { h1: 'title', h2: 'subtitle', p: 'text' };
+    if (map[type]) {
+      handleAddTemplate(map[type]);
+    } else if (type === 'h3') {
+      // H3 ist kein eigener Template-Typ — wir fügen es analog zu title/subtitle ein.
+      saveHistoryState();
+      const id = 'block-' + Date.now();
+      const html = `<div id="${id}" class="avoid-break relative mb-8 group">
+  <div class="content-wrapper p-8">
+    <h3 class="text-[14pt] font-bold mb-0 editable" contenteditable="true">Aufgabentitel</h3>
+  </div>
+</div>`;
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = html;
+      const el = tempDiv.firstChild as HTMLElement;
+      if (activeBlock) {
+        const isPageContainer =
+          (activeBlock.parentElement === root && !activeBlock.classList.contains('page-break')) ||
+          activeBlock.className.includes('p-[2.5cm]') ||
+          activeBlock.className.includes('p-[2cm]');
+        if (isPageContainer) activeBlock.appendChild(el);
+        else activeBlock.parentNode?.insertBefore(el, activeBlock.nextSibling);
+      } else if (root) {
+        const pages = Array.from(root.children).filter(c => !c.classList.contains('page-break')) as HTMLElement[];
+        (pages[pages.length - 1] || root).appendChild(el);
+      }
+      setTimeout(() => {
+        repaginate();
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        saveHistoryState();
+      }, 100);
+    }
+  };
+
   const applyHeadingType = (type: string) => {
     document.getElementById('dossier-root')?.focus();
     restoreSelection();
@@ -1621,8 +1677,7 @@ export function Editor({ html, onChange, theme, projectName, targetAudience, did
         console.warn('Auto-Nummerierung fehlgeschlagen:', e);
       }
     } else if (type === 'text') {
-      // No inner content-wrapper padding — the page container's p-[2.5cm] provides the margin.
-      htmlToAdd = `<div id="${id}" class="avoid-break relative group text-[12pt]"><p class="editable" contenteditable="true">Neuer Textabschnitt...</p></div>`;
+      htmlToAdd = wrapInStructure(`<p class="editable" contenteditable="true">Neuer Textabschnitt...</p>`, 'text-[12pt]');
     } else if (type === 'title') {
       htmlToAdd = wrapInStructure(`<h1 class="text-[36pt] font-black text-gray-900 editable" contenteditable="true">Überschrift</h1>`);
     } else if (type === 'subtitle') {
@@ -4212,15 +4267,24 @@ ${blockHtml}
     const root = document.getElementById('dossier-root');
     if (!root) return { error: 'Editor ist nicht bereit.' };
 
-    const firstPage = Array.from(root.children).find(c => !c.classList.contains('page-break')) as HTMLElement | undefined;
-
-    let target: HTMLElement | null = null;
-    if (activeBlock && activeBlock.parentElement === root && !activeBlock.classList.contains('page-break')) {
-      target = activeBlock;
+    if (!activeBlock) {
+      return { error: 'Bitte wähle zuerst eine Seite aus (anklicken), auf der das Titelbild eingefügt oder ersetzt werden soll.' };
     }
-    if (!target) target = firstPage || null;
-    if (!target) return { error: 'Keine Seite im Dossier gefunden.' };
 
+    // Find the page-container that the active block belongs to (or the active block itself, if it IS a page).
+    let target: HTMLElement | null = null;
+    if (activeBlock.parentElement === root && !activeBlock.classList.contains('page-break')) {
+      target = activeBlock;
+    } else {
+      let cur: HTMLElement | null = activeBlock;
+      while (cur && cur.parentElement !== root) cur = cur.parentElement;
+      if (cur && !cur.classList.contains('page-break')) target = cur;
+    }
+    if (!target) {
+      return { error: 'Bitte wähle eine Seite aus, auf der das Titelbild eingefügt werden soll.' };
+    }
+
+    const firstPage = Array.from(root.children).find(c => !c.classList.contains('page-break')) as HTMLElement | undefined;
     const isFirst = target === firstPage;
     const isCover = target.classList.contains('cover-page-wrapper')
       || target.hasAttribute('data-cover')
@@ -4228,7 +4292,7 @@ ${blockHtml}
     const isEmpty = target.children.length === 0;
 
     if (!isFirst && !isEmpty && !isCover) {
-      return { error: 'Cover-Design geht nur auf der ersten Seite oder einer leeren Seite. Wähle eine leere Seite aus oder hebe die Auswahl auf.' };
+      return { error: 'Cover-Design geht nur auf der ersten Seite oder einer leeren Seite. Wähle eine leere Seite aus.' };
     }
 
     return { target, mode: (isCover || isEmpty) ? 'replace' : 'prepend' };
@@ -4253,44 +4317,67 @@ ${blockHtml}
     onAddSnapshot('Vor Titelseite');
 
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error("Gemini API Key fehlt in der Umgebung.");
-      }
-      const ai = new GoogleGenAI({ apiKey });
-
-      // Generate Image
-      const imageResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: {
-          parts: [
-            { text: `Ein professionelles Titelbild für ein Schuldossier. Motiv: ${coverImageDesc}. Stil: ${coverImageStyle}. Farbschema: ${theme || 'Blau'}. WICHTIG: Generiere absolut KEINEN Text, keine Buchstaben, keine Wörter und keine Banner im Bild. Das Bild darf nur grafische Elemente enthalten.` }
-          ]
-        },
-        config: {
-          imageConfig: {
-            aspectRatio: "1:1",
-            imageSize: "1K"
-          }
-        }
-      });
-
-      let imageUrl = '';
-      const imageParts = imageResponse.candidates?.[0]?.content?.parts;
-      if (imageParts) {
-        for (const part of imageParts) {
-          if (part.inlineData) {
-            imageUrl = `data:image/png;base64,${part.inlineData.data}`;
-            break;
-          }
-        }
-      }
-
-      const imgSrc = imageUrl || 'https://picsum.photos/seed/cover/800/800';
-      const safePrompt = coverImageDesc.replace(/"/g, '&quot;');
       const themeColor = theme || 'blue';
+      let imgSrc = '';
+      let safePrompt = '';
 
-      // Build deterministic HTML with fixed standard layout
+      if (!coverNoImage) {
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        if (!apiKey) {
+          throw new Error("Gemini API Key fehlt in der Umgebung.");
+        }
+        const ai = new GoogleGenAI({ apiKey });
+
+        // Generate Image
+        const imageResponse = await ai.models.generateContent({
+          model: 'gemini-2.5-flash-image',
+          contents: {
+            parts: [
+              { text: `Ein professionelles Titelbild für ein Schuldossier. Motiv: ${coverImageDesc}. Stil: ${coverImageStyle}. Farbschema: ${theme || 'Blau'}. WICHTIG: Generiere absolut KEINEN Text, keine Buchstaben, keine Wörter und keine Banner im Bild. Das Bild darf nur grafische Elemente enthalten.` }
+            ]
+          },
+          config: {
+            imageConfig: {
+              aspectRatio: "1:1",
+              imageSize: "1K"
+            }
+          }
+        });
+
+        let imageUrl = '';
+        const imageParts = imageResponse.candidates?.[0]?.content?.parts;
+        if (imageParts) {
+          for (const part of imageParts) {
+            if (part.inlineData) {
+              imageUrl = `data:image/png;base64,${part.inlineData.data}`;
+              break;
+            }
+          }
+        }
+
+        imgSrc = imageUrl || 'https://picsum.photos/seed/cover/800/800';
+        safePrompt = coverImageDesc.replace(/"/g, '&quot;');
+      }
+
+      // Conditionally assemble cover elements — leere / nicht gewählte Elemente werden weggelassen.
+      const nameBlock = coverShowName
+        ? `<div class="cover-draggable" style="position: absolute; right: 0; top: 0; resize: both; overflow: hidden; min-width: 120px; min-height: 30px; cursor: move;">
+        <p contenteditable="true" class="editable text-[14pt] text-right" style="cursor: text;">Name: _______________________</p>
+      </div>`
+        : '';
+
+      const subtitleBlock = coverSubtitle.trim()
+        ? `<div class="cover-draggable" style="position: absolute; left: 5%; right: 5%; top: 32%; resize: both; overflow: hidden; min-width: 100px; min-height: 30px; cursor: move;">
+        <p contenteditable="true" class="editable text-[20pt] leading-snug font-medium text-gray-600 text-center" style="cursor: text;">${coverSubtitle}</p>
+      </div>`
+        : '';
+
+      const imageBlock = !coverNoImage
+        ? `<div class="cover-draggable resizable-cover-image-wrapper" style="width: 300px; resize: both; overflow: hidden; position: absolute; left: 50%; top: 55%; transform: translate(-50%, -50%); cursor: move;">
+        <img src="${imgSrc}" data-prompt="${safePrompt}" class="cover-image w-full h-full object-contain border-2 border-gray-300 rounded-xl p-2 shadow-sm" style="cursor: move;" />
+      </div>`
+        : '';
+
       const extraTextBlock = coverExtraText.trim()
         ? `<div class="cover-draggable" style="position: absolute; left: 5%; top: 78%; width: 90%; resize: both; overflow: hidden; min-width: 100px; min-height: 30px; cursor: move;">
             <p contenteditable="true" class="editable text-[12pt] text-gray-500 italic text-center" style="cursor: text;">${coverExtraText}</p>
@@ -4300,22 +4387,12 @@ ${blockHtml}
       const generatedHtml = `<div class="cover-page-wrapper" data-cover="true">
   <div class="cover-page-container avoid-break relative w-full h-[29.7cm] p-[2cm] box-border bg-white print:bg-white overflow-hidden">
     <div class="cover-inner-container relative w-full h-full">
-      <!-- Name: top right -->
-      <div class="cover-draggable" style="position: absolute; right: 0; top: 0; resize: both; overflow: hidden; min-width: 120px; min-height: 30px; cursor: move;">
-        <p contenteditable="true" class="editable text-[14pt] text-right" style="cursor: text;">Name: _______________________</p>
-      </div>
-      <!-- Title: center upper area -->
+      ${nameBlock}
       <div class="cover-draggable" style="position: absolute; left: 5%; right: 5%; top: 18%; resize: both; overflow: hidden; min-width: 100px; min-height: 40px; cursor: move;">
         <h1 contenteditable="true" class="editable text-[36pt] leading-tight font-black text-${themeColor}-800 text-center" style="cursor: text;">${coverTitle}</h1>
       </div>
-      <!-- Subtitle: below title -->
-      <div class="cover-draggable" style="position: absolute; left: 5%; right: 5%; top: 32%; resize: both; overflow: hidden; min-width: 100px; min-height: 30px; cursor: move;">
-        <p contenteditable="true" class="editable text-[20pt] leading-snug font-medium text-gray-600 text-center" style="cursor: text;">${coverSubtitle || ''}</p>
-      </div>
-      <!-- Image: center lower half -->
-      <div class="cover-draggable resizable-cover-image-wrapper" style="width: 300px; resize: both; overflow: hidden; position: absolute; left: 50%; top: 55%; transform: translate(-50%, -50%); cursor: move;">
-        <img src="${imgSrc}" data-prompt="${safePrompt}" class="cover-image w-full h-full object-contain border-2 border-gray-300 rounded-xl p-2 shadow-sm" style="cursor: move;" />
-      </div>
+      ${subtitleBlock}
+      ${imageBlock}
       ${extraTextBlock}
     </div>
   </div>
@@ -4375,6 +4452,8 @@ ${blockHtml}
       setCoverSubtitle('');
       setCoverImageDesc('');
       setCoverExtraText('');
+      setCoverShowName(true);
+      setCoverNoImage(false);
     } catch (error: any) {
       let errorMessage = "Fehler bei der Generierung: " + error.message;
       if (error.message?.includes('429')) {
@@ -4803,6 +4882,7 @@ ${blockHtml}
     if (target.tagName === 'IMG' && target.classList.contains('cover-image')) {
       const prompt = target.getAttribute('data-prompt') || '';
       setRegenTarget({ img: target as HTMLImageElement, prompt });
+      setRegenPromptDraft(prompt);
       setShowRegenConfirm(true);
       return;
     }
@@ -5218,35 +5298,57 @@ ${blockHtml}
                       placeholder="z.B. Klasse 5b – Frühling 2026 (erscheint unter dem Bild)"
                     />
                   </div>
+                  <label className="flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-indigo-50 bg-gray-50/50 cursor-pointer hover:border-indigo-100 transition-all">
+                    <input
+                      type="checkbox"
+                      checked={coverShowName}
+                      onChange={(e) => setCoverShowName(e.target.checked)}
+                      className="w-5 h-5 accent-indigo-600"
+                    />
+                    <span className="text-sm font-bold text-indigo-700">Namen-Feld oben rechts anzeigen</span>
+                  </label>
                 </div>
               )}
 
               {coverStep === 2 && (
                 <div className="space-y-4 animate-in slide-in-from-right-4 duration-300">
-                  <div>
-                    <label className="block text-sm font-bold text-indigo-700 mb-2 ml-1 uppercase tracking-wider">Was soll abgebildet sein?</label>
-                    <textarea 
-                      value={coverImageDesc}
-                      onChange={(e) => setCoverImageDesc(e.target.value)}
-                      className="w-full border-2 border-indigo-50 rounded-2xl p-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none min-h-[120px] resize-y text-lg transition-all shadow-inner bg-gray-50/50"
-                      placeholder="Beschreibe das Motiv (z.B. Ein dichter Mischwald mit Sonnenstrahlen)..."
-                      autoFocus
+                  <label className="flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-indigo-50 bg-gray-50/50 cursor-pointer hover:border-indigo-100 transition-all">
+                    <input
+                      type="checkbox"
+                      checked={coverNoImage}
+                      onChange={(e) => setCoverNoImage(e.target.checked)}
+                      className="w-5 h-5 accent-indigo-600"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-indigo-700 mb-2 ml-1 uppercase tracking-wider">Stil der Abbildung</label>
-                    <div className="grid grid-cols-3 gap-3">
-                      {['aquarell', 'gezeichnet', 'realistisch', 'clipart', 'retro', 'comic'].map(style => (
-                        <button
-                          key={style}
-                          onClick={() => setCoverImageStyle(style)}
-                          className={`p-3 rounded-xl border-2 font-bold capitalize transition-all ${coverImageStyle === style ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-gray-100 hover:border-indigo-100 text-gray-500'}`}
-                        >
-                          {style}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                    <span className="text-sm font-bold text-indigo-700">Kein Bild verwenden (Titelseite nur mit Text)</span>
+                  </label>
+                  {!coverNoImage && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-bold text-indigo-700 mb-2 ml-1 uppercase tracking-wider">Was soll abgebildet sein?</label>
+                        <textarea
+                          value={coverImageDesc}
+                          onChange={(e) => setCoverImageDesc(e.target.value)}
+                          className="w-full border-2 border-indigo-50 rounded-2xl p-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none min-h-[120px] resize-y text-lg transition-all shadow-inner bg-gray-50/50"
+                          placeholder="Beschreibe das Motiv (z.B. Ein dichter Mischwald mit Sonnenstrahlen)..."
+                          autoFocus
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-indigo-700 mb-2 ml-1 uppercase tracking-wider">Stil der Abbildung</label>
+                        <div className="grid grid-cols-3 gap-3">
+                          {['aquarell', 'gezeichnet', 'realistisch', 'clipart', 'retro', 'comic'].map(style => (
+                            <button
+                              key={style}
+                              onClick={() => setCoverImageStyle(style)}
+                              className={`p-3 rounded-xl border-2 font-bold capitalize transition-all ${coverImageStyle === style ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-gray-100 hover:border-indigo-100 text-gray-500'}`}
+                            >
+                              {style}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -5286,7 +5388,7 @@ ${blockHtml}
                   ) : (
                     <button
                       onClick={handleGenerateCover}
-                      disabled={isGeneratingCover || !coverImageDesc.trim()}
+                      disabled={isGeneratingCover || (!coverNoImage && !coverImageDesc.trim())}
                       className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-black rounded-2xl shadow-lg shadow-indigo-100 disabled:opacity-50 disabled:shadow-none transition-all flex items-center gap-2 transform active:scale-95"
                     >
                       {isGeneratingCover ? (
@@ -5314,20 +5416,32 @@ ${blockHtml}
               <span className="text-3xl">🖼️</span>
               Titelbild ändern?
             </h3>
-            <p className="text-gray-600 mb-8 leading-relaxed">
+            <p className="text-gray-600 mb-4 leading-relaxed">
               Möchtest du das Titelbild neu generieren lassen oder ein eigenes Bild von deinem Computer einfügen?
             </p>
+            <div className="mb-6">
+              <label className="block text-xs font-bold text-indigo-700 mb-2 ml-1 uppercase tracking-wider">Bild-Prompt (anpassbar)</label>
+              <textarea
+                value={regenPromptDraft}
+                onChange={(e) => setRegenPromptDraft(e.target.value)}
+                className="w-full border-2 border-indigo-50 rounded-2xl p-3 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none min-h-[90px] resize-y text-sm transition-all shadow-inner bg-gray-50/50"
+                placeholder="Beschreibe das neue Bild..."
+              />
+            </div>
             <div className="flex flex-col gap-3">
               <button
                 onClick={() => {
-                  if (regenTarget && regenTarget.prompt) {
-                    handleRegenerateCoverImage(regenTarget.img, regenTarget.prompt);
+                  const p = regenPromptDraft.trim();
+                  if (regenTarget && p) {
+                    regenTarget.img.setAttribute('data-prompt', p);
+                    handleRegenerateCoverImage(regenTarget.img, p);
                   }
                   setShowRegenConfirm(false);
                   setRegenTarget(null);
+                  setRegenPromptDraft('');
                 }}
-                disabled={!regenTarget?.prompt}
-                className={`w-full py-3 font-black rounded-2xl shadow-lg transition-all transform active:scale-95 ${regenTarget?.prompt ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100' : 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'}`}
+                disabled={!regenPromptDraft.trim()}
+                className={`w-full py-3 font-black rounded-2xl shadow-lg transition-all transform active:scale-95 ${regenPromptDraft.trim() ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100' : 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'}`}
               >
                 🔄 Neu generieren
               </button>
@@ -5340,7 +5454,7 @@ ${blockHtml}
                 📁 Eigenes Bild einfügen
               </button>
               <button
-                onClick={() => { setShowRegenConfirm(false); setRegenTarget(null); }}
+                onClick={() => { setShowRegenConfirm(false); setRegenTarget(null); setRegenPromptDraft(''); }}
                 className="w-full py-3 text-gray-500 hover:text-gray-700 font-bold transition-colors"
               >
                 Abbrechen
@@ -5366,6 +5480,7 @@ ${blockHtml}
                   }
                   setShowRegenConfirm(false);
                   setRegenTarget(null);
+                  setRegenPromptDraft('');
                 };
                 reader.readAsDataURL(file);
                 e.target.value = '';
@@ -6269,8 +6384,8 @@ ${blockHtml}
 
         {/* --- FORMATIERUNG --- */}
         <div className="flex items-center gap-1 bg-blue-50 border border-blue-200 px-1 py-1 rounded-lg">
-          <select onMouseDown={() => saveSelection()} onChange={(e) => applyHeadingType(e.target.value)} className="h-8 bg-white border border-blue-300 rounded text-xs px-2 outline-none focus:border-blue-500 font-bold text-blue-800" value="">
-            <option value="" disabled>Format wählen...</option>
+          <select onMouseDown={() => saveSelection()} onChange={(e) => { insertFormatBlock(e.target.value); e.target.value = ''; }} className="h-8 bg-white border border-blue-300 rounded text-xs px-2 outline-none focus:border-blue-500 font-bold text-blue-800" value="" title="Text markieren = Format ändern · nichts markiert = neuen Block einfügen">
+            <option value="" disabled>Format wählen / einfügen...</option>
             <option value="h1">Haupttitel (36pt)</option>
             <option value="h2">Untertitel (20pt)</option>
             <option value="h3">Aufgabentitel (14pt)</option>
