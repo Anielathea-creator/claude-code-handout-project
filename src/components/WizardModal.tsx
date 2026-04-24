@@ -137,15 +137,15 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
       <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-2xl animate-in fade-in zoom-in duration-300">
         <div className="flex justify-between items-center mb-6 border-b pb-4">
           <h2 className="text-2xl font-black text-gray-800 flex items-center gap-3">
-            <span className="bg-indigo-100 p-2 rounded-xl">🏗️</span>
-            Dossier-Architekt
+            <span className="bg-white border border-gray-200 p-2 rounded-xl">🏗️</span>
+            Architekt
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-red-500 text-2xl font-bold transition-colors">&times;</button>
         </div>
 
         <div className="mb-6 flex gap-2">
           {(data.mode === 'empty' ? [1, 4] : [1, 2, 3, 4]).map((i) => (
-            <div key={i} className={`h-2 flex-1 rounded-full ${step >= i ? 'bg-indigo-600' : 'bg-gray-100'}`} />
+            <div key={i} className={`h-2 flex-1 rounded-full ${step >= i ? 'bg-navy-700' : 'bg-gray-100'}`} />
           ))}
         </div>
 
@@ -157,21 +157,21 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                 <div className="grid grid-cols-3 gap-4">
                   <button
                     onClick={() => setData({ ...data, mode: 'generate' })}
-                    className={`p-4 rounded-xl border-2 flex flex-col items-center gap-3 transition-all ${data.mode === 'generate' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-indigo-300 text-gray-600'}`}
+                    className={`p-4 rounded-xl border-2 flex flex-col items-center gap-3 transition-all ${data.mode === 'generate' ? 'border-blue-300 bg-blue-50 text-gray-800' : 'border-gray-200 hover:border-gray-400 text-gray-600'}`}
                   >
                     <span className={`text-3xl ${data.mode === 'generate' ? 'opacity-100' : 'opacity-50 grayscale'}`}>✨</span>
                     <span className="font-bold text-center text-sm">Aufgaben durch KI generieren</span>
                   </button>
                   <button
                     onClick={() => setData({ ...data, mode: 'import' })}
-                    className={`p-4 rounded-xl border-2 flex flex-col items-center gap-3 transition-all ${data.mode === 'import' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-indigo-300 text-gray-600'}`}
+                    className={`p-4 rounded-xl border-2 flex flex-col items-center gap-3 transition-all ${data.mode === 'import' ? 'border-blue-300 bg-blue-50 text-gray-800' : 'border-gray-200 hover:border-gray-400 text-gray-600'}`}
                   >
                     <span className={`text-3xl ${data.mode === 'import' ? 'opacity-100' : 'opacity-50 grayscale'}`}>📤</span>
                     <span className="font-bold text-center text-sm">Eigene Aufgaben importieren</span>
                   </button>
                   <button
                     onClick={() => setData({ ...data, mode: 'empty' })}
-                    className={`p-4 rounded-xl border-2 flex flex-col items-center gap-3 transition-all ${data.mode === 'empty' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-indigo-300 text-gray-600'}`}
+                    className={`p-4 rounded-xl border-2 flex flex-col items-center gap-3 transition-all ${data.mode === 'empty' ? 'border-blue-300 bg-blue-50 text-gray-800' : 'border-gray-200 hover:border-gray-400 text-gray-600'}`}
                   >
                     <span className={`text-3xl ${data.mode === 'empty' ? 'opacity-100' : 'opacity-50 grayscale'}`}>📄</span>
                     <span className="font-bold text-center text-sm">Leeres Dossier erstellen</span>
@@ -189,7 +189,7 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                       value={data.topic}
                       onChange={(e) => setData({ ...data, topic: e.target.value })}
                       placeholder="z.B. Wortstämme, Brüche, Französische Revolution"
-                      className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-indigo-500 outline-none transition-colors"
+                      className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-gray-500 outline-none transition-colors"
                       autoFocus
                     />
                   </div>
@@ -204,9 +204,9 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                             key={level.id}
                             type="button"
                             onClick={() => setData({ ...data, targetAudience: active ? '' : level.id })}
-                            className={`text-left p-3 rounded-xl border-2 transition-all ${active ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 hover:border-indigo-300 bg-white'}`}
+                            className={`text-left p-3 rounded-xl border-2 transition-all ${active ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:border-gray-400 bg-white'}`}
                           >
-                            <div className={`font-bold text-sm ${active ? 'text-indigo-700' : 'text-gray-800'}`}>{level.shortLabel}</div>
+                            <div className={`font-bold text-sm ${active ? 'text-gray-900' : 'text-gray-800'}`}>{level.shortLabel}</div>
                             <div className="text-xs text-gray-500 mt-0.5">{level.description}</div>
                           </button>
                         );
@@ -227,12 +227,12 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                 <button
                   type="button"
                   onClick={() => togglePanel('templates')}
-                  className={`w-full flex items-center justify-between p-3 transition-colors ${expandedPanel === 'templates' ? 'bg-indigo-50' : 'bg-gray-50 hover:bg-gray-100'}`}
+                  className={`w-full flex items-center justify-between p-3 transition-colors ${expandedPanel === 'templates' ? 'bg-gray-100' : 'bg-gray-50 hover:bg-gray-100'}`}
                 >
                   <span className="flex items-center gap-2">
                     <span className="text-sm font-bold text-gray-800">Aufgabenarten</span>
                     {data.selectedTemplateIds.length > 0 && (
-                      <span className="text-[11px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">{data.selectedTemplateIds.length} ausgewählt</span>
+                      <span className="text-[11px] bg-gray-200 text-gray-800 px-2 py-0.5 rounded-full font-bold">{data.selectedTemplateIds.length} ausgewählt</span>
                     )}
                   </span>
                   <span className={`text-gray-400 transition-transform ${expandedPanel === 'templates' ? 'rotate-180' : ''}`}>▾</span>
@@ -268,11 +268,11 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                               key={tab}
                               type="button"
                               onClick={() => setTemplateTab(tab)}
-                              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${active ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-200'}`}
+                              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${active ? 'bg-blue-200 text-blue-900' : 'text-gray-600 hover:bg-gray-200'}`}
                             >
                               {tab}
                               {count > 0 && (
-                                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] ${active ? 'bg-white text-indigo-700' : 'bg-indigo-100 text-indigo-700'}`}>{count}</span>
+                                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] ${active ? 'bg-white text-gray-800' : 'bg-gray-200 text-gray-800'}`}>{count}</span>
                               )}
                             </button>
                           );
@@ -284,7 +284,7 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                           value={templateSearch}
                           onChange={(e) => setTemplateSearch(e.target.value)}
                           placeholder="Suchen…"
-                          className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-indigo-500"
+                          className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-gray-500"
                         />
                         <button
                           type="button"
@@ -294,7 +294,7 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                             else visibleIds.forEach(id => current.add(id));
                             setData({ ...data, selectedTemplateIds: Array.from(current) });
                           }}
-                          className="text-xs font-bold text-indigo-600 hover:text-indigo-800 whitespace-nowrap"
+                          className="text-xs font-bold text-gray-700 hover:text-gray-900 whitespace-nowrap"
                         >
                           {allSelected ? 'Keine' : 'Alle'}
                         </button>
@@ -314,7 +314,7 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                                   : data.selectedTemplateIds.filter(id => id !== template.id);
                                 setData({ ...data, selectedTemplateIds: ids });
                               }}
-                              className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                              className="w-4 h-4 rounded border-gray-300 text-gray-700 focus:ring-gray-500"
                             />
                             <span className="text-[11px] text-gray-700 font-medium truncate" title={template.name}>{template.name}</span>
                           </label>
@@ -343,7 +343,7 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                     <button
                       type="button"
                       onClick={() => togglePanel('didactic')}
-                      className={`w-full flex items-center justify-between p-3 transition-colors ${expandedPanel === 'didactic' ? 'bg-indigo-50' : 'bg-gray-50 hover:bg-gray-100'}`}
+                      className={`w-full flex items-center justify-between p-3 transition-colors ${expandedPanel === 'didactic' ? 'bg-gray-100' : 'bg-gray-50 hover:bg-gray-100'}`}
                     >
                       <span className="flex items-center gap-2">
                         <span className="text-sm font-bold text-gray-800">Didaktischer Aufbau</span>
@@ -356,7 +356,7 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                         <select
                           value={data.didacticApproach}
                           onChange={(e) => setData({ ...data, didacticApproach: e.target.value as DidacticApproach })}
-                          className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-indigo-500 outline-none transition-colors bg-white"
+                          className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-gray-500 outline-none transition-colors bg-white"
                         >
                           {DIDACTIC_OPTIONS.map(opt => (
                             <option key={opt.id} value={opt.id}>{opt.label} — {opt.description}</option>
@@ -382,7 +382,7 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                                     key={opt.id}
                                     type="button"
                                     onClick={() => setData({ ...data, didacticScope: opt.id })}
-                                    className={`p-2 rounded-xl border-2 text-sm font-bold transition-all ${active ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-indigo-300 text-gray-700 bg-white'}`}
+                                    className={`p-2 rounded-xl border-2 text-sm font-bold transition-all ${active ? 'border-blue-300 bg-blue-50 text-gray-800' : 'border-gray-200 hover:border-gray-400 text-gray-700 bg-white'}`}
                                   >
                                     {opt.label}
                                   </button>
@@ -396,7 +396,7 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                                   value={data.didacticChapters}
                                   onChange={(e) => setData({ ...data, didacticChapters: e.target.value })}
                                   placeholder="z.B. Präsens, Perfekt"
-                                  className="w-full border-2 border-gray-200 rounded-xl p-2 text-sm focus:border-indigo-500 outline-none transition-colors"
+                                  className="w-full border-2 border-gray-200 rounded-xl p-2 text-sm focus:border-gray-500 outline-none transition-colors"
                                 />
                                 {!data.didacticChapters.trim() && (
                                   <p className="text-xs text-amber-600 mt-1">Bitte mindestens ein Kapitel angeben, sonst wirkt der didaktische Aufbau nirgends.</p>
@@ -419,7 +419,7 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                     value={data.taskCount}
                     onChange={(e) => setData({ ...data, taskCount: e.target.value })}
                     placeholder="z.B. 5"
-                    className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-indigo-500 outline-none transition-colors"
+                    className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-gray-500 outline-none transition-colors"
                   />
                 </div>
                 <div className="flex-[2]">
@@ -434,7 +434,7 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                     }}
                     rows={1}
                     placeholder="z.B. Vorsilben, Nachsilben"
-                    className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-indigo-500 outline-none transition-colors resize-none overflow-hidden leading-normal"
+                    className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-gray-500 outline-none transition-colors resize-none overflow-hidden leading-normal"
                   />
                 </div>
               </div>
@@ -448,13 +448,13 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
               
               {!data.importedFile ? (
                 <div 
-                  className="border-2 border-dashed border-gray-300 rounded-2xl p-10 flex flex-col items-center justify-center bg-gray-50 hover:bg-indigo-50 hover:border-indigo-300 transition-colors cursor-pointer"
+                  className="border-2 border-dashed border-gray-300 rounded-2xl p-10 flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 hover:border-gray-400 transition-colors cursor-pointer"
                   onClick={() => fileInputRef.current?.click()}
                 >
                   <span className="text-5xl mb-4 opacity-50 grayscale">📤</span>
                   <p className="text-gray-700 font-bold mb-1">Klicke hier, um eine Datei auszuwählen</p>
                   <p className="text-gray-500 text-sm">PDF, TXT, CSV, MD (max. 10MB)</p>
-                  <p className="text-indigo-500 text-[10px] mt-2 italic">Hinweis: .docx wird aktuell nicht direkt unterstützt. Bitte als PDF speichern.</p>
+                  <p className="text-gray-600 text-[10px] mt-2 italic">Hinweis: .docx wird aktuell nicht direkt unterstützt. Bitte als PDF speichern.</p>
                   <input 
                     type="file" 
                     ref={fileInputRef}
@@ -464,14 +464,14 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                   />
                 </div>
               ) : (
-                <div className="border-2 border-indigo-200 bg-indigo-50 rounded-2xl p-6 flex items-center justify-between">
+                <div className="border-2 border-blue-200 bg-blue-50 rounded-2xl p-6 flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="bg-indigo-100 p-3 rounded-xl text-indigo-600 text-2xl">
+                    <div className="bg-blue-100 p-3 rounded-xl text-blue-700 text-2xl">
                       📄
                     </div>
                     <div>
-                      <p className="font-bold text-indigo-900">{data.importedFile.name}</p>
-                      <p className="text-indigo-600 text-sm">Erfolgreich hochgeladen</p>
+                      <p className="font-bold text-gray-900">{data.importedFile.name}</p>
+                      <p className="text-blue-700 text-sm">Erfolgreich hochgeladen</p>
                     </div>
                   </div>
                   <button 
@@ -495,7 +495,7 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                   value={data.cheatSheetContent}
                   onChange={(e) => setData({ ...data, cheatSheetContent: e.target.value })}
                   placeholder="z.B. Die wichtigsten Regeln für die Bildung von Wortstämmen..."
-                  className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-indigo-500 outline-none transition-colors min-h-[80px] resize-y text-sm"
+                  className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-gray-500 outline-none transition-colors min-h-[80px] resize-y text-sm"
                 />
               </div>
               <div>
@@ -504,7 +504,7 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                   value={data.taskInstructions}
                   onChange={(e) => setData({ ...data, taskInstructions: e.target.value })}
                   placeholder="z.B. Nutze für das Thema Präteritum einen Lückentext. Baue für Thema XY einen Steckbrief ein."
-                  className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-indigo-500 outline-none transition-colors min-h-[80px] resize-y text-sm"
+                  className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-gray-500 outline-none transition-colors min-h-[80px] resize-y text-sm"
                 />
               </div>
             </div>
@@ -520,7 +520,7 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                   value={data.importInstructions}
                   onChange={(e) => setData({ ...data, importInstructions: e.target.value })}
                   placeholder="z.B. Formatiere die Aufgaben und erstelle zusätzlich zu jedem Überkapitel ein passendes Merkblatt."
-                  className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-indigo-500 outline-none transition-colors min-h-[160px] resize-y"
+                  className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-gray-500 outline-none transition-colors min-h-[160px] resize-y"
                   autoFocus
                 />
               </div>
@@ -537,7 +537,7 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
                     key={t.id}
                     type="button"
                     onClick={() => setData({ ...data, theme: t.id })}
-                    className={`p-2 rounded-lg border-2 flex flex-col items-center gap-1.5 transition-all ${data.theme === t.id ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 hover:border-indigo-300'}`}
+                    className={`p-2 rounded-lg border-2 flex flex-col items-center gap-1.5 transition-all ${data.theme === t.id ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:border-gray-400'}`}
                   >
                     <div className={`w-7 h-7 rounded-full ${t.color} shadow-inner`} />
                     <span className="text-[11px] font-medium text-gray-700 leading-tight">{t.name}</span>
@@ -560,7 +560,7 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
           {step < 4 ? (
             <button
               onClick={handleNext}
-              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors"
+              className="px-6 py-2.5 bg-navy-700 hover:bg-navy-800 text-white font-bold rounded-xl transition-colors"
             >
               Weiter
             </button>
@@ -568,9 +568,9 @@ export function WizardModal({ onClose, onSubmit }: WizardModalProps) {
             <button
               onClick={handleSubmit}
               disabled={isSubmitting || !data.topic.trim() || (data.mode === 'import' && !data.importedFile)}
-              className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold rounded-xl shadow-md disabled:opacity-50 transition-all"
+              className="px-6 py-2.5 bg-navy-700 hover:bg-navy-800 text-white font-bold rounded-xl shadow-md disabled:opacity-50 transition-all"
             >
-              {isSubmitting ? 'Wird erstellt...' : (data.mode === 'empty' ? '📄 Leeres Dossier erstellen' : '🚀 Dossier entwerfen')}
+              {isSubmitting ? 'Wird erstellt...' : (data.mode === 'empty' ? 'Leeres Dossier erstellen' : 'Entwerfen')}
             </button>
           )}
         </div>

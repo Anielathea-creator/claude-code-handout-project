@@ -173,6 +173,7 @@ export default function App() {
             name: 'Überblick – Funktionen & Templates',
             html: buildWelcomeHTML(),
             chatHistory: [],
+            theme: 'blue',
           };
           setProjects([initialProject]);
           setActiveProjectId(initialProject.id);

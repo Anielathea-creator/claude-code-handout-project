@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { Project } from '../types';
 
 interface SidebarProps {
@@ -68,7 +69,7 @@ export function Sidebar({
         <div className="flex items-center gap-2">
           <button
             onClick={onCreateProject}
-            className="w-8 h-8 flex items-center justify-center bg-white hover:bg-gray-100 rounded-md transition-colors text-purple-600 text-2xl font-black leading-none shadow-sm"
+            className="w-8 h-8 flex items-center justify-center bg-white hover:bg-gray-100 rounded-md transition-colors text-[#0D47A1] text-2xl font-black leading-none shadow-sm"
             title="Neues Dossier"
           >
             <span className="inline-block -translate-y-[3px]">+</span>
@@ -89,7 +90,7 @@ export function Sidebar({
             key={project.id}
             className={`group flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${
               activeProjectId === project.id
-                ? 'bg-indigo-900/50 text-indigo-200'
+                ? 'bg-navy-900/60 text-white'
                 : 'hover:bg-gray-800 text-gray-300'
             }`}
             onClick={() => {
@@ -111,7 +112,7 @@ export function Sidebar({
                     if (e.key === 'Enter') handleRenameSubmit(project.id);
                     if (e.key === 'Escape') setEditingId(null);
                   }}
-                  className="bg-gray-800 text-white px-1 py-0.5 rounded w-full outline-none border border-indigo-500 text-sm"
+                  className="bg-gray-800 text-white px-1 py-0.5 rounded w-full outline-none border border-cyan-500 text-sm"
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
@@ -151,20 +152,20 @@ export function Sidebar({
                         setEditName(project.name);
                         setEditingId(project.id);
                       }}
-                      className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white"
+                      className="p-1 hover:bg-gray-700 rounded text-gray-500 hover:text-white transition-colors"
                       title="Umbenennen"
                     >
-                      ✏️
+                      <Pencil size={13} strokeWidth={2} />
                     </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setConfirmDeleteId(project.id);
                       }}
-                      className="p-1 hover:bg-red-900/50 rounded text-gray-400 hover:text-red-400"
+                      className="p-1 hover:bg-red-900/50 rounded text-gray-500 hover:text-red-400 transition-colors"
                       title="Löschen"
                     >
-                      🗑️
+                      <Trash2 size={13} strokeWidth={2} />
                     </button>
                   </>
                 )}
