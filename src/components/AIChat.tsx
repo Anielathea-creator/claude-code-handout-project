@@ -285,7 +285,8 @@ WICHTIG: Erstelle so viele Seiten-Container wie nötig, um ALLE Aufgaben unterzu
    - <span class="is-strikethrough-answer">Falsches Wort</span>
    - Längere Freitext-Antworten: <div class="schreib-linie editable" contenteditable="true"><span class="is-answer">Musterlösung</span></div>
 6. Jedes Textelement (p, h1, h2, h3, td, th, li) das editierbar sein soll: Klasse "editable" + contenteditable="true".
-7. Aufgabentitel (h3): class="editable font-bold text-[14pt] mb-2 text-${theme || 'blue'}-700"
+7. Aufgabentitel (h3): class="editable font-bold text-[14pt] mb-1 text-${theme || 'blue'}-700"
+8. Alle anderen Elemente innerhalb von Aufgaben (Boxen, Tabellenzellen, Rahmen, Eingabefelder, Bild-Slots, Schreiblinien-Rahmen) bleiben in ihren ursprünglichen neutralen Gray-Farben aus den Templates – NICHT auf ${theme || 'blue'} umfärben.
 
 WICHTIG FÜR DIE ANTWORT:
 Antworte AUSSCHLIESSLICH mit dem HTML-Code. Keine Markdown-Formatierung, kein Text davor/danach.
@@ -817,20 +818,29 @@ ${renderDidacticPromptBlock(didacticApproach, didacticScope, didacticChapters)}`
 Generiere nun den vollständigen HTML-Code für das Dossier basierend auf dem Entwurf und dem Briefing.
 Verwende Tailwind CSS für das Styling.
 
-FARBSCHEMA (OBERSTE STYLE-REGEL – MUSS SICHTBAR SEIN):
-Das Farbschema ist "${theme || 'blue'}". Das komplette Dossier MUSS in dieser Farbe gestaltet sein.
-Verwende IMMER ${theme || 'blue'}-Varianten der Tailwind-Farbskala – NIEMALS schwarz, grau oder default.
-Konkrete Pflicht-Klassen:
+FARBSCHEMA (ZURÜCKHALTEND – wie beim manuellen "Struktur einfügen"):
+Das Farbschema ist "${theme || 'blue'}". Die Farbe wird NUR AKZENTUIERT eingesetzt – der Rest (Aufgabenkörper, Eingabefelder, Tabellenzellen, Rahmen, Boxen rund um Aufgaben) bleibt NEUTRAL in grau/schwarz/weiss, genau wie in den mitgelieferten Templates.
+
+NUR diese Elemente bekommen ${theme || 'blue'}-Farbe:
 - Haupttitel <h1>: class="editable text-[36pt] font-black text-${theme || 'blue'}-700 text-center"
 - Kapitel <h2>: class="editable text-[20pt] font-bold text-${theme || 'blue'}-700 border-b-2 border-${theme || 'blue'}-300 pb-1"
 - Aufgaben-Titel <h3>: class="editable font-bold text-[14pt] mb-1 text-${theme || 'blue'}-700"
 - Merkblatt-Container: class="bg-${theme || 'blue'}-50 border-l-4 border-${theme || 'blue'}-500 p-4 rounded-r-lg"
-- Tabellen-Header <th>: class="editable bg-${theme || 'blue'}-100 border border-${theme || 'blue'}-300 p-2 font-bold"
-- Akzent-Borders: border-${theme || 'blue'}-200 / border-${theme || 'blue'}-300
-Prüfe am Ende der Generierung: Jede Überschrift und jeder Akzent muss ${theme || 'blue'}-Klassen enthalten. Wenn nicht → korrigiere.
+- Schreiblinien-/Lösungs-Textfarbe (wo Templates das vorsehen): text-${theme || 'blue'}-600
 
-WICHTIG FÜR AUFGABEN:
-Nutze die mitgelieferten HTML-Templates als STRUKTURELLE VORLAGE (HTML-Klassen, Layout). Die Templates enthalten absichtlich minimalen Platzhalter-Inhalt für manuelle Bearbeitung – beim GENERIEREN musst du den Inhalt massiv ausbauen!
+NICHT einfärben (bleibt neutral grau/schwarz/weiss, übernommen aus den Templates):
+- Innere Aufgabenkörper, Rahmen um Aufgaben (border-gray-…), Eingabefelder, Schreiblinien-Rahmen
+- Tabellenzellen (td), Tabellen-Header (th), Tabellen-Rahmen → bleiben gray, NICHT ${theme || 'blue'}-eingefärbt
+- Bild-Slots, Matching-Boxen, Steckbrief-Boxen, Venn-Kreise usw. → Gray-Farbstruktur bleibt unverändert
+- Hinweis-/Tipp-Texte → text-gray-500/600
+
+WICHTIG FÜR AUFGABEN (STRIKTE TEMPLATE-TREUE):
+Du darfst für Aufgaben AUSSCHLIESSLICH die mitgelieferten HTML-Templates verwenden.
+- Kopiere das Template-HTML EXAKT 1:1 – alle Klassen (insbesondere ai-image-slot, resize, image-placeholder-trigger, draggable-image-wrapper, marker-container, avoid-break, schreib-linie, gap-line, numbered-label-row, mindmap-node, rechenmauer-table, stellenwerttafel, …), alle inline styles, alle data-*-Attribute, alle contenteditable-Attribute, die gesamte Verschachtelung.
+- Ersetze "THEME" im Template-HTML durch "${theme || 'blue'}".
+- Ersetze NUR den Platzhalter-TEXT ("Apfel", "Beschriftung 1", "[Bild hier einfügen]", "Eigenschaft 1" usw.) durch echte, themenspezifische Inhalte. Struktur, Klassen und Attribute NIE verändern.
+- Füge keine zusätzlichen Theme-Farben in Template-Innereien hinzu (z.B. keine ${theme || 'blue'}-Farben auf Tabellenzellen, Rahmen, Boxen innerhalb der Aufgabe).
+- Wenn der Template-Name "Steckbrief" ist, muss der Bild-Slot exakt die Klassen "ai-image-slot resize overflow-hidden … image-placeholder-trigger" behalten, sonst verliert der Nutzer die Vergrösserungs-Funktion.
 
 ${amountsSectionHtml}
 
@@ -864,7 +874,8 @@ WICHTIG: Erstelle so viele Seiten-Container wie nötig, um ALLE Aufgaben unterzu
    - <span class="is-strikethrough-answer">Falsches Wort</span>
    - Längere Freitext-Antworten: <div class="schreib-linie editable" contenteditable="true"><span class="is-answer">Musterlösung</span></div>
 6. Jedes Textelement (p, h1, h2, h3, td, th, li) das editierbar sein soll: Klasse "editable" + contenteditable="true".
-7. Aufgabentitel (h3): class="editable font-bold text-[14pt] mb-2 text-${theme || 'blue'}-700"
+7. Aufgabentitel (h3): class="editable font-bold text-[14pt] mb-1 text-${theme || 'blue'}-700"
+8. Alle anderen Elemente innerhalb von Aufgaben (Boxen, Tabellenzellen, Rahmen, Eingabefelder, Bild-Slots, Schreiblinien-Rahmen) bleiben in ihren ursprünglichen neutralen Gray-Farben aus den Templates – NICHT auf ${theme || 'blue'} umfärben.
 
 WICHTIG FÜR DIE ANTWORT:
 Antworte AUSSCHLIESSLICH mit dem HTML-Code. Keine Markdown-Formatierung, kein Text davor/danach.
@@ -923,7 +934,7 @@ Strukturiere das HTML wie folgt:
   return (
     <div className="flex flex-col h-full bg-gray-50 border-r border-gray-200 shrink-0" style={{ width: width ?? 384 }}>
       <div className="p-4 bg-white border-b border-gray-200 shadow-sm z-10 relative">
-        <h2 className="font-bold text-lg text-indigo-900 flex items-center gap-2">
+        <h2 className="font-bold text-lg text-navy-900 flex items-center gap-2">
           <span>✨</span>
           KI-Assistent
         </h2>
@@ -951,7 +962,7 @@ Strukturiere das HTML wie folgt:
           >
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                msg.role === 'user' ? 'bg-indigo-100 text-indigo-600' : 'bg-purple-100 text-purple-600'
+                msg.role === 'user' ? 'bg-cyan-100 text-cyan-700' : 'bg-cyan-100 text-cyan-700'
               }`}
             >
               {msg.role === 'user' ? '👤' : '✨'}
@@ -960,7 +971,7 @@ Strukturiere das HTML wie folgt:
               <div
                 className={`p-3 rounded-2xl text-sm ${
                   msg.role === 'user'
-                    ? 'bg-indigo-600 text-white rounded-tr-none'
+                    ? 'bg-navy-700 text-white rounded-tr-none'
                     : 'bg-white border border-gray-200 text-gray-800 rounded-tl-none shadow-sm prose prose-sm prose-indigo'
                 }`}
               >
@@ -989,7 +1000,7 @@ Strukturiere das HTML wie folgt:
                   <div className="whitespace-pre-wrap">
                     {msg.content || (msg.parts && msg.parts.map((p: any, i: number) =>
                       p.text ? <div key={i}>{p.text}</div> :
-                      p.inlineData ? <div key={i} className="mt-2 p-2 bg-indigo-700/30 rounded text-xs flex items-center gap-2">📎 {p.inlineData.mimeType} angehängt</div> : null
+                      p.inlineData ? <div key={i} className="mt-2 p-2 bg-navy-800/40 rounded text-xs flex items-center gap-2">📎 {p.inlineData.mimeType} angehängt</div> : null
                     ))}
                   </div>
                 )}
@@ -1006,7 +1017,7 @@ Strukturiere das HTML wie folgt:
         ))}
         {(isGenerating || isGeneratingHtml) && (
           <div className="flex gap-3">
-            <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-full bg-cyan-100 text-cyan-700 flex items-center justify-center shrink-0">
               ✨
             </div>
             <div className="p-3 bg-white border border-gray-200 rounded-2xl rounded-tl-none shadow-sm max-w-[85%]">
@@ -1029,10 +1040,10 @@ Strukturiere das HTML wie folgt:
       </div>
 
       {isDrafting && chatHistory.length > 1 && !isGenerating && !isGeneratingHtml && (
-        <div className="p-4 bg-indigo-50 border-t border-indigo-100">
+        <div className="p-4 bg-cyan-50 border-t border-cyan-200">
           <button
             onClick={handleConfirm}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-colors flex items-center justify-center gap-2"
+            className="w-full py-3 bg-navy-700 hover:bg-navy-800 text-white font-bold rounded-xl shadow-md transition-colors flex items-center justify-center gap-2"
           >
             <span>✨</span> Entwurf bestätigen & generieren
           </button>
@@ -1061,13 +1072,13 @@ Strukturiere das HTML wie folgt:
             }}
             rows={1}
             placeholder={isDrafting ? "Änderungswünsche zum Entwurf..." : "Shift+Enter = neue Zeile"}
-            className="chat-textarea flex-1 border border-gray-300 rounded-2xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-none overflow-y-auto leading-relaxed"
+            className="chat-textarea flex-1 border border-gray-300 rounded-2xl px-4 py-2 text-sm focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 resize-none overflow-y-auto leading-relaxed"
             disabled={isGenerating || isGeneratingHtml}
           />
           <button
             onClick={() => handleSend()}
             disabled={!input.trim() || isGenerating || isGeneratingHtml}
-            className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+            className="w-10 h-10 rounded-full bg-navy-700 text-white flex items-center justify-center hover:bg-navy-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
             title="Senden (Enter)"
           >
             <span className="text-lg leading-none">➤</span>

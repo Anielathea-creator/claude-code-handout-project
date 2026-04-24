@@ -191,21 +191,30 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
   <p class="editable text-gray-600 mb-4" contenteditable="true">Schreibe die richtige Nummer aus der linken Spalte in das Kästchen der rechten Spalte.</p>
   <div class="flex gap-8">
     <div class="w-1/2 flex flex-col gap-3">
-      <div class="flex items-center gap-2"><span class="font-bold w-6">1.</span><span class="editable flex-1 p-2 bg-gray-50 border border-gray-200 rounded" contenteditable="true">Apfel</span></div>
-      <div class="flex items-center gap-2"><span class="font-bold w-6">2.</span><span class="editable flex-1 p-2 bg-gray-50 border border-gray-200 rounded" contenteditable="true">Hund</span></div>
-      <div class="flex items-center gap-2"><span class="font-bold w-6">3.</span><span class="editable flex-1 p-2 bg-gray-50 border border-gray-200 rounded" contenteditable="true">Auto</span></div>
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 flex items-center justify-center font-bold shrink-0">1.</div>
+        <span class="editable flex-1 p-2 bg-gray-50 border border-gray-200 rounded" contenteditable="true">Apfel</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 flex items-center justify-center font-bold shrink-0">2.</div>
+        <span class="editable flex-1 p-2 bg-gray-50 border border-gray-200 rounded" contenteditable="true">Hund</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 flex items-center justify-center font-bold shrink-0">3.</div>
+        <span class="editable flex-1 p-2 bg-gray-50 border border-gray-200 rounded" contenteditable="true">Auto</span>
+      </div>
     </div>
     <div class="w-1/2 flex flex-col gap-3">
       <div class="flex items-center gap-3">
-        <div class="w-8 h-8 border-2 border-gray-400 rounded flex items-center justify-center font-bold editable" contenteditable="true"><span class="is-answer">3</span></div>
+        <div class="w-8 h-8 border-2 border-gray-400 rounded flex items-center justify-center font-bold editable shrink-0" contenteditable="true"><span class="is-answer">3</span></div>
         <span class="editable flex-1 p-2 bg-gray-50 border border-gray-200 rounded" contenteditable="true">Fahrzeug</span>
       </div>
       <div class="flex items-center gap-3">
-        <div class="w-8 h-8 border-2 border-gray-400 rounded flex items-center justify-center font-bold editable" contenteditable="true"><span class="is-answer">1</span></div>
+        <div class="w-8 h-8 border-2 border-gray-400 rounded flex items-center justify-center font-bold editable shrink-0" contenteditable="true"><span class="is-answer">1</span></div>
         <span class="editable flex-1 p-2 bg-gray-50 border border-gray-200 rounded" contenteditable="true">Frucht</span>
       </div>
       <div class="flex items-center gap-3">
-        <div class="w-8 h-8 border-2 border-gray-400 rounded flex items-center justify-center font-bold editable" contenteditable="true"><span class="is-answer">2</span></div>
+        <div class="w-8 h-8 border-2 border-gray-400 rounded flex items-center justify-center font-bold editable shrink-0" contenteditable="true"><span class="is-answer">2</span></div>
         <span class="editable flex-1 p-2 bg-gray-50 border border-gray-200 rounded" contenteditable="true">Tier</span>
       </div>
     </div>

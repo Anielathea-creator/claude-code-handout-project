@@ -133,9 +133,20 @@ export function Editor({ html, onChange, theme, projectName, targetAudience, did
         if (img) {
           e.preventDefault();
           e.stopPropagation();
-          
+
           let container = img.parentElement as HTMLElement;
-          if (!container?.classList.contains('marker-container')) {
+          const aiSlot = img.closest('.ai-image-slot') as HTMLElement | null;
+          if (aiSlot) {
+            // Image sits inside an ai-image-slot (templates wie Bild beschriften,
+            // Steckbrief, …). Der Slot hat feste Grössen-Constraints (max-w,
+            // min-h, overflow-hidden). Ein zusätzlicher inline-block-Wrapper würde
+            // das Bild ausserhalb dieser Constraints wachsen lassen und Text
+            // verdecken — deshalb nutzen wir den Slot selbst als Marker-Container.
+            if (!aiSlot.classList.contains('marker-container')) {
+              aiSlot.classList.add('marker-container');
+            }
+            container = aiSlot;
+          } else if (!container?.classList.contains('marker-container')) {
             const wrapper = document.createElement('div');
             wrapper.className = 'marker-container mx-auto block my-4';
             const currentWrapper = img.closest('.draggable-image-wrapper') as HTMLElement;
@@ -239,6 +250,8 @@ export function Editor({ html, onChange, theme, projectName, targetAudience, did
   const [showStructureMenu, setShowStructureMenu] = useState(false);
   const [openSubject, setOpenSubject] = useState<string | null>(null);
   const structureMenuRef = useRef<HTMLDivElement>(null);
+  const [showFormatMenu, setShowFormatMenu] = useState(false);
+  const formatMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!showStructureMenu) return;
@@ -251,6 +264,17 @@ export function Editor({ html, onChange, theme, projectName, targetAudience, did
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showStructureMenu]);
+
+  useEffect(() => {
+    if (!showFormatMenu) return;
+    const handleClick = (e: MouseEvent) => {
+      if (formatMenuRef.current && !formatMenuRef.current.contains(e.target as Node)) {
+        setShowFormatMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showFormatMenu]);
   const [aiPrompt, setAiPrompt] = useState('');
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [aiError, setAiError] = useState('');
@@ -340,15 +364,29 @@ export function Editor({ html, onChange, theme, projectName, targetAudience, did
   ];
 
   const THEME_TEXT_COLORS: Record<string, string> = {
-    blue: '#1e40af', // blue-800
-    emerald: '#065f46', // emerald-800
-    purple: '#6b21a8', // purple-800
-    amber: '#92400e', // amber-800
-    rose: '#9f1239', // rose-800
-    green: '#166534', // green-800
-    orange: '#9a3412', // orange-800
-    cyan: '#155e75', // cyan-800
-    pink: '#9d174d', // pink-800
+    cyan: '#0e7490',      // cyan-700
+    sky: '#0369a1',       // sky-700
+    blue: '#1d4ed8',      // blue-700
+    navy: '#192f82',      // navy-700 (custom)
+    lime: '#4d7c0f',      // lime-700
+    emerald: '#047857',   // emerald-700
+    olive: '#524e1c',     // olive-700 (custom)
+    petrol: '#134b5a',    // petrol-700 (custom)
+    yellow: '#a16207',    // yellow-700
+    amber: '#b45309',     // amber-700
+    orange: '#c2410c',    // orange-700
+    koralle: '#b42611',   // koralle-700 (custom)
+    lachs: '#9a2f19',     // lachs-700 (custom)
+    pink: '#be185d',      // pink-700
+    red: '#b91c1c',       // red-700
+    weinrot: '#741717',   // weinrot-700 (custom)
+    fuchsia: '#a21caf',   // fuchsia-700
+    violet: '#6d28d9',    // violet-700
+    braun: '#553114',     // braun-700 (custom)
+    neutral: '#404040',   // neutral-700
+    purple: '#7e22ce',    // purple-700
+    rose: '#be123c',      // rose-700
+    green: '#15803d',     // green-700
   };
 
   const EMOJI_OPTIONS = [
@@ -1677,7 +1715,9 @@ export function Editor({ html, onChange, theme, projectName, targetAudience, did
         console.warn('Auto-Nummerierung fehlgeschlagen:', e);
       }
     } else if (type === 'text') {
-      htmlToAdd = wrapInStructure(`<p class="editable" contenteditable="true">Neuer Textabschnitt...</p>`, 'text-[12pt]');
+      // Textabschnitt nutzt das gleiche schlanke Wrapping wie Exercise-Templates
+      // (kein extra p-8-Innenrahmen), damit der Seitenabstand konsistent bleibt.
+      htmlToAdd = `<div id="${id}" class="avoid-break mb-8 text-[12pt]"><p class="editable" contenteditable="true">Neuer Textabschnitt...</p></div>`;
     } else if (type === 'title') {
       htmlToAdd = wrapInStructure(`<h1 class="text-[36pt] font-black text-gray-900 editable" contenteditable="true">Überschrift</h1>`);
     } else if (type === 'subtitle') {
@@ -5109,10 +5149,10 @@ ${blockHtml}
       {/* AI MODAL - Moved to top of container for better positioning */}
       {showAiModal && (
         <div className="absolute inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4 overflow-y-auto backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] p-10 w-full max-w-3xl my-8 border border-indigo-100 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] p-10 w-full max-w-3xl my-8 border border-cyan-200 animate-in fade-in zoom-in duration-300">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-3xl font-black text-indigo-900 flex items-center gap-3">
-                <span className="bg-indigo-100 p-2 rounded-xl">✨</span>
+              <h2 className="text-3xl font-black text-navy-900 flex items-center gap-3">
+                <span className="p-2 rounded-xl">✨</span>
                 KI-Aufgabengenerator
               </h2>
               <button onClick={() => setShowAiModal(false)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all text-2xl font-bold">&times;</button>
@@ -5120,12 +5160,12 @@ ${blockHtml}
             
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-bold text-indigo-700 mb-2 ml-1 uppercase tracking-wider">Was soll erstellt werden?</label>
+                <label className="block text-sm font-bold text-navy-800 mb-2 ml-1 uppercase tracking-wider">Was soll erstellt werden?</label>
                 <p className="text-gray-500 text-sm mb-3 ml-1">Beschreibe kurz das Thema (z.B. "Lückentext über Verben im Präteritum" oder "Matheaufgaben zu Brüchen").</p>
                 <textarea 
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
-                  className="w-full border-2 border-indigo-50 rounded-2xl p-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none min-h-[160px] resize-y text-lg transition-all shadow-inner bg-gray-50/50"
+                  className="w-full border-2 border-cyan-100 rounded-2xl p-4 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 outline-none min-h-[160px] resize-y text-lg transition-all shadow-inner bg-gray-50/50"
                   placeholder="Thema oder Art der Aufgabe eingeben..."
                   autoFocus
                 />
@@ -5148,7 +5188,7 @@ ${blockHtml}
                 <button 
                   onClick={handleGenerateAiExercise}
                   disabled={isGeneratingAi || !aiPrompt.trim()}
-                  className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-black rounded-2xl shadow-lg shadow-indigo-100 disabled:opacity-50 disabled:shadow-none transition-all flex items-center gap-2 transform active:scale-95"
+                  className="px-8 py-3 bg-gradient-to-r from-navy-700 via-petrol-600 to-cyan-500 hover:from-navy-800 hover:via-petrol-700 hover:to-cyan-600 text-white font-black rounded-2xl shadow-lg shadow-cyan-100 disabled:opacity-50 disabled:shadow-none transition-all flex items-center gap-2 transform active:scale-95"
                 >
                   {isGeneratingAi ? (
                     <>
@@ -5168,10 +5208,10 @@ ${blockHtml}
       {/* SMART-PASTE MODAL */}
       {showSmartPasteModal && (
         <div className="absolute inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4 overflow-y-auto backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] p-10 w-full max-w-3xl my-8 border border-teal-100 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] p-10 w-full max-w-3xl my-8 border border-sky-200 animate-in fade-in zoom-in duration-300">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-3xl font-black text-teal-900 flex items-center gap-3">
-                <span className="bg-teal-100 p-2 rounded-xl">📋</span>
+              <h2 className="text-3xl font-black text-sky-900 flex items-center gap-3">
+                <span className="bg-sky-100 p-2 rounded-xl">📋</span>
                 Smart-Paste
               </h2>
               <button onClick={() => setShowSmartPasteModal(false)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all text-2xl font-bold">&times;</button>
@@ -5179,38 +5219,38 @@ ${blockHtml}
 
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-bold text-teal-700 mb-2 ml-1 uppercase tracking-wider">Text / Tabelle einfügen</label>
+                <label className="block text-sm font-bold text-sky-800 mb-2 ml-1 uppercase tracking-wider">Text / Tabelle einfügen</label>
                 <p className="text-gray-500 text-sm mb-3 ml-1">Füge hier deinen Rohtext ein (Ctrl+V) – z.B. aus Word, einem Schulbuch oder einer Webseite. Die KI formt ihn zu einer Aufgabe oder einem Merkblatt um.</p>
                 <textarea
                   value={smartPasteText}
                   onChange={(e) => setSmartPasteText(e.target.value)}
-                  className="w-full border-2 border-teal-50 rounded-2xl p-4 focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 outline-none min-h-[220px] resize-y text-base transition-all shadow-inner bg-gray-50/50 font-mono"
+                  className="w-full border-2 border-sky-100 rounded-2xl p-4 focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 outline-none min-h-[220px] resize-y text-base transition-all shadow-inner bg-gray-50/50 font-mono"
                   placeholder="Hier Text einfügen..."
                   autoFocus
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-teal-700 mb-2 ml-1 uppercase tracking-wider">Was soll daraus werden? <span className="text-gray-400 font-normal normal-case tracking-normal">(optional)</span></label>
+                <label className="block text-sm font-bold text-sky-800 mb-2 ml-1 uppercase tracking-wider">Was soll daraus werden? <span className="text-gray-400 font-normal normal-case tracking-normal">(optional)</span></label>
                 <p className="text-gray-500 text-sm mb-3 ml-1">Beschreibe kurz, wie der Text aufbereitet werden soll. Leer lassen = KI entscheidet selbst.</p>
                 <textarea
                   value={smartPasteGoal}
                   onChange={(e) => setSmartPasteGoal(e.target.value)}
-                  className="w-full border-2 border-teal-50 rounded-2xl p-4 focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 outline-none min-h-[80px] resize-y text-base transition-all shadow-inner bg-gray-50/50"
+                  className="w-full border-2 border-sky-100 rounded-2xl p-4 focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 outline-none min-h-[80px] resize-y text-base transition-all shadow-inner bg-gray-50/50"
                   placeholder="z.B. &quot;Lückentext mit den Verben&quot;, &quot;Tabelle mit 3 Spalten: Wort / Artikel / Übersetzung&quot;..."
                 />
               </div>
 
               <div>
-                <label className="flex items-start gap-3 p-4 border-2 border-teal-100 rounded-2xl bg-teal-50/30 hover:bg-teal-50/60 cursor-pointer transition-colors">
+                <label className="flex items-start gap-3 p-4 border-2 border-sky-200 rounded-2xl bg-sky-50/30 hover:bg-sky-50/60 cursor-pointer transition-colors">
                   <input
                     type="checkbox"
                     checked={smartPasteAdaptToTheme}
                     onChange={(e) => setSmartPasteAdaptToTheme(e.target.checked)}
-                    className="mt-1 w-5 h-5 accent-teal-600 cursor-pointer"
+                    className="mt-1 w-5 h-5 accent-sky-600 cursor-pointer"
                   />
                   <div className="flex-1">
-                    <div className="text-sm font-bold text-teal-800">Inhalt ans Dossier-Thema anpassen</div>
+                    <div className="text-sm font-bold text-sky-900">Inhalt ans Dossier-Thema anpassen</div>
                     <div className="text-xs text-gray-600 mt-1">
                       Aktiv: Thema & Beispiele werden ans Kapitel/Unterthema an dieser Stelle angepasst. Inaktiv: Originalinhalt bleibt 1:1.
                     </div>
@@ -5228,7 +5268,7 @@ ${blockHtml}
                 <button
                   onClick={handleSmartPasteSubmit}
                   disabled={!smartPasteText.trim()}
-                  className="px-8 py-3 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white font-black rounded-2xl shadow-lg shadow-teal-100 disabled:opacity-50 disabled:shadow-none transition-all flex items-center gap-2 transform active:scale-95"
+                  className="px-8 py-3 bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-700 hover:to-cyan-700 text-white font-black rounded-2xl shadow-lg shadow-sky-100 disabled:opacity-50 disabled:shadow-none transition-all flex items-center gap-2 transform active:scale-95"
                 >
                   ✨ Einsetzen
                 </button>
@@ -5241,22 +5281,22 @@ ${blockHtml}
       {/* KI-MODAL FÜR TITELBILD */}
       {showCoverModal && (
         <div className="absolute inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4 overflow-y-auto backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] p-10 w-full max-w-3xl my-8 border border-indigo-100 animate-in fade-in zoom-in duration-300">
+          <div className="bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] p-10 w-full max-w-3xl my-8 border border-blue-200 animate-in fade-in zoom-in duration-300">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-3xl font-black text-indigo-900 flex items-center gap-3">
-                <span className="bg-indigo-100 p-2 rounded-xl">🎨</span>
-                Titelbild-Designer
+              <h2 className="text-3xl font-black text-navy-900 flex items-center gap-3">
+                <span className="p-2 inline-flex items-center justify-center text-navy-900"><Sparkles size={22} /></span>
+                Cover-Designer
               </h2>
               <button onClick={() => { setShowCoverModal(false); setCoverStep(1); }} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all text-2xl font-bold">&times;</button>
             </div>
-            
+
             <div className="mb-8 flex items-center justify-center gap-4">
               {[1, 2].map(s => (
                 <div key={s} className="flex items-center gap-2">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold transition-all ${coverStep === s ? 'bg-indigo-600 text-white scale-110 shadow-lg shadow-indigo-100' : coverStep > s ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold transition-all ${coverStep === s ? 'bg-navy-700 text-white scale-110 shadow-lg shadow-blue-100' : coverStep > s ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
                     {coverStep > s ? '✓' : s}
                   </div>
-                  <div className={`text-xs font-bold uppercase tracking-wider ${coverStep === s ? 'text-indigo-600' : 'text-gray-400'}`}>
+                  <div className={`text-xs font-bold uppercase tracking-wider ${coverStep === s ? 'text-blue-700' : 'text-gray-400'}`}>
                     {s === 1 ? 'Titel' : 'Abbildung'}
                   </div>
                   {s < 2 && <div className="w-8 h-px bg-gray-100"></div>}
@@ -5268,79 +5308,79 @@ ${blockHtml}
               {coverStep === 1 && (
                 <div className="space-y-4 animate-in slide-in-from-right-4 duration-300">
                   <div>
-                    <label className="block text-sm font-bold text-indigo-700 mb-2 ml-1 uppercase tracking-wider">Haupttitel</label>
+                    <label className="block text-sm font-bold text-navy-800 mb-2 ml-1 uppercase tracking-wider">Haupttitel</label>
                     <input 
                       type="text"
                       value={coverTitle}
                       onChange={(e) => setCoverTitle(e.target.value)}
-                      className="w-full border-2 border-indigo-50 rounded-2xl p-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none text-lg transition-all shadow-inner bg-gray-50/50"
+                      className="w-full border-2 border-blue-100 rounded-2xl p-4 focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 outline-none text-lg transition-all shadow-inner bg-gray-50/50"
                       placeholder="z.B. Ökosystem Wald"
                       autoFocus
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-indigo-700 mb-2 ml-1 uppercase tracking-wider">Untertitel</label>
+                    <label className="block text-sm font-bold text-navy-800 mb-2 ml-1 uppercase tracking-wider">Untertitel</label>
                     <input
                       type="text"
                       value={coverSubtitle}
                       onChange={(e) => setCoverSubtitle(e.target.value)}
-                      className="w-full border-2 border-indigo-50 rounded-2xl p-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none text-lg transition-all shadow-inner bg-gray-50/50"
+                      className="w-full border-2 border-blue-100 rounded-2xl p-4 focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 outline-none text-lg transition-all shadow-inner bg-gray-50/50"
                       placeholder="z.B. Eine Entdeckungsreise durch die Natur"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-indigo-700 mb-2 ml-1 uppercase tracking-wider">Optionaler Zusatztext</label>
+                    <label className="block text-sm font-bold text-navy-800 mb-2 ml-1 uppercase tracking-wider">Optionaler Zusatztext</label>
                     <input
                       type="text"
                       value={coverExtraText}
                       onChange={(e) => setCoverExtraText(e.target.value)}
-                      className="w-full border-2 border-indigo-50 rounded-2xl p-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none text-lg transition-all shadow-inner bg-gray-50/50"
+                      className="w-full border-2 border-blue-100 rounded-2xl p-4 focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 outline-none text-lg transition-all shadow-inner bg-gray-50/50"
                       placeholder="z.B. Klasse 5b – Frühling 2026 (erscheint unter dem Bild)"
                     />
                   </div>
-                  <label className="flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-indigo-50 bg-gray-50/50 cursor-pointer hover:border-indigo-100 transition-all">
+                  <label className="flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-blue-100 bg-gray-50/50 cursor-pointer hover:border-blue-200 transition-all">
                     <input
                       type="checkbox"
                       checked={coverShowName}
                       onChange={(e) => setCoverShowName(e.target.checked)}
-                      className="w-5 h-5 accent-indigo-600"
+                      className="w-5 h-5 accent-navy-700"
                     />
-                    <span className="text-sm font-bold text-indigo-700">Namen-Feld oben rechts anzeigen</span>
+                    <span className="text-sm font-bold text-navy-800">Namen-Feld oben rechts anzeigen</span>
                   </label>
                 </div>
               )}
 
               {coverStep === 2 && (
                 <div className="space-y-4 animate-in slide-in-from-right-4 duration-300">
-                  <label className="flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-indigo-50 bg-gray-50/50 cursor-pointer hover:border-indigo-100 transition-all">
+                  <label className="flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-blue-100 bg-gray-50/50 cursor-pointer hover:border-blue-200 transition-all">
                     <input
                       type="checkbox"
                       checked={coverNoImage}
                       onChange={(e) => setCoverNoImage(e.target.checked)}
-                      className="w-5 h-5 accent-indigo-600"
+                      className="w-5 h-5 accent-navy-700"
                     />
-                    <span className="text-sm font-bold text-indigo-700">Kein Bild verwenden (Titelseite nur mit Text)</span>
+                    <span className="text-sm font-bold text-navy-800">Kein Bild verwenden (Titelseite nur mit Text)</span>
                   </label>
                   {!coverNoImage && (
                     <>
                       <div>
-                        <label className="block text-sm font-bold text-indigo-700 mb-2 ml-1 uppercase tracking-wider">Was soll abgebildet sein?</label>
+                        <label className="block text-sm font-bold text-navy-800 mb-2 ml-1 uppercase tracking-wider">Was soll abgebildet sein?</label>
                         <textarea
                           value={coverImageDesc}
                           onChange={(e) => setCoverImageDesc(e.target.value)}
-                          className="w-full border-2 border-indigo-50 rounded-2xl p-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none min-h-[120px] resize-y text-lg transition-all shadow-inner bg-gray-50/50"
+                          className="w-full border-2 border-blue-100 rounded-2xl p-4 focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 outline-none min-h-[120px] resize-y text-lg transition-all shadow-inner bg-gray-50/50"
                           placeholder="Beschreibe das Motiv (z.B. Ein dichter Mischwald mit Sonnenstrahlen)..."
                           autoFocus
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-bold text-indigo-700 mb-2 ml-1 uppercase tracking-wider">Stil der Abbildung</label>
+                        <label className="block text-sm font-bold text-navy-800 mb-2 ml-1 uppercase tracking-wider">Stil der Abbildung</label>
                         <div className="grid grid-cols-3 gap-3">
                           {['aquarell', 'gezeichnet', 'realistisch', 'clipart', 'retro', 'comic'].map(style => (
                             <button
                               key={style}
                               onClick={() => setCoverImageStyle(style)}
-                              className={`p-3 rounded-xl border-2 font-bold capitalize transition-all ${coverImageStyle === style ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-gray-100 hover:border-indigo-100 text-gray-500'}`}
+                              className={`p-3 rounded-xl border-2 font-bold capitalize transition-all ${coverImageStyle === style ? 'border-blue-300 bg-blue-50 text-gray-800 shadow-md' : 'border-gray-100 hover:border-blue-200 text-gray-500'}`}
                             >
                               {style}
                             </button>
@@ -5364,7 +5404,7 @@ ${blockHtml}
                   {coverStep > 1 && (
                     <button 
                       onClick={() => setCoverStep(prev => prev - 1)}
-                      className="px-6 py-3 text-indigo-600 hover:text-indigo-800 font-bold transition-colors flex items-center gap-2"
+                      className="px-6 py-3 text-blue-700 hover:text-navy-900 font-bold transition-colors flex items-center gap-2"
                     >
                       ← Zurück
                     </button>
@@ -5381,7 +5421,7 @@ ${blockHtml}
                     <button
                       onClick={() => setCoverStep(prev => prev + 1)}
                       disabled={coverStep === 1 && !coverTitle.trim()}
-                      className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-2xl shadow-lg shadow-indigo-100 disabled:opacity-50 transition-all flex items-center gap-2"
+                      className="px-8 py-3 bg-navy-700 hover:bg-navy-800 text-white font-black rounded-2xl shadow-lg shadow-blue-100 disabled:opacity-50 transition-all flex items-center gap-2"
                     >
                       Weiter →
                     </button>
@@ -5389,7 +5429,7 @@ ${blockHtml}
                     <button
                       onClick={handleGenerateCover}
                       disabled={isGeneratingCover || (!coverNoImage && !coverImageDesc.trim())}
-                      className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-black rounded-2xl shadow-lg shadow-indigo-100 disabled:opacity-50 disabled:shadow-none transition-all flex items-center gap-2 transform active:scale-95"
+                      className="px-8 py-3 bg-navy-700 hover:bg-navy-800 text-white font-black rounded-2xl shadow-lg shadow-blue-100 disabled:opacity-50 disabled:shadow-none transition-all flex items-center gap-2 transform active:scale-95"
                     >
                       {isGeneratingCover ? (
                         <>
@@ -5411,8 +5451,8 @@ ${blockHtml}
       {/* BESTÄTIGUNGS-MODAL FÜR BILD-REGENERIERUNG */}
       {showRegenConfirm && (
         <div className="absolute inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] p-8 w-full max-w-md border border-indigo-100 animate-in fade-in zoom-in duration-200">
-            <h3 className="text-2xl font-black text-indigo-900 mb-4 flex items-center gap-3">
+          <div className="bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] p-8 w-full max-w-md border border-cyan-200 animate-in fade-in zoom-in duration-200">
+            <h3 className="text-2xl font-black text-navy-900 mb-4 flex items-center gap-3">
               <span className="text-3xl">🖼️</span>
               Titelbild ändern?
             </h3>
@@ -5420,11 +5460,11 @@ ${blockHtml}
               Möchtest du das Titelbild neu generieren lassen oder ein eigenes Bild von deinem Computer einfügen?
             </p>
             <div className="mb-6">
-              <label className="block text-xs font-bold text-indigo-700 mb-2 ml-1 uppercase tracking-wider">Bild-Prompt (anpassbar)</label>
+              <label className="block text-xs font-bold text-navy-800 mb-2 ml-1 uppercase tracking-wider">Bild-Prompt (anpassbar)</label>
               <textarea
                 value={regenPromptDraft}
                 onChange={(e) => setRegenPromptDraft(e.target.value)}
-                className="w-full border-2 border-indigo-50 rounded-2xl p-3 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none min-h-[90px] resize-y text-sm transition-all shadow-inner bg-gray-50/50"
+                className="w-full border-2 border-cyan-100 rounded-2xl p-3 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 outline-none min-h-[90px] resize-y text-sm transition-all shadow-inner bg-gray-50/50"
                 placeholder="Beschreibe das neue Bild..."
               />
             </div>
@@ -5441,7 +5481,7 @@ ${blockHtml}
                   setRegenPromptDraft('');
                 }}
                 disabled={!regenPromptDraft.trim()}
-                className={`w-full py-3 font-black rounded-2xl shadow-lg transition-all transform active:scale-95 ${regenPromptDraft.trim() ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100' : 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'}`}
+                className={`w-full py-3 font-black rounded-2xl shadow-lg transition-all transform active:scale-95 ${regenPromptDraft.trim() ? 'bg-navy-700 hover:bg-navy-800 text-white shadow-cyan-100' : 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'}`}
               >
                 🔄 Neu generieren
               </button>
@@ -5449,7 +5489,7 @@ ${blockHtml}
                 onClick={() => {
                   coverUploadInputRef.current?.click();
                 }}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl shadow-lg shadow-emerald-100 transition-all transform active:scale-95"
+                className="w-full py-3 bg-navy-700 hover:bg-navy-800 text-white font-black rounded-2xl shadow-lg shadow-cyan-100 transition-all transform active:scale-95"
               >
                 📁 Eigenes Bild einfügen
               </button>
@@ -5499,8 +5539,8 @@ ${blockHtml}
             if (e.target === e.currentTarget && !isRegeneratingAiImage) closeAiImageModal();
           }}
         >
-          <div className="bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] p-8 w-full max-w-lg border border-indigo-100 animate-in fade-in zoom-in duration-200">
-            <h3 className="text-2xl font-black text-indigo-900 mb-2 flex items-center gap-3">
+          <div className="bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] p-8 w-full max-w-lg border border-cyan-200 animate-in fade-in zoom-in duration-200">
+            <h3 className="text-2xl font-black text-navy-900 mb-2 flex items-center gap-3">
               <span className="text-3xl">🖼️</span>
               Bild bearbeiten
             </h3>
@@ -5520,13 +5560,13 @@ ${blockHtml}
                 value={aiImagePromptDraft}
                 onChange={(e) => setAiImagePromptDraft(e.target.value)}
                 disabled={isRegeneratingAiImage}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none resize-y min-h-[60px] disabled:bg-gray-100"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none resize-y min-h-[60px] disabled:bg-gray-100"
                 placeholder="z.B. Eine Eiche im Herbst mit bunten Blättern"
               />
               <button
                 onClick={handleAiImageRegenerate}
                 disabled={isRegeneratingAiImage || !aiImagePromptDraft.trim()}
-                className="mt-2 w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow transition-all transform active:scale-95 disabled:bg-gray-300 disabled:cursor-not-allowed disabled:shadow-none text-sm"
+                className="mt-2 w-full py-2 bg-navy-700 hover:bg-navy-800 text-white font-bold rounded-xl shadow transition-all transform active:scale-95 disabled:bg-gray-300 disabled:cursor-not-allowed disabled:shadow-none text-sm"
               >
                 {isRegeneratingAiImage ? '⏳ Generiere Bild …' : '🔄 Neu generieren'}
               </button>
@@ -5536,7 +5576,7 @@ ${blockHtml}
             <button
               onClick={() => aiImageUploadRef.current?.click()}
               disabled={isRegeneratingAiImage}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow transition-all transform active:scale-95 mb-3 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3 bg-navy-700 hover:bg-navy-800 text-white font-bold rounded-2xl shadow transition-all transform active:scale-95 mb-3 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               📁 Eigenes Bild einfügen
             </button>
@@ -5574,7 +5614,7 @@ ${blockHtml}
                   <button
                     onClick={() => handleAiImageReposition('top')}
                     disabled={isRegeneratingAiImage}
-                    className="flex flex-col items-center gap-1 py-2 bg-white hover:bg-indigo-50 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex flex-col items-center gap-1 py-2 bg-white hover:bg-cyan-50 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Bild über den Schreiblinien"
                   >
                     <ArrowUp size={18} />
@@ -5583,7 +5623,7 @@ ${blockHtml}
                   <button
                     onClick={() => handleAiImageReposition('bottom')}
                     disabled={isRegeneratingAiImage}
-                    className="flex flex-col items-center gap-1 py-2 bg-white hover:bg-indigo-50 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex flex-col items-center gap-1 py-2 bg-white hover:bg-cyan-50 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Bild unter den Schreiblinien"
                   >
                     <ArrowDown size={18} />
@@ -5592,7 +5632,7 @@ ${blockHtml}
                   <button
                     onClick={() => handleAiImageReposition('left')}
                     disabled={isRegeneratingAiImage}
-                    className="flex flex-col items-center gap-1 py-2 bg-white hover:bg-indigo-50 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex flex-col items-center gap-1 py-2 bg-white hover:bg-cyan-50 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Bild links, Schreiblinien rechts"
                   >
                     <ChevronLeft size={18} />
@@ -5601,7 +5641,7 @@ ${blockHtml}
                   <button
                     onClick={() => handleAiImageReposition('right')}
                     disabled={isRegeneratingAiImage}
-                    className="flex flex-col items-center gap-1 py-2 bg-white hover:bg-indigo-50 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex flex-col items-center gap-1 py-2 bg-white hover:bg-cyan-50 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Bild rechts, Schreiblinien links"
                   >
                     <ChevronRight size={18} />
@@ -5631,7 +5671,7 @@ ${blockHtml}
       {/* HAUPT-NAVIGATION OBEN (Angepasst für das Dashboard) */}
       <div className="no-print bg-white shadow-md z-40 p-3 flex justify-between items-center border-b-2 border-gray-200 gap-4 transition-all w-full">
         <div className="flex items-center gap-3">
-          <div className="bg-blue-600 p-2 rounded-lg shadow-sm">
+          <div className="bg-[#0D47A1] p-2 rounded-lg shadow-sm">
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
           </div>
           <div>
@@ -5645,7 +5685,7 @@ ${blockHtml}
             <div className="relative" ref={historyDropdownRef}>
               <button
                 onClick={() => setShowHistory(!showHistory)}
-                className={`flex items-center gap-1 px-3 py-2 rounded-lg font-medium transition-colors text-sm ${showHistory ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 hover:bg-gray-100 text-gray-700'}`}
+                className={`flex items-center gap-1 px-3 py-2 rounded-lg font-medium transition-colors text-sm ${showHistory ? 'bg-cyan-100 text-navy-800' : 'bg-gray-100 hover:bg-gray-100 text-gray-700'}`}
                 title="Versionsverlauf anzeigen"
               >
                 <Clock className="w-4 h-4" />
@@ -5667,10 +5707,10 @@ ${blockHtml}
                         <button
                           key={s.id}
                           onClick={() => handleRestore(s)}
-                          className="w-full text-left p-3 hover:bg-indigo-50 border-b border-gray-50 transition-colors group"
+                          className="w-full text-left p-3 hover:bg-cyan-50 border-b border-gray-50 transition-colors group"
                         >
                           <div className="flex justify-between items-start mb-1">
-                            <span className="font-bold text-sm text-gray-800 group-hover:text-indigo-700 truncate pr-2">
+                            <span className="font-bold text-sm text-gray-800 group-hover:text-navy-800 truncate pr-2">
                               {s.name}
                             </span>
                             <span className="text-[10px] text-gray-400 whitespace-nowrap">
@@ -5726,10 +5766,9 @@ ${blockHtml}
                     alert('Bitte wähle zuerst einen Block aus (klicke in eine Aufgabe).');
                   }
                 }} 
-                className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-medium transition-colors text-sm shadow-sm" 
+                className="flex items-center gap-1 bg-[#0D47A1] hover:bg-[#082B72] text-white px-3 py-2 rounded-lg font-medium transition-colors text-sm shadow-sm" 
                 title="Block designen / dekorieren"
               >
-                <Sparkles size={16} />
                 <span className="hidden md:inline">Design</span>
               </button>
 
@@ -5851,12 +5890,12 @@ ${blockHtml}
               )}
             </div>
 
-            <button onClick={openCoverModal} className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-medium transition-colors text-sm shadow-sm" title="Erstellt ein Cover für die ausgewählte Seite (erste Seite oder leere Seite)">
-              <span className="text-lg">🎨</span>
-              <span className="hidden md:inline">Cover-Design</span>
+            <button onClick={openCoverModal} className="flex items-center gap-1 bg-[#0D47A1] hover:bg-[#082B72] text-white px-3 py-2 rounded-lg font-medium transition-colors text-sm shadow-sm" title="Erstellt ein Cover für die ausgewählte Seite (erste Seite oder leere Seite)">
+              <Sparkles size={16} />
+              <span className="hidden md:inline">Cover</span>
             </button>
 
-            <button onClick={handleDownloadPDF} disabled={isDownloadingPdf} title="PDF direkt herunterladen" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold transition-colors shadow-sm text-sm disabled:opacity-50">
+            <button onClick={handleDownloadPDF} disabled={isDownloadingPdf} title="PDF direkt herunterladen" className="flex items-center gap-2 bg-[#0D47A1] hover:bg-[#082B72] text-white px-3 py-2 rounded-lg font-medium transition-colors shadow-sm text-sm disabled:opacity-50">
               {isDownloadingPdf ? (
                 <><svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Lädt...</>
               ) : (
@@ -6148,10 +6187,10 @@ ${blockHtml}
     </div>
 
     {/* DIE SCHWEBENDE FORMATIERUNGS-LEISTE (Dock unten) */}
-    <div className="no-print absolute bottom-2 left-1/2 transform -translate-x-1/2 z-50 bg-white border-2 border-indigo-300 p-3 rounded-2xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.3)] flex flex-col items-center gap-3 w-[95%] max-w-[21cm] transition-all">
+    <div className="no-print absolute bottom-2 left-1/2 transform -translate-x-1/2 z-50 bg-white border-2 border-gray-300 p-3 rounded-2xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.3)] flex flex-col items-stretch gap-3 w-fit max-w-[21cm] transition-all">
       
       {/* REIHE 1: History, Text-Formatierung, Medien, Tabellen */}
-      <div className="flex flex-wrap items-center justify-center gap-1.5 w-full">
+      <div className="flex items-center justify-center gap-1.5 w-full">
         {/* --- HISTORY --- */}
         <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 px-1 py-1 rounded-lg">
           <button onMouseDown={(e) => e.preventDefault()} onClick={handleUndo} className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded transition-colors text-gray-600" title="Rückgängig (Strg+Z)">
@@ -6169,7 +6208,7 @@ ${blockHtml}
           <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={() => { restoreSelection(); saveHistoryState(); document.execCommand('bold', false); saveHistoryState(); }} className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded font-bold transition-colors" title="Fett">B</button>
           <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={() => { restoreSelection(); saveHistoryState(); document.execCommand('italic', false); saveHistoryState(); }} className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded italic transition-colors" title="Kursiv">I</button>
           <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={() => { restoreSelection(); saveHistoryState(); document.execCommand('underline', false); saveHistoryState(); }} className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded underline transition-colors" title="Unterstrichen">U</button>
-          
+
           <select value="" onMouseDown={() => saveSelection()} onChange={(e) => { applyExactFontSize(e.target.value); e.target.value = ''; }} className="h-8 bg-white border border-gray-300 rounded text-xs px-1 outline-none focus:border-blue-500" title="Schriftgröße">
             <option value="" disabled>Größe</option>
             <option value="8px">8px</option>
@@ -6190,7 +6229,7 @@ ${blockHtml}
             <button 
               onMouseDown={(e) => { e.preventDefault(); saveSelection(); }}
               onClick={() => setShowColorPicker(!showColorPicker)}
-              className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded transition-colors text-gray-600" 
+              className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded transition-colors text-gray-600"
               title="Textfarbe"
             >
               <div className="flex flex-col items-center">
@@ -6258,15 +6297,15 @@ ${blockHtml}
           <button onMouseDown={(e) => e.preventDefault()} onClick={() => imageUploadRef.current?.click()} className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded transition-colors text-gray-600" title="Bild hochladen">
             <Image size={18} />
           </button>
-          <button 
-            onMouseDown={(e) => e.preventDefault()} 
+          <button
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
               setMarkerMode(!markerMode);
               if (!markerMode) {
                 setNotification({ message: 'Marker-Modus aktiviert: Klicke auf ein Bild, um Nummern zu setzen.', type: 'success' });
               }
-            }} 
-            className={`w-8 h-8 flex items-center justify-center rounded transition-colors ${markerMode ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-gray-100 text-gray-600'}`} 
+            }}
+            className={`w-8 h-8 flex items-center justify-center rounded transition-colors ${markerMode ? 'bg-navy-700 text-white shadow-inner' : 'hover:bg-gray-100 text-gray-600'}`}
             title="Bild-Nummerierung (Marker) setzen"
           >
             <MapPin size={18} />
@@ -6275,26 +6314,8 @@ ${blockHtml}
 
         <div className="h-8 w-px bg-gray-300 mx-1"></div>
 
-        {/* --- KI-TEILAUFGABEN (Eigener Rahmen) --- */}
-        <div className="flex items-center gap-0 bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg transition-all">
-          <input 
-            type="number" 
-            min="1" 
-            max="10" 
-            value={aiSubtaskCount} 
-            onChange={(e) => setAiSubtaskCount(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
-            className="w-6 bg-transparent text-center font-bold text-sm focus:outline-none text-gray-700"
-            title="Anzahl der zu generierenden Teilaufgaben"
-          />
-          <button onMouseDown={(e) => e.preventDefault()} onClick={handleAddSubTask} className="w-6 h-8 flex items-center justify-center hover:bg-gray-100 rounded transition-colors text-gray-600 font-bold" title="Teilaufgabe(n) hinzufügen">
-            <Plus size={16} />
-          </button>
-        </div>
-
-        <div className="h-8 w-px bg-gray-300 mx-1"></div>
-
         {/* --- TABELLEN-WERKZEUGE --- */}
-        <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-200 px-1 py-1 rounded-lg">
+        <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 px-1 py-1 rounded-lg">
           <button onMouseDown={(e) => e.preventDefault()} onClick={handleAddRow} className="w-10 h-8 flex items-center justify-center hover:bg-emerald-100 rounded transition-colors text-emerald-700" title="Zeile hinzufügen">
             <Plus size={14} /><span className="text-[10px] font-bold ml-0.5">Z</span>
           </button>
@@ -6311,17 +6332,18 @@ ${blockHtml}
       </div>
 
       {/* REIHE 2: Struktur, Format & Lösungs-Funktionen */}
-      <div className="flex flex-wrap items-center justify-center gap-3 w-full">
+      <div className="flex items-center justify-center gap-1.5 w-full">
         {/* --- STRUKTUR EINFÜGEN --- */}
-        <div className="flex items-center gap-1 bg-indigo-50 border border-indigo-200 px-1 py-1 rounded-lg">
+        <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 px-1 py-1 rounded-lg">
           <div className="relative" ref={structureMenuRef}>
             <button
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => { setShowStructureMenu(v => !v); setOpenSubject(null); }}
-              className="h-8 bg-white border border-indigo-300 rounded text-xs px-2 outline-none focus:border-indigo-500 font-bold text-indigo-800 hover:bg-indigo-50"
+              className="h-8 bg-white border border-[#0D47A1] rounded text-xs px-2 outline-none focus:border-[#082B72] font-bold text-[#0D47A1] hover:bg-blue-50 flex items-center gap-1 whitespace-nowrap"
             >
-              ➕ Struktur einfügen...
+              <Plus size={14} strokeWidth={2.5} />
+              <span>Struktur einfügen...</span>
             </button>
             {showStructureMenu && (() => {
               const pick = (id: string) => { handleAddTemplate(id); setShowStructureMenu(false); setOpenSubject(null); };
@@ -6332,14 +6354,14 @@ ${blockHtml}
                 { label: 'Sprachen', ids: ['abc_liste', 'bildgeschichte', 'dialog_luecken', 'geschichte', 'klassifizierung', 'konjugations_faecher', 'korrektur_zeile', 'klammer_luecken', 'lueckentext', 'professor_zipp', 'reimpaare', 'satz_transformator', 'suchsel', 'anstreichen', 'liste_zweispaltig', 'w_fragen', 'was_faellt_auf', 'eindringling'] },
                 { label: 'Allgemein', ids: ['checkbox-table', 'klassifizierung', 'kwl_chart', 'offene_frage', 'reflexion', 'table', 'suchsel', 't_chart', 'anstreichen', 'venn_diagramm', 'zeichnungsauftrag', 'ziel_checkliste'] },
               ];
-              const itemCls = "w-full text-left px-3 py-1.5 text-xs hover:bg-indigo-100 text-indigo-900 whitespace-nowrap";
+              const itemCls = "w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 text-[#0D47A1] whitespace-nowrap";
               return (
-                <div className="absolute bottom-full mb-1 left-0 z-50 bg-white border border-indigo-300 rounded shadow-lg min-w-[220px] py-1">
+                <div className="absolute bottom-full mb-1 left-0 z-50 bg-white border border-[#0D47A1] rounded shadow-lg min-w-[220px] py-1">
                   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick('text')} className={itemCls}>Textabschnitt</button>
                   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick('merkblatt')} className={itemCls}>Merkblatt (Box)</button>
                   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick('merkblatt2')} className={itemCls}>Merkblatt II (Regeln)</button>
                   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick('toc')} className={itemCls}>Inhaltsverzeichnis</button>
-                  <div className="border-t border-indigo-100 my-1" />
+                  <div className="border-t border-blue-200 my-1" />
                   {subjects.map(s => (
                     <div
                       key={s.label}
@@ -6356,7 +6378,7 @@ ${blockHtml}
                         <ChevronRight size={14} />
                       </button>
                       {openSubject === s.label && (
-                        <div className="absolute bottom-0 left-full ml-0 bg-white border border-indigo-300 rounded shadow-lg min-w-[240px] py-1 max-h-[70vh] overflow-y-auto">
+                        <div className="absolute bottom-0 left-full ml-0 bg-white border border-[#0D47A1] rounded shadow-lg min-w-[240px] py-1 max-h-[70vh] overflow-y-auto">
                           {s.ids.map(id => {
                             const t = byId(id);
                             if (!t) return null;
@@ -6383,56 +6405,87 @@ ${blockHtml}
         </div>
 
         {/* --- FORMATIERUNG --- */}
-        <div className="flex items-center gap-1 bg-blue-50 border border-blue-200 px-1 py-1 rounded-lg">
-          <select onMouseDown={() => saveSelection()} onChange={(e) => { insertFormatBlock(e.target.value); e.target.value = ''; }} className="h-8 bg-white border border-blue-300 rounded text-xs px-2 outline-none focus:border-blue-500 font-bold text-blue-800" value="" title="Text markieren = Format ändern · nichts markiert = neuen Block einfügen">
-            <option value="" disabled>Format wählen / einfügen...</option>
-            <option value="h1">Haupttitel (36pt)</option>
-            <option value="h2">Untertitel (20pt)</option>
-            <option value="h3">Aufgabentitel (14pt)</option>
-            <option value="p">Standardtext (12pt)</option>
-          </select>
+        <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 px-1 py-1 rounded-lg">
+          <div className="relative" ref={formatMenuRef}>
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); saveSelection(); }}
+              onClick={() => setShowFormatMenu(v => !v)}
+              className="h-8 bg-white border border-[#0D47A1] rounded text-xs px-2 outline-none focus:border-[#082B72] font-bold text-[#0D47A1] hover:bg-blue-50"
+              title="Text markieren = Format ändern · nichts markiert = neuen Block einfügen"
+            >
+              Format ▾
+            </button>
+            {showFormatMenu && (() => {
+              const pickFormat = (type: string) => { insertFormatBlock(type); setShowFormatMenu(false); };
+              const itemCls = "w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 text-[#0D47A1] whitespace-nowrap";
+              return (
+                <div className="absolute bottom-full mb-1 left-0 z-50 bg-white border border-[#0D47A1] rounded shadow-lg min-w-[200px] py-1">
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pickFormat('h1')} className={itemCls}>Haupttitel (36pt)</button>
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pickFormat('h2')} className={itemCls}>Untertitel (20pt)</button>
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pickFormat('h3')} className={itemCls}>Aufgabentitel (14pt)</button>
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pickFormat('p')} className={itemCls}>Standardtext (12pt)</button>
+                </div>
+              );
+            })()}
+          </div>
         </div>
 
-        <div className="flex items-center gap-1 bg-blue-50 border border-blue-200 px-1 py-1 rounded-lg">
-          <span className="text-sm font-bold text-blue-800 mr-1 hidden lg:block">Lösungen:</span>
-          <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={markAsAnswer} className="px-2 h-8 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded transition-colors" title="Markierten Text als Lösung kennzeichnen">Markieren</button>
-          <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={markAsGapLine} className="px-2 h-8 flex items-center justify-center bg-white border border-blue-300 text-blue-600 hover:bg-blue-100 text-xs font-bold rounded transition-colors" title="Lücke einfügen">Lücke</button>
-          <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={markAsStrikethrough} className="px-2 h-8 flex items-center justify-center bg-white border border-blue-300 text-blue-600 hover:bg-blue-100 text-xs font-bold rounded transition-colors" title="Wort durchstreichen (Lösung)">Durchstr.</button>
-          <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={markAsHighlight} className="px-2 h-8 flex items-center justify-center bg-white border border-blue-300 text-blue-600 hover:bg-blue-100 text-xs font-bold rounded transition-colors" title="Wort anstreichen (Lösung)">Anstreichen</button>
-          
-          <button onMouseDown={(e) => e.preventDefault()} onClick={toggleSolutions} className={`w-8 h-8 flex items-center justify-center rounded transition-colors border ${showSolutions ? 'bg-white border-blue-300 text-blue-600 hover:bg-blue-100' : 'bg-blue-600 border-blue-600 text-white'}`} title="Lösungen verbergen/anzeigen">
+        <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 px-1 py-1 rounded-lg">
+          <span className="text-[10px] font-bold text-[#0D47A1] mr-1 hidden lg:block uppercase tracking-wide">Lösungen</span>
+          <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={markAsAnswer} className="px-3 h-8 flex items-center justify-center bg-[#0D47A1] hover:bg-[#082B72] text-white text-xs font-bold rounded transition-colors" title="Markierten Text als Lösung kennzeichnen">Markieren</button>
+          <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={markAsGapLine} className="px-3 h-8 flex items-center justify-center bg-white border border-[#0D47A1] text-[#0D47A1] hover:bg-blue-50 text-xs font-bold rounded transition-colors" title="Lücke einfügen">Lücke</button>
+          <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={markAsStrikethrough} className="px-3 h-8 flex items-center justify-center bg-white border border-[#0D47A1] text-[#0D47A1] hover:bg-blue-50 text-xs font-bold rounded transition-colors" title="Wort durchstreichen (Lösung)">Durchstr.</button>
+          <button onMouseDown={(e) => { e.preventDefault(); saveSelection(); }} onClick={markAsHighlight} className="px-3 h-8 flex items-center justify-center bg-white border border-[#0D47A1] text-[#0D47A1] hover:bg-blue-50 text-xs font-bold rounded transition-colors" title="Wort anstreichen (Lösung)">Anstreichen</button>
+
+          <button onMouseDown={(e) => e.preventDefault()} onClick={toggleSolutions} className={`w-8 h-8 flex items-center justify-center rounded transition-colors border ${showSolutions ? 'bg-white border-[#0D47A1] text-[#0D47A1] hover:bg-blue-50' : 'bg-[#0D47A1] border-[#0D47A1] text-white'}`} title="Lösungen verbergen/anzeigen">
             {showSolutions ? <Eye size={18} /> : <EyeOff size={18} />}
           </button>
         </div>
       </div>
 
       {/* REIHE 3: Block-Steuerung & Zoom */}
-      <div className="flex flex-wrap items-center justify-center gap-3 w-full">
-        <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-lg">
-          <button onMouseDown={(e) => e.preventDefault()} onClick={handleOpenSmartPaste} className="px-3 h-8 flex items-center gap-1.5 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white text-xs font-bold rounded shadow-sm transition-all" title="Text aus Zwischenablage mit KI in eine Aufgabe umwandeln">
+      <div className="flex items-center justify-center gap-1.5 w-full">
+        <div className="flex items-center gap-2 bg-cyan-50 border border-cyan-200 px-2 py-1 rounded-lg">
+          <button onMouseDown={(e) => e.preventDefault()} onClick={handleOpenSmartPaste} className="px-5 h-8 flex items-center gap-1.5 bg-gradient-to-r from-sky-500 to-cyan-600 hover:from-sky-600 hover:to-cyan-700 text-white text-xs font-bold rounded shadow-sm transition-all whitespace-nowrap" title="Text aus Zwischenablage mit KI in eine Aufgabe umwandeln">
             <ClipboardPaste size={14} />
             <span>Smart-Paste</span>
           </button>
 
-          <button onMouseDown={(e) => e.preventDefault()} onClick={() => setShowAiModal(true)} className="px-3 h-8 flex items-center gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white text-xs font-bold rounded shadow-sm transition-all" title="KI generiert neue Aufgabe">
+          <button onMouseDown={(e) => e.preventDefault()} onClick={() => setShowAiModal(true)} className="px-5 h-8 flex items-center gap-1.5 bg-gradient-to-r from-cyan-500 to-navy-700 hover:from-cyan-600 hover:to-navy-800 text-white text-xs font-bold rounded shadow-sm transition-all whitespace-nowrap" title="KI generiert neue Aufgabe">
             <Sparkles size={14} />
             <span>KI-Aufgabe</span>
           </button>
 
-          <div className="flex items-center gap-1 border-l border-indigo-200 pl-2 ml-1">
-            <button onMouseDown={(e) => e.preventDefault()} onClick={handleCopyBlock} className="w-8 h-8 flex items-center justify-center hover:bg-indigo-100 rounded transition-colors text-indigo-600" title="Block kopieren">
+          <div className="flex items-center gap-0 h-8 px-1 bg-gradient-to-r from-navy-700 to-cyan-500 hover:from-navy-800 hover:to-cyan-600 rounded shadow-sm transition-all">
+            <input
+              type="number"
+              min="1"
+              max="10"
+              value={aiSubtaskCount}
+              onChange={(e) => setAiSubtaskCount(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+              className="w-6 bg-transparent hover:bg-white/20 focus:bg-white/20 rounded text-center font-bold text-xs focus:outline-none text-white h-6 transition-colors"
+              title="Anzahl der zu generierenden Teilaufgaben"
+            />
+            <button onMouseDown={(e) => e.preventDefault()} onClick={handleAddSubTask} className="w-6 h-6 flex items-center justify-center text-white hover:bg-white/10 rounded transition-colors" title="Teilaufgabe(n) hinzufügen">
+              <Plus size={14} strokeWidth={3} />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1 border-l border-cyan-200 pl-2 ml-1">
+            <button onMouseDown={(e) => e.preventDefault()} onClick={handleCopyBlock} className="w-8 h-8 flex items-center justify-center hover:bg-cyan-100 rounded transition-colors text-cyan-700" title="Block kopieren">
               <Copy size={18} />
             </button>
-            <button onMouseDown={(e) => e.preventDefault()} onClick={handlePasteBlock} className="w-8 h-8 flex items-center justify-center hover:bg-indigo-100 rounded transition-colors text-indigo-600" title="Block einfügen">
+            <button onMouseDown={(e) => e.preventDefault()} onClick={handlePasteBlock} className="w-8 h-8 flex items-center justify-center hover:bg-cyan-100 rounded transition-colors text-cyan-700" title="Block einfügen">
               <Clipboard size={18} />
             </button>
-            <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleMoveBlock('up')} className="w-8 h-8 flex items-center justify-center hover:bg-indigo-100 rounded transition-colors text-indigo-600" title="Block nach oben">
+            <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleMoveBlock('up')} className="w-8 h-8 flex items-center justify-center hover:bg-cyan-100 rounded transition-colors text-cyan-700" title="Block nach oben">
               <ArrowUp size={18} />
             </button>
-            <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleMoveBlock('down')} className="w-8 h-8 flex items-center justify-center hover:bg-indigo-100 rounded transition-colors text-indigo-600" title="Block nach unten">
+            <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleMoveBlock('down')} className="w-8 h-8 flex items-center justify-center hover:bg-cyan-100 rounded transition-colors text-cyan-700" title="Block nach unten">
               <ArrowDown size={18} />
             </button>
-            <button onMouseDown={(e) => e.preventDefault()} onClick={handleAddPageBreak} className="w-8 h-8 flex items-center justify-center hover:bg-indigo-100 rounded transition-colors text-indigo-600" title="Seitenumbruch einfügen">
+            <button onMouseDown={(e) => e.preventDefault()} onClick={handleAddPageBreak} className="w-8 h-8 flex items-center justify-center hover:bg-cyan-100 rounded transition-colors text-cyan-700" title="Seitenumbruch einfügen">
               <Scissors size={18} />
             </button>
             <button onMouseDown={(e) => e.preventDefault()} onClick={handleDeleteBlock} className="w-8 h-8 flex items-center justify-center hover:bg-red-100 text-red-600 rounded transition-colors" title="Block löschen">
@@ -6441,13 +6494,13 @@ ${blockHtml}
           </div>
 
           {/* --- ZOOM --- */}
-          <div className="flex items-center gap-1 border-l border-indigo-200 pl-2 ml-1">
-            <button onMouseDown={(e) => e.preventDefault()} onClick={handleZoomOut} className="w-10 h-8 flex items-center justify-center hover:bg-indigo-100 rounded transition-colors" title="Herauszoomen">
-              <ZoomOut size={18} className="text-indigo-600" />
+          <div className="flex items-center gap-0 border-l border-cyan-200 pl-2 ml-1">
+            <button onMouseDown={(e) => e.preventDefault()} onClick={handleZoomOut} className="w-7 h-8 flex items-center justify-center hover:bg-cyan-100 rounded transition-colors" title="Herauszoomen">
+              <ZoomOut size={18} className="text-cyan-700" />
             </button>
-            <span className="text-[10px] font-bold text-indigo-400 w-10 text-center">{Math.round(zoom * 100)}%</span>
-            <button onMouseDown={(e) => e.preventDefault()} onClick={handleZoomIn} className="w-10 h-8 flex items-center justify-center hover:bg-indigo-100 rounded transition-colors" title="Hineinzoomen">
-              <ZoomIn size={18} className="text-indigo-600" />
+            <span className="text-[10px] font-bold text-cyan-700 w-8 text-center">{Math.round(zoom * 100)}%</span>
+            <button onMouseDown={(e) => e.preventDefault()} onClick={handleZoomIn} className="w-7 h-8 flex items-center justify-center hover:bg-cyan-100 rounded transition-colors" title="Hineinzoomen">
+              <ZoomIn size={18} className="text-cyan-700" />
             </button>
           </div>
         </div>
