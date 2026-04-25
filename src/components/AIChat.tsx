@@ -962,7 +962,7 @@ Strukturiere das HTML wie folgt:
           >
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                msg.role === 'user' ? 'bg-cyan-100 text-cyan-700' : 'bg-cyan-100 text-cyan-700'
+                msg.role === 'user' ? 'bg-blue-50 text-blue-700' : 'bg-blue-50 text-blue-700'
               }`}
             >
               {msg.role === 'user' ? '👤' : '✨'}
@@ -1017,7 +1017,7 @@ Strukturiere das HTML wie folgt:
         ))}
         {(isGenerating || isGeneratingHtml) && (
           <div className="flex gap-3">
-            <div className="w-8 h-8 rounded-full bg-cyan-100 text-cyan-700 flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-700 flex items-center justify-center shrink-0">
               ✨
             </div>
             <div className="p-3 bg-white border border-gray-200 rounded-2xl rounded-tl-none shadow-sm max-w-[85%]">
