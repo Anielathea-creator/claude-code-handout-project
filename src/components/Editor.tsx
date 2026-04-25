@@ -33,6 +33,40 @@ if (typeof window !== 'undefined') {
   }, 500);
 }
 
+// Auswahl der Stil-Optionen für das Cover-Bild. Reihenfolge entspricht der Anzeige im Wizard.
+const COVER_IMAGE_STYLES: { id: string; label: string }[] = [
+  { id: 'aquarell', label: 'Aquarell' },
+  { id: 'gezeichnet', label: 'Gezeichnet' },
+  { id: 'realistisch', label: 'Realistisch' },
+  { id: 'farbschema', label: 'Im Farbschema' },
+  { id: 'retro', label: 'Retro' },
+  { id: 'comic', label: 'Comic' },
+];
+
+// Baut den Bild-Prompt für das Cover. Das Farbschema des Dossiers fließt nur ein,
+// wenn die Stil-Option "farbschema" gewählt ist – sonst soll der Stil unabhängig wirken.
+function buildCoverImagePrompt(motif: string, style: string, theme?: string): string {
+  const styleClause = (() => {
+    switch (style) {
+      case 'aquarell':
+        return 'Stil: Aquarellmalerei mit weichen, fließenden Farbverläufen.';
+      case 'gezeichnet':
+        return 'Stil: handgezeichnete Illustration mit klaren Bleistift- bzw. Tuschelinien.';
+      case 'realistisch':
+        return 'Stil: fotorealistische Darstellung mit natürlicher Beleuchtung.';
+      case 'farbschema':
+        return `Stil: reduzierte Illustration ausschließlich in Schattierungen des Farbschemas „${theme || 'Blau'}" (eine einzige Hauptfarbe in unterschiedlichen Helligkeiten, passend zum Dossier-Design).`;
+      case 'retro':
+        return 'Stil: Retro-Illustration im Look der 70er-Jahre mit gedämpften, warmen Farben.';
+      case 'comic':
+        return 'Stil: Comic- bzw. Cartoon-Illustration mit kräftigen Outlines und flachen Farbflächen.';
+      default:
+        return `Stil: ${style}.`;
+    }
+  })();
+  return `Ein professionelles Titelbild für ein Schuldossier. Motiv: ${motif}. ${styleClause} WICHTIG: Generiere absolut KEINEN Text, keine Buchstaben, keine Wörter und keine Banner im Bild. Das Bild darf nur grafische Elemente enthalten.`;
+}
+
 interface EditorProps {
   html: string;
   onChange: (html: string) => void;
@@ -363,31 +397,35 @@ export function Editor({ html, onChange, theme, projectName, targetAudience, did
     { name: 'Grau', hex: '#4b5563' },
   ];
 
-  const THEME_TEXT_COLORS: Record<string, string> = {
-    cyan: '#0e7490',      // cyan-700
-    sky: '#0369a1',       // sky-700
-    blue: '#1d4ed8',      // blue-700
-    navy: '#192f82',      // navy-700 (custom)
-    lime: '#4d7c0f',      // lime-700
-    emerald: '#047857',   // emerald-700
-    olive: '#524e1c',     // olive-700 (custom)
-    petrol: '#134b5a',    // petrol-700 (custom)
-    yellow: '#a16207',    // yellow-700
-    amber: '#b45309',     // amber-700
-    orange: '#c2410c',    // orange-700
-    koralle: '#b42611',   // koralle-700 (custom)
-    lachs: '#9a2f19',     // lachs-700 (custom)
-    pink: '#be185d',      // pink-700
-    red: '#b91c1c',       // red-700
-    weinrot: '#741717',   // weinrot-700 (custom)
-    fuchsia: '#a21caf',   // fuchsia-700
-    violet: '#6d28d9',    // violet-700
-    braun: '#553114',     // braun-700 (custom)
-    neutral: '#404040',   // neutral-700
-    purple: '#7e22ce',    // purple-700
-    rose: '#be123c',      // rose-700
-    green: '#15803d',     // green-700
-  };
+  // Exakt dieselben Farben wie die Theme-Swatches im WizardModal (gleiche Hex-Werte).
+  // Reihenfolge ist auf den Farb-Picker abgestimmt: 7 + 7 + 6 in drei Reihen.
+  const THEME_TEXT_COLORS: { id: string; name: string; hex: string }[] = [
+    // Row 1: kühle / neutrale Töne
+    { id: 'cyan',    name: 'Türkis',     hex: '#22d3ee' }, // cyan-400
+    { id: 'sky',     name: 'Himmelblau', hex: '#38bdf8' }, // sky-400
+    { id: 'blue',    name: 'Blau',       hex: '#3b82f6' }, // blue-500
+    { id: 'navy',    name: 'Navy',       hex: '#192f82' }, // navy-700 (custom)
+    { id: 'petrol',  name: 'Petrol',     hex: '#186272' }, // petrol-600 (custom)
+    { id: 'neutral', name: 'Monochrom',  hex: '#404040' }, // neutral-700
+    { id: 'emerald', name: 'Smaragd',    hex: '#10b981' }, // emerald-500
+
+    // Row 2: warme Töne (Lachs → Olive)
+    { id: 'lachs',   name: 'Lachs',      hex: '#f07157' }, // lachs-400 (custom)
+    { id: 'koralle', name: 'Koralle',    hex: '#dc3315' }, // koralle-600 (custom)
+    { id: 'orange',  name: 'Orange',     hex: '#f97316' }, // orange-500
+    { id: 'amber',   name: 'Bernstein',  hex: '#f59e0b' }, // amber-500
+    { id: 'yellow',  name: 'Gelb',       hex: '#facc15' }, // yellow-400
+    { id: 'lime',    name: 'Limette',    hex: '#84cc16' }, // lime-500
+    { id: 'olive',   name: 'Olive',      hex: '#868324' }, // olive-500 (custom)
+
+    // Row 3: Rot / Pink / Magenta / Violett / Erd-Töne
+    { id: 'red',     name: 'Rot',        hex: '#ef4444' }, // red-500
+    { id: 'pink',    name: 'Pink',       hex: '#ec4899' }, // pink-500
+    { id: 'fuchsia', name: 'Magenta',    hex: '#d946ef' }, // fuchsia-500
+    { id: 'violet',  name: 'Violett',    hex: '#7c3aed' }, // violet-600
+    { id: 'weinrot', name: 'Weinrot',    hex: '#741717' }, // weinrot-700 (custom)
+    { id: 'braun',   name: 'Braun',      hex: '#8b5220' }, // braun-500 (custom)
+  ];
 
   const EMOJI_OPTIONS = [
     // Gesichter & Emotionen
@@ -422,6 +460,7 @@ export function Editor({ html, onChange, theme, projectName, targetAudience, did
   const [showRegenConfirm, setShowRegenConfirm] = useState(false);
   const [regenTarget, setRegenTarget] = useState<{img: HTMLImageElement, prompt: string} | null>(null);
   const [regenPromptDraft, setRegenPromptDraft] = useState('');
+  const [regenStyleDraft, setRegenStyleDraft] = useState('realistisch');
   const coverUploadInputRef = useRef<HTMLInputElement>(null);
 
   // KI-Bild-Bearbeitung: Doppelklick auf .ai-image-slot öffnet dieses Modal.
@@ -1844,18 +1883,57 @@ export function Editor({ html, onChange, theme, projectName, targetAudience, did
 
     saveHistoryState();
 
+    // A4-Höhe in CSS-Pixeln (29.7cm bei 96dpi). Pages haben kein hartes height,
+    // wachsen aber visuell, sobald sie mehr Inhalt enthalten als A4 hergibt –
+    // diese Schwelle nutzen wir, um „voll" zu erkennen.
+    const A4_PX = 29.7 * 37.795275591;
+    const pageOverflows = (page: Element) => (page as HTMLElement).offsetHeight > A4_PX;
+
     if (direction === 'up') {
       if (blockToMove.previousElementSibling) {
         // Normal case: swap with previous sibling within same page
         pageContainer.insertBefore(blockToMove, blockToMove.previousElementSibling);
       } else {
-        // At top of page: move to last position of previous page container
-        let prev = pageContainer.previousElementSibling;
-        while (prev && prev.classList.contains('page-break')) {
-          prev = prev.previousElementSibling;
+        // Block ist zuoberst auf seiner Seite → eine Block-Position weiter hoch
+        // bedeutet: Wechsel auf die vorherige Seite.
+        let prevPage = pageContainer.previousElementSibling;
+        while (prevPage && prevPage.classList.contains('page-break')) {
+          prevPage = prevPage.previousElementSibling;
         }
-        if (prev && prev !== dossierRoot) {
-          prev.appendChild(blockToMove);
+        if (prevPage && prevPage !== dossierRoot) {
+          // Schritt 1: Ans Ende der Vorseite hängen (bei leerer Vorseite landet
+          // er automatisch zuoberst, bei vorhandenen Blöcken nach dem letzten).
+          prevPage.appendChild(blockToMove);
+
+          // Schritt 2: Falls die Vorseite jetzt überläuft, den eigentlich auf
+          // ihr verbleibenden letzten Block (= jetzt vorletztes Element, denn
+          // blockToMove ist letztes) auf die ursprüngliche Seite verschieben.
+          let cascadeFrom: Element | null = null;
+          if (pageOverflows(prevPage)) {
+            const displaced = blockToMove.previousElementSibling as HTMLElement | null;
+            if (displaced) {
+              pageContainer.insertBefore(displaced, pageContainer.firstElementChild);
+              cascadeFrom = pageContainer;
+            }
+            // Falls displaced null ist, war blockToMove der einzige Block auf
+            // der Vorseite und er allein überläuft – Überlauf akzeptieren.
+          }
+
+          // Schritt 3: Kaskade. Solange die jeweils nächste betroffene Seite
+          // überläuft, schieben wir ihren letzten Block an den Anfang der
+          // darauffolgenden Seite. Bricht ab, wenn keine Folgeseite existiert.
+          let safety = 50; // Sicherheitsbremse gegen Endlosschleifen
+          while (cascadeFrom && pageOverflows(cascadeFrom) && safety-- > 0) {
+            let nextPage = cascadeFrom.nextElementSibling;
+            while (nextPage && nextPage.classList.contains('page-break')) {
+              nextPage = nextPage.nextElementSibling;
+            }
+            if (!nextPage || nextPage === dossierRoot) break;
+            const lastChild = cascadeFrom.lastElementChild;
+            if (!lastChild) break;
+            nextPage.insertBefore(lastChild, nextPage.firstElementChild);
+            cascadeFrom = nextPage;
+          }
         }
       }
     } else {
@@ -4369,11 +4447,12 @@ ${blockHtml}
         const ai = new GoogleGenAI({ apiKey });
 
         // Generate Image
+        const imagePrompt = buildCoverImagePrompt(coverImageDesc, coverImageStyle, theme);
         const imageResponse = await ai.models.generateContent({
           model: 'gemini-2.5-flash-image',
           contents: {
             parts: [
-              { text: `Ein professionelles Titelbild für ein Schuldossier. Motiv: ${coverImageDesc}. Stil: ${coverImageStyle}. Farbschema: ${theme || 'Blau'}. WICHTIG: Generiere absolut KEINEN Text, keine Buchstaben, keine Wörter und keine Banner im Bild. Das Bild darf nur grafische Elemente enthalten.` }
+              { text: imagePrompt }
             ]
           },
           config: {
@@ -4414,7 +4493,7 @@ ${blockHtml}
 
       const imageBlock = !coverNoImage
         ? `<div class="cover-draggable resizable-cover-image-wrapper" style="width: 300px; resize: both; overflow: hidden; position: absolute; left: 50%; top: 55%; transform: translate(-50%, -50%); cursor: move;">
-        <img src="${imgSrc}" data-prompt="${safePrompt}" class="cover-image w-full h-full object-contain border-2 border-gray-300 rounded-xl p-2 shadow-sm" style="cursor: move;" />
+        <img src="${imgSrc}" data-prompt="${safePrompt}" data-style="${coverImageStyle}" class="cover-image w-full h-full object-contain border-2 border-gray-300 rounded-xl p-2 shadow-sm" style="cursor: move;" />
       </div>`
         : '';
 
@@ -4505,7 +4584,7 @@ ${blockHtml}
     }
   };
 
-  const handleRegenerateCoverImage = async (imgElement: HTMLImageElement, prompt: string) => {
+  const handleRegenerateCoverImage = async (imgElement: HTMLImageElement, motif: string, style: string = 'realistisch') => {
     // Take snapshot before image regeneration
     onAddSnapshot('Vor Bild-Regenerierung');
 
@@ -4515,11 +4594,12 @@ ${blockHtml}
       imgElement.style.opacity = '0.4';
       imgElement.style.cursor = 'wait';
       imgElement.classList.add('animate-pulse');
-      
+
+      const fullPrompt = buildCoverImagePrompt(motif, style, theme);
       const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
       const imageResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
-        contents: [{ text: prompt }],
+        contents: [{ text: fullPrompt }],
         config: { imageConfig: { aspectRatio: "1:1" } }
       });
 
@@ -4921,8 +5001,10 @@ ${blockHtml}
     // Handle cover image change on double-click (regenerate or upload own image)
     if (target.tagName === 'IMG' && target.classList.contains('cover-image')) {
       const prompt = target.getAttribute('data-prompt') || '';
+      const style = target.getAttribute('data-style') || 'realistisch';
       setRegenTarget({ img: target as HTMLImageElement, prompt });
       setRegenPromptDraft(prompt);
+      setRegenStyleDraft(style);
       setShowRegenConfirm(true);
       return;
     }
@@ -5376,13 +5458,13 @@ ${blockHtml}
                       <div>
                         <label className="block text-sm font-bold text-navy-800 mb-2 ml-1 uppercase tracking-wider">Stil der Abbildung</label>
                         <div className="grid grid-cols-3 gap-3">
-                          {['aquarell', 'gezeichnet', 'realistisch', 'clipart', 'retro', 'comic'].map(style => (
+                          {COVER_IMAGE_STYLES.map(({ id, label }) => (
                             <button
-                              key={style}
-                              onClick={() => setCoverImageStyle(style)}
-                              className={`p-3 rounded-xl border-2 font-bold capitalize transition-all ${coverImageStyle === style ? 'border-blue-300 bg-blue-50 text-gray-800 shadow-md' : 'border-gray-100 hover:border-blue-200 text-gray-500'}`}
+                              key={id}
+                              onClick={() => setCoverImageStyle(id)}
+                              className={`p-3 rounded-xl border-2 font-bold transition-all ${coverImageStyle === id ? 'border-blue-300 bg-blue-50 text-gray-800 shadow-md' : 'border-gray-100 hover:border-blue-200 text-gray-500'}`}
                             >
-                              {style}
+                              {label}
                             </button>
                           ))}
                         </div>
@@ -5459,7 +5541,7 @@ ${blockHtml}
             <p className="text-gray-600 mb-4 leading-relaxed">
               Möchtest du das Titelbild neu generieren lassen oder ein eigenes Bild von deinem Computer einfügen?
             </p>
-            <div className="mb-6">
+            <div className="mb-4">
               <label className="block text-xs font-bold text-navy-800 mb-2 ml-1 uppercase tracking-wider">Bild-Prompt (anpassbar)</label>
               <textarea
                 value={regenPromptDraft}
@@ -5468,17 +5550,32 @@ ${blockHtml}
                 placeholder="Beschreibe das neue Bild..."
               />
             </div>
+            <div className="mb-6">
+              <label className="block text-xs font-bold text-navy-800 mb-2 ml-1 uppercase tracking-wider">Stil der Abbildung</label>
+              <select
+                value={regenStyleDraft}
+                onChange={(e) => setRegenStyleDraft(e.target.value)}
+                className="w-full border-2 border-cyan-100 rounded-2xl p-3 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 outline-none text-sm font-bold text-navy-800 bg-gray-50/50 shadow-inner transition-all"
+              >
+                {COVER_IMAGE_STYLES.map(({ id, label }) => (
+                  <option key={id} value={id}>{label}</option>
+                ))}
+              </select>
+            </div>
             <div className="flex flex-col gap-3">
               <button
                 onClick={() => {
                   const p = regenPromptDraft.trim();
+                  const s = regenStyleDraft;
                   if (regenTarget && p) {
                     regenTarget.img.setAttribute('data-prompt', p);
-                    handleRegenerateCoverImage(regenTarget.img, p);
+                    regenTarget.img.setAttribute('data-style', s);
+                    handleRegenerateCoverImage(regenTarget.img, p, s);
                   }
                   setShowRegenConfirm(false);
                   setRegenTarget(null);
                   setRegenPromptDraft('');
+                  setRegenStyleDraft('realistisch');
                 }}
                 disabled={!regenPromptDraft.trim()}
                 className={`w-full py-3 font-black rounded-2xl shadow-lg transition-all transform active:scale-95 ${regenPromptDraft.trim() ? 'bg-navy-700 hover:bg-navy-800 text-white shadow-cyan-100' : 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'}`}
@@ -5494,7 +5591,7 @@ ${blockHtml}
                 📁 Eigenes Bild einfügen
               </button>
               <button
-                onClick={() => { setShowRegenConfirm(false); setRegenTarget(null); setRegenPromptDraft(''); }}
+                onClick={() => { setShowRegenConfirm(false); setRegenTarget(null); setRegenPromptDraft(''); setRegenStyleDraft('realistisch'); }}
                 className="w-full py-3 text-gray-500 hover:text-gray-700 font-bold transition-colors"
               >
                 Abbrechen
@@ -5515,12 +5612,14 @@ ${blockHtml}
                     onAddSnapshot('Vor eigenes Bild einfügen');
                     regenTarget.img.src = dataUrl;
                     regenTarget.img.removeAttribute('data-prompt');
+                    regenTarget.img.removeAttribute('data-style');
                     regenTarget.img.setAttribute('data-custom-upload', 'true');
                     saveHistoryState();
                   }
                   setShowRegenConfirm(false);
                   setRegenTarget(null);
                   setRegenPromptDraft('');
+                  setRegenStyleDraft('realistisch');
                 };
                 reader.readAsDataURL(file);
                 e.target.value = '';
@@ -5596,7 +5695,7 @@ ${blockHtml}
             <button
               onClick={handleAiImagePlaceholder}
               disabled={isRegeneratingAiImage}
-              className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl shadow transition-all transform active:scale-95 mb-3 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3 bg-navy-700 hover:bg-navy-800 text-white font-black rounded-2xl shadow-lg shadow-cyan-100 transition-all transform active:scale-95 mb-3 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               ✏️ Platzhalter für Zeichnung
             </button>
@@ -6240,23 +6339,37 @@ ${blockHtml}
             
             {showColorPicker && (
               <div className="absolute bottom-full left-0 mb-2 bg-white border border-gray-200 rounded-xl shadow-xl p-3 w-64 z-[60]">
-                {theme && THEME_TEXT_COLORS[theme] && (
-                  <>
-                    <div className="text-[10px] uppercase font-bold text-gray-400 mb-2 tracking-wider">Aktuelles Farbschema</div>
-                    <div className="flex gap-1.5 mb-3">
-                      <button
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => applyTextColor(THEME_TEXT_COLORS[theme])}
-                        className="w-6 h-6 rounded border border-gray-200 hover:scale-110 transition-transform"
-                        style={{ backgroundColor: THEME_TEXT_COLORS[theme] }}
-                        title={`Thema: ${theme}`}
-                      />
-                    </div>
-                  </>
-                )}
+                <div className="text-[10px] uppercase font-bold text-gray-400 mb-2 tracking-wider">Farbschemata</div>
+                <div className="flex flex-wrap gap-x-1.5 gap-y-1 mb-3">
+                  {THEME_TEXT_COLORS.map((t) => (
+                    <button
+                      key={t.id}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => applyTextColor(t.hex)}
+                      className="w-6 h-6 rounded border border-gray-200 hover:scale-110 transition-transform"
+                      style={{ backgroundColor: t.hex }}
+                      title={t.name}
+                    />
+                  ))}
+                  <label
+                    onMouseDown={(e) => e.preventDefault()}
+                    className="w-6 h-6 rounded border border-gray-200 hover:scale-110 transition-transform cursor-pointer relative overflow-hidden"
+                    style={{
+                      background:
+                        'conic-gradient(from 0deg, #ef4444, #f59e0b, #facc15, #84cc16, #10b981, #22d3ee, #3b82f6, #7c3aed, #d946ef, #ec4899, #ef4444)',
+                    }}
+                    title="Eigene Farbe wählen"
+                  >
+                    <input
+                      type="color"
+                      onChange={(e) => applyTextColor(e.target.value)}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                    />
+                  </label>
+                </div>
 
                 <div className="text-[10px] uppercase font-bold text-gray-400 mb-2 tracking-wider">Standardfarben</div>
-                <div className="flex flex-wrap gap-1.5 mb-3">
+                <div className="flex flex-wrap gap-x-1.5 gap-y-1 mb-3">
                   {STANDARD_TEXT_COLORS.map((color) => (
                     <button
                       key={color.hex}

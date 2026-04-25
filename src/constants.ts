@@ -600,7 +600,7 @@ export const EXERCISE_TEMPLATES: ExerciseTemplate[] = [
     html: `<div class="avoid-break mb-8 text-[12pt]">
   <h3 class="editable font-bold text-[14pt] mb-6 text-THEME-700" contenteditable="true">Aufgabe: Ausführlicher Steckbrief</h3>
   <div class="overflow-hidden">
-    <div class="ai-image-slot resize overflow-hidden w-1/3 float-left mr-6 mb-4 border-2 border-dashed border-gray-400 rounded-xl min-h-[180px] flex items-center justify-center text-gray-400 bg-gray-50 editable image-placeholder-trigger cursor-pointer hover:bg-gray-100 transition-colors" contenteditable="true" title="Doppelklick für Bild-Optionen – Ecke unten rechts zum Vergrößern">
+    <div class="ai-image-slot resize overflow-hidden w-1/3 float-left mr-6 mb-4 rounded-lg flex items-center justify-center bg-gray-50 text-gray-400 editable cursor-pointer hover:bg-gray-100 transition-colors image-placeholder-trigger" contenteditable="true" title="Doppelklick für Bild-Optionen – Ecke unten rechts zum Vergrößern">
       [Bild]
     </div>
     <div class="mb-4">
