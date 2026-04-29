@@ -56,6 +56,14 @@ export default function App() {
 
   const activeProject = projects.find(p => p.id === activeProjectId);
 
+  useEffect(() => {
+    const splash = document.getElementById('splash');
+    if (splash) {
+      splash.classList.add('fade-out');
+      setTimeout(() => splash.remove(), 500);
+    }
+  }, []);
+
   const handleAddSnapshot = useCallback((name: string) => {
     if (!activeProjectId || !activeProject) return;
     const newSnapshot = {
