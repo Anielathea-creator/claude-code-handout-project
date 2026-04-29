@@ -2985,7 +2985,7 @@ ${blockHtml}
       const response = await fetch('/api/pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ html: dossierHtml, projectName: projectName || 'Dossier' }),
+        body: JSON.stringify({ html: dossierHtml, projectName: projectName || 'Dossier', hideSolutions: !showSolutions }),
       });
 
       if (!response.ok) {

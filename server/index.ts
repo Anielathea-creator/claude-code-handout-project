@@ -64,7 +64,7 @@ html, body { margin: 0 !important; padding: 0 !important; background: white !imp
 `;
 
 app.post('/api/pdf', async (req: Request, res: Response) => {
-  const { html, projectName } = req.body as { html?: string; projectName?: string };
+  const { html, projectName, hideSolutions } = req.body as { html?: string; projectName?: string; hideSolutions?: boolean };
   if (!html || typeof html !== 'string') {
     return res.status(400).json({ error: 'html (string) is required' });
   }
@@ -91,7 +91,7 @@ app.post('/api/pdf', async (req: Request, res: Response) => {
     // .is-strikethrough-answer, .gap-line, table td {height}, usw.).
     // Stattdessen: #dossier-root auf body-Ebene verschieben, Geschwister ausblenden,
     // Inhalt tauschen.
-    await page.evaluate((dossierHtml: string, printStyles: string) => {
+    await page.evaluate((dossierHtml: string, printStyles: string, hide: boolean) => {
       const root = document.getElementById('dossier-root');
       if (!root) throw new Error('#dossier-root not found in app shell');
       document.body.appendChild(root);
@@ -101,11 +101,16 @@ app.post('/api/pdf', async (req: Request, res: Response) => {
         }
       });
       root.innerHTML = dossierHtml;
+      if (hide) {
+        root.classList.add('hide-solutions');
+      } else {
+        root.classList.remove('hide-solutions');
+      }
       const style = document.createElement('style');
       style.setAttribute('data-print-shell', 'true');
       style.textContent = printStyles;
       document.head.appendChild(style);
-    }, html, PRINT_STYLES);
+    }, html, PRINT_STYLES, !!hideSolutions);
 
     // Fonts + images settle
     await page.evaluate(() => (document as any).fonts?.ready);
