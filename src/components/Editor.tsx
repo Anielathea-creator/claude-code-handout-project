@@ -6,6 +6,7 @@ import { Snapshot } from '../types';
 import { EXERCISE_TEMPLATES } from '../constants';
 import { renderAudiencePromptBlock, type AudienceLevel } from '../lib/audienceProfiles';
 import { renderDidacticPromptBlock, type DidacticApproach, type DidacticScope } from '../lib/didacticProfiles';
+import { generateImage, type AspectRatio } from '../lib/imageGen';
 import { 
   ZoomIn, ZoomOut, Plus, Minus, Trash2, Copy, Clipboard, ClipboardPaste,
   ArrowUp, ArrowDown, Scissors, Image, Sparkles,
@@ -312,6 +313,11 @@ export function Editor({ html, onChange, theme, projectName, targetAudience, did
   const [aiPrompt, setAiPrompt] = useState('');
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [aiError, setAiError] = useState('');
+  const [showAiFrameModal, setShowAiFrameModal] = useState(false);
+  const [aiFrameDescription, setAiFrameDescription] = useState('');
+  const [aiFrameError, setAiFrameError] = useState('');
+  const [isGeneratingFrame, setIsGeneratingFrame] = useState(false);
+  const aiFrameTargetRef = useRef<HTMLElement | null>(null);
   const [showSmartPasteModal, setShowSmartPasteModal] = useState(false);
   const [smartPasteText, setSmartPasteText] = useState('');
   const [smartPasteGoal, setSmartPasteGoal] = useState('');
@@ -354,6 +360,7 @@ export function Editor({ html, onChange, theme, projectName, targetAudience, did
     { id: 'welle', name: 'Wellen', icon: '🌊', description: 'Blaue Wellen' },
     { id: 'vintage', name: 'Vintage', icon: '📜', description: 'Viktorianische Verzierungen' },
     { id: 'abstract', name: 'Abstrakt gemalt', icon: '🎨', description: 'Abstrakte Pinselstriche' },
+    { id: 'ai-custom', name: 'KI-Rahmen (Nano Banana)', icon: '🍌', description: 'Eigenen Rahmen mit KI generieren' },
     { id: 'none', name: 'Kein Rahmen', icon: '🗑️', description: 'Rahmen entfernen' },
   ];
 
@@ -1883,11 +1890,32 @@ export function Editor({ html, onChange, theme, projectName, targetAudience, did
 
     saveHistoryState();
 
-    // A4-Höhe in CSS-Pixeln (29.7cm bei 96dpi). Pages haben kein hartes height,
-    // wachsen aber visuell, sobald sie mehr Inhalt enthalten als A4 hergibt –
-    // diese Schwelle nutzen wir, um „voll" zu erkennen.
-    const A4_PX = 29.7 * 37.795275591;
-    const pageOverflows = (page: Element) => (page as HTMLElement).offsetHeight > A4_PX;
+    // Pages haben eine FIXE height (29.7cm) mit overflow: clip. Das macht
+    // offsetHeight UND scrollHeight unbrauchbar – beide liefern bei clip
+    // im Chrome ~clientHeight, unabhängig vom tatsächlichen Inhalt.
+    // Stattdessen messen wir geometrisch: getBoundingClientRect ignoriert
+    // Overflow-Clipping und liefert die echten Render-Koordinaten. Wir
+    // vergleichen den unteren Rand des letzten Block-Kindes mit der unteren
+    // Kante der nutzbaren Innenfläche (Page-Höhe minus padding-bottom).
+    const pageOverflows = (page: Element) => {
+      const pageEl = page as HTMLElement;
+      const children = Array.from(pageEl.children).filter(
+        c => !(c as HTMLElement).classList.contains('page-break'),
+      );
+      if (children.length === 0) return false;
+
+      const pageRect = pageEl.getBoundingClientRect();
+      const pageStyles = window.getComputedStyle(pageEl);
+      const paddingBottom = parseFloat(pageStyles.paddingBottom) || 0;
+
+      const lastChild = children[children.length - 1] as HTMLElement;
+      const lastRect = lastChild.getBoundingClientRect();
+
+      const lastBottomFromPageTop = lastRect.bottom - pageRect.top;
+      const usableHeight = pageRect.height - paddingBottom;
+
+      return lastBottomFromPageTop > usableHeight + 2;
+    };
 
     if (direction === 'up') {
       if (blockToMove.previousElementSibling) {
@@ -3396,6 +3424,126 @@ ${blockHtml}
     setAiPrompt('');
     setAiError('');
     setNotification({ message: 'KI-Aufgabe an Chat gesendet', type: 'success' });
+  };
+
+  const applyAiFrame = (block: HTMLElement, dataUrl: string) => {
+    saveHistoryState();
+
+    block.style.position = 'relative';
+    block.style.zIndex = '0';
+    block.style.overflow = 'visible';
+    block.classList.add('avoid-break');
+
+    let contentWrapper = block.querySelector('.content-wrapper') as HTMLElement | null;
+    if (!contentWrapper) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'content-wrapper p-8 relative z-0';
+      while (block.firstChild) {
+        wrapper.appendChild(block.firstChild);
+      }
+      block.appendChild(wrapper);
+      contentWrapper = wrapper;
+    }
+    contentWrapper.style.padding = '60px';
+
+    const oldOverlay = block.querySelector('.frame-overlay');
+    if (oldOverlay) oldOverlay.remove();
+
+    const frameDiv = document.createElement('div');
+    frameDiv.className = 'frame-overlay';
+    frameDiv.style.position = 'absolute';
+    // Frame sitzt EXAKT auf der Block-Umrandung – keine Nachbar-Blöcke werden überdeckt.
+    frameDiv.style.inset = '0';
+    frameDiv.style.zIndex = '-1';
+    frameDiv.style.pointerEvents = 'none';
+    frameDiv.style.overflow = 'hidden';
+
+    const img = document.createElement('img');
+    img.src = dataUrl;
+    img.style.position = 'absolute';
+    img.style.inset = '0';
+    img.style.width = '100%';
+    img.style.height = '100%';
+    img.style.objectFit = 'fill';
+    img.style.pointerEvents = 'none';
+    // Weißes Zentrum durch multiply-Blend optisch unsichtbar machen.
+    img.style.mixBlendMode = 'multiply';
+
+    // CSS-Maske: nur der äussere 50-px-Ring des Bildes bleibt sichtbar; das
+    // Zentrum wird hart weggeschnitten – egal was die KI dort generiert. Damit
+    // ist garantiert, dass der Frame-Text-Abstand nicht von der KI-Symmetrie abhängt.
+    const FRAME_PX = 50;
+    const horizontalMask = `linear-gradient(to right, black 0px, black ${FRAME_PX}px, transparent ${FRAME_PX}px, transparent calc(100% - ${FRAME_PX}px), black calc(100% - ${FRAME_PX}px), black 100%)`;
+    const verticalMask = `linear-gradient(to bottom, black 0px, black ${FRAME_PX}px, transparent ${FRAME_PX}px, transparent calc(100% - ${FRAME_PX}px), black calc(100% - ${FRAME_PX}px), black 100%)`;
+    const combinedMask = `${horizontalMask}, ${verticalMask}`;
+    img.style.maskImage = combinedMask;
+    img.style.maskComposite = 'add';
+    (img.style as any).webkitMaskImage = combinedMask;
+    (img.style as any).webkitMaskComposite = 'source-over';
+
+    frameDiv.appendChild(img);
+    block.appendChild(frameDiv);
+
+    saveHistoryState();
+  };
+
+  const handleGenerateAiFrame = async () => {
+    const userDescription = aiFrameDescription.trim();
+    if (!userDescription) return;
+
+    const block = aiFrameTargetRef.current;
+    if (!block || !document.body.contains(block)) {
+      setAiFrameError('Zielblock nicht mehr gefunden – bitte Modal schließen und erneut wählen.');
+      return;
+    }
+
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+      setAiFrameError('Kein API-Key gefunden (VITE_GEMINI_API_KEY).');
+      return;
+    }
+
+    const rect = block.getBoundingClientRect();
+    const ratio = rect.width / Math.max(rect.height, 1);
+    let aspectRatio: AspectRatio;
+    if (ratio > 1.5) aspectRatio = '16:9';
+    else if (ratio > 1.15) aspectRatio = '4:3';
+    else if (ratio < 0.67) aspectRatio = '9:16';
+    else if (ratio < 0.85) aspectRatio = '3:4';
+    else aspectRatio = '1:1';
+
+    setIsGeneratingFrame(true);
+    setAiFrameError('');
+
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      // User-Beschreibung ZUERST (Image-Modelle gewichten frühe Tokens stärker),
+      // danach harte Constraints zur Bildkomposition.
+      const framePrompt = [
+        `${userDescription}, arranged as a thin decorative picture frame border around the edges of the image.`,
+        `PERFECTLY SYMMETRIC: top, bottom, left and right edges must all have IDENTICAL decoration density, thickness and visual weight. All four sides equally rich, equally dark, equally detailed — no side heavier than another.`,
+        `STRICT COMPOSITION: only the outer 12% of the image (the four edges and corners) contains decoration.`,
+        `The CENTRAL 80% of the image MUST be solid pure white #FFFFFF — completely blank, no decorations, no patterns, no lines, no shapes, no colors — empty white space.`,
+        `Decoration hugs the outermost pixels of each edge tightly. Do NOT leave a white margin between the image edge and the decoration.`,
+        `Soft fade toward the inside, print-friendly, no text or letters in the image.`,
+      ].join(' ');
+
+      const result = await generateImage(ai, framePrompt, aspectRatio, { skipStyleSuffix: true });
+      if ('dataUrl' in result) {
+        applyAiFrame(block, result.dataUrl);
+        setIsGeneratingFrame(false);
+        setShowAiFrameModal(false);
+        setAiFrameDescription('');
+        aiFrameTargetRef.current = null;
+        setNotification({ message: 'KI-Rahmen angewendet', type: 'success' });
+      } else {
+        setAiFrameError(`Bildgenerierung fehlgeschlagen: ${result.error}`);
+        setIsGeneratingFrame(false);
+      }
+    } catch (err: any) {
+      setAiFrameError(`Fehler: ${err?.message || String(err)}`);
+      setIsGeneratingFrame(false);
+    }
   };
 
   const handleOpenSmartPaste = () => {
@@ -5287,6 +5435,73 @@ ${blockHtml}
         </div>
       )}
 
+      {/* AI FRAME MODAL (Nano Banana) */}
+      {showAiFrameModal && (
+        <div className="absolute inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4 overflow-y-auto backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] p-10 w-full max-w-3xl my-8 border border-cyan-200 animate-in fade-in zoom-in duration-300">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-black text-navy-900 flex items-center gap-3">
+                <span className="p-2 rounded-xl">🍌</span>
+                KI-Rahmen-Designer
+              </h2>
+              <button
+                onClick={() => { if (!isGeneratingFrame) setShowAiFrameModal(false); }}
+                disabled={isGeneratingFrame}
+                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all text-2xl font-bold disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-bold text-navy-800 mb-2 ml-1 uppercase tracking-wider">Wie soll der Rahmen aussehen?</label>
+                <p className="text-gray-500 text-sm mb-3 ml-1">Beschreibe den gewünschten Rahmen kurz – z. B. "Reifenspuren in Schwarz an den Rändern" oder "kindlich-bunte Sterne in den Ecken". Der Rahmen wird als Bild von Nano Banana erzeugt (~5-15 Sekunden).</p>
+                <textarea
+                  value={aiFrameDescription}
+                  onChange={(e) => setAiFrameDescription(e.target.value)}
+                  disabled={isGeneratingFrame}
+                  className="w-full border-2 border-cyan-100 rounded-2xl p-4 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 outline-none min-h-[160px] resize-y text-lg transition-all shadow-inner bg-gray-50/50 disabled:opacity-60"
+                  placeholder="Beschreibung des Rahmens eingeben..."
+                  autoFocus
+                />
+              </div>
+
+              {aiFrameError && (
+                <div className="p-4 bg-red-50 border-2 border-red-100 text-red-700 text-sm font-bold rounded-2xl flex items-center gap-3">
+                  <span className="text-xl">⚠️</span>
+                  {aiFrameError}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-4 pt-4">
+                <button
+                  onClick={() => { if (!isGeneratingFrame) setShowAiFrameModal(false); }}
+                  disabled={isGeneratingFrame}
+                  className="px-6 py-3 text-gray-500 hover:text-gray-700 font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={handleGenerateAiFrame}
+                  disabled={isGeneratingFrame || !aiFrameDescription.trim()}
+                  className="px-8 py-3 bg-gradient-to-r from-navy-700 via-petrol-600 to-cyan-500 hover:from-navy-800 hover:via-petrol-700 hover:to-cyan-600 text-white font-black rounded-2xl shadow-lg shadow-cyan-100 disabled:opacity-50 disabled:shadow-none transition-all flex items-center gap-2 transform active:scale-95"
+                >
+                  {isGeneratingFrame ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      Generiere Rahmen...
+                    </>
+                  ) : (
+                    <>🍌 Rahmen erstellen</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* SMART-PASTE MODAL */}
       {showSmartPasteModal && (
         <div className="absolute inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4 overflow-y-auto backdrop-blur-sm">
@@ -5774,7 +5989,7 @@ ${blockHtml}
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
           </div>
           <div>
-            <h1 className="font-black text-xl text-gray-800">Teacher Studio</h1>
+            <h1 className="font-black text-xl text-gray-800">AniTeach</h1>
           </div>
         </div>
         
@@ -5920,6 +6135,22 @@ ${blockHtml}
                             key={design.id}
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => {
+                              if (design.id === 'ai-custom') {
+                                if (!activeBlock) {
+                                  alert('Bitte wähle zuerst einen Block aus (klicke in eine Aufgabe).');
+                                  return;
+                                }
+                                let block = activeBlock;
+                                if (!block.classList.contains('avoid-break')) {
+                                  block = (block.closest('.avoid-break') as HTMLElement) || activeBlock;
+                                }
+                                aiFrameTargetRef.current = block;
+                                setAiFrameDescription('');
+                                setAiFrameError('');
+                                setShowAiFrameModal(true);
+                                setDesignDropdownOpen(false);
+                                return;
+                              }
                               handleApplyFrame(design.id);
                               setDesignDropdownOpen(false);
                             }}
@@ -6213,12 +6444,16 @@ ${blockHtml}
           width: 300px;
           min-width: 50px;
           max-width: 100%;
-          resize: both;
+          /* Höhe folgt dem Bild – kein vertikaler Resize, keine reservierte
+             Bottom-Padding-Lücke. Bereits gespeicherte inline heights werden
+             durch !important ignoriert, damit Altbestand keinen Spalt zeigt. */
+          height: auto !important;
+          resize: horizontal;
           overflow: hidden;
           border: 2px dashed transparent;
           padding: 2px;
           padding-right: 15px;
-          padding-bottom: 15px;
+          padding-bottom: 0;
           border-radius: 8px;
           transition: border-color 0.2s;
           vertical-align: middle;

@@ -1,5 +1,5 @@
 {
-  "name": "Teacher Studio",
-  "description": "Teacher Studio – Dashboard zum Erstellen, Verwalten und Bearbeiten von Unterrichts-Dossiers mit integriertem KI-Assistenten.",
+  "name": "AniTeach",
+  "description": "AniTeach – Dashboard zum Erstellen, Verwalten und Bearbeiten von Unterrichts-Dossiers mit integriertem KI-Assistenten.",
   "requestFramePermissions": []
 }

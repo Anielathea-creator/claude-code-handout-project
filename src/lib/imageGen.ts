@@ -37,17 +37,24 @@ export interface ImageGenError {
 
 /**
  * Erzeugt ein Bild und gibt die data-URL zurück.
+ *
+ * options.skipStyleSuffix=true: Sendet den Prompt ROH (ohne den
+ * Schul-Illustrations-Stil-Suffix). Nötig, wenn der Aufruf einen sehr
+ * spezifischen Stil verlangt – z.B. dekorative Rahmen.
  */
 export async function generateImage(
   client: GoogleGenAI,
   prompt: string,
   aspectRatio: AspectRatio = '4:3',
+  options?: { skipStyleSuffix?: boolean },
 ): Promise<ImageGenResult | ImageGenError> {
   if (!prompt?.trim()) {
     return { ok: false, error: 'Leerer Bild-Prompt.' };
   }
   try {
-    const fullPrompt = buildImagePrompt(prompt.trim(), aspectRatio);
+    const fullPrompt = options?.skipStyleSuffix
+      ? prompt.trim()
+      : buildImagePrompt(prompt.trim(), aspectRatio);
 
     const response = await withRetry(() =>
       client.models.generateContent({
